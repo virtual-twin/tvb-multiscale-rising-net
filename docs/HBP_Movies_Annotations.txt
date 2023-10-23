@@ -1,0 +1,115 @@
+-------------------------
+GENERIC INFO
+-------------------------
+Text starting with * should appear as written text over the movie, during the time-window indicated above.
+The rest of the content in this file, is to be spoken.
+If you find the english expressions not ideal, feel free to adjust, as long as the meaning is kept.
+If text is too long, pls notify me, and I will try to shorten it.
+Otherwise, the time-windows could be slightly adjusted, most of them are not very strict.
+
+Movies can be found here:
+https://drive.google.com/drive/folders/1azLcqIS2PoJG6rc5Ryi46OJOT8dUATHQ?usp=sharing
+
+
+-------------------------
+tvb-nest_usage_local.mov
+-------------------------
+00:00 -- 00:10
+    This video-tutorial is demonstrating the usage of TVB and NEST simulators locally.
+    We recommend you to download our docker image.
+    You can find its sources on github, at URL https://github.com/the-virtual-brain/tvb-multiscale
+
+00:11 -- 00:15
+    You should clone locally this repository. This is what we already did for this video.
+
+00:15 -- 00:45
+    With the local copy, make sure that in the Docker file, the command to launch Jupyter Notebook is uncommented,
+    and bind port 8888 from inside the container to a localhost port. Make sure that the context folder is set to ".".
+    Then launch docker, to run the container.
+
+* Alternatively use Docker Hub and this command:
+*  docker pull thevirtualbrain/tvb-nest
+*  docker run -d -p 8888:8888 thevirtualbrain/tvb-nest /home/docker/env/neurosci/bin/jupyter notebook --ip 0.0.0.0 --no-browser —allow-root
+
+00:46 -- 00:51
+    You should be able to see in the container logs that Notebook is running.
+
+00:52 -- 00:59
+    In a browser on your machine, access localhost with the port 8888
+
+01:00 -- 01:05
+    Password is set to tvb42
+
+* Password is 'tvb42'
+
+01:06 -- 01:14
+    Navigate to folder packages, then tvb-multiscale, tvb_nest, examples and notebooks.
+
+01:15 -- 01:19
+    Open the available notebook and work with it, as you would with regular Jupyter Notebooks
+
+* This notebook will be opened: https://github.com/dionperd/tvb-multiscale/tree/master/tvb_nest/examples/notebooks
+
+01:20 -- end
+    The notebook demonstrates the usage of tvb-nest package, via a simulation in which Wong-Wang models, with an
+    excitatory and an inhibitory population, are used for the TVB region nodes.
+    Two region nodes are modelled in NEST as networks of spiking neural populations, an excitatory and inhibitory one,
+    using the “gif_cond_exp” model.
+    A realistic cortical TVB large-scale connectivity is used that can be found in tvb-data Github repo.
+
+* More information in 'Ponce-Alvarez et al., 2014'
+* Dataset available at https://github.com/the-virtual-brain/tvb-data/tree/master/tvb_data/berlinSubjects/QL_20120814
+
+
+
+--------------------------------------------------
+tvb-nest_usage_on_collabhbp_and_cscs3.mp4
+--------------------------------------------------
+00:00 -- 00:15
+    	This video-tutorial is demonstrating the usage of TVB and NEST simulators on HBP Collaboratory, with CSCS computers as backend processing hardware. We need to have a CSCS account for this example to work
+First we should login with a valid HBP collab account. If you do not have an account on HBP collab, someone with a valid account needs to invite you on the platform.
+Unfortunately, this account is different than the CSCS account, and the two accounts need to be linked by the HBP infrastructure team. To achieve the linked accounts, we can write a request towards support@humanbrainproject.eu
+
+* https://services.humanbrainproject.eu/oidc/login
+* support@humanbrainproject.eu
+* More about CSCS: https://user.cscs.ch/tools/containers/
+
+00:15 -- 00:25
+After login, we  navigate to tab COLLABS, and search for “TVB NEST” entity.
+
+* https://collab.humanbrainproject.eu/#/collab/58136/nav/396819
+
+00:30 -- 00:35
+On the left-side, click on “Run a custom cosimulation” and we will see a demo notebook for launching tvb-nest simulations on the CSCS servers.
+
+00:35 -- 00:36
+    	On this notebook, we will use the “Run Cell” button in order to run a cell.
+
+00:37 -- 00:43
+	In the first cell we will configure the UNICORE API, by specify the HBP registry and the DAINT supercomputer.
+
+00:44 -- 00:55
+	In this step we will configure the job parameters, what shell script to launch and with what arguments. These files will be downloaded at run-time.
+
+00:56 -- 01:14
+One example for such a shell file can be found on tvb-nest Github page.
+*https://github.com/the-virtual-brain/tvb-multiscale/blob/master/docker/cosimulate_with_staging.sh
+	Sarus is an HPC correspondent to Docker client. Using this shell file first we ensure that we have the docker image downloaded locally, then we start a container using this image where we will execute the simulation.
+
+01:20 -- 01:36
+This notebook can be configured into what simulation to execute and with what parameters, through a Python script. Here we have the script public on our Github.
+   	 In this script, relevant are the configuration of TVB and NEST simulators, plus saving the results as numpy files at the end.
+* https://github.com/the-virtual-brain/tvb-multiscale/blob/master/docker/launch_example.py
+
+01:55 -- 02:21
+Returning to our notebook, we see that our job is running. In the first phase, our job will be in status ‘STAGINGIN’ where all the input files will be downloaded in the job’s working directory.
+
+02:22 -- 04:20
+	Next, the job will be in status ‘QUEUED’. In this phase we are waiting for the job scheduler to start the execution.
+
+04:21 -- 06:13
+	When the job is running we can check the ‘stdout’ file from the job’s working directory for the status of the execution.
+
+06:30 -- end
+    The rest of the cell, with go through the result files, and plot the most relevant results.
+
