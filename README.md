@@ -1,6 +1,5 @@
 # TVB-MULTISCALE-RISING_NET
 
-
 ## Getting started
 
 To make it easy for you to get started with GitLab, here's a list of recommended next steps.
@@ -95,7 +94,6 @@ If you have run out of energy or time for your project, put a note at the top of
 This package currently provides a solution to interface between TVB and NEST, ANNarchy or NETPYNE (NEURON) spiking networks for multiscale co-simulations.
 
 It tries to offer a generic way to interface between them and the TVB simulator.
- 
 
 # Project structure
 At the top-level, we have the following folders:
