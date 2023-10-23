@@ -138,7 +138,6 @@ venv.bak/
 /examples/notebooks/working_notebooks
 
 # Cerebellum Rising-Net related data files
-/rising_net/data/
 /rising_net/working_files/cwc*
 # CTWC package files
 /rising_net/ctwc-model-master
