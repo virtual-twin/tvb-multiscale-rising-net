@@ -1,138 +1,83 @@
+
 #
-# TVB & NEST, ANNarchy and NetPyNE (NEURON) simulations environment
+# TVB-multiscale (NEST, NETPYNE (NEURON), ANNarchy) simulations environment
 #
-# Install Python 3.10, NEST, ANNarchy, NEURON, NetPyNE, Elephant, PySpike, ray, and then tvb-root.
-# Finally link tvb-multiscale from Github sources
+# Install NEST from Docker registry, then the rest of tvb-multiscale dependencies.
+# Finally link tvb-multiscale from Github sources.
 #
 
-# Ubuntu 22.04 from NeuroDebian 02/09/2023:
-# https://hub.docker.com/layers/library/neurodebian/nd22.04/images/sha256-be7132784be260e212cf3adfa3dbcfad197e3b374d64199b6ad7f9437824f973?context=explore
-FROM neurodebian:nd22.04
+# Install NEST, latest stable version (December 2022)
+ARG NEST_VER=3.5
+ARG NEST_DESKTOP_HOST=0.0.0.0
+ARG NEST_DESKTOP_PORT=8000
+ARG NEST_SERVER_HOST=0.0.0.0
+ARG NEST_SERVER_MODULES=nest,numpy
+ARG NEST_SERVER_PORT=52425
+ARG NEST_SERVER_RESTRICTION_OFF=1
+ARG NEST_SERVER_STDOUT=1
+FROM docker-registry.ebrains.eu/nest/nest-simulator:$NEST_VER
 
-ENV DEBIAN_FRONTEND noninteractive
+MAINTAINER lia.domide@codemart.ro
+
+# ENV DEBIAN_FRONTEND noninteractive
 ENV LANG=C.UTF-8
 
-# TODO: Confirm this change:
-#Package python-dev is not available, but is referred to by another package.
-#This may mean that the package is missing, has been obsoleted, or
-#is only available from another source
-#However the following packages replace it:
-#  python2-dev python2 python-dev-is-python3
-RUN apt-get update; apt-get install -y automake libtool build-essential git vim octave \
-                       wget python3 libpython3.10 libpython3-dev libncurses5-dev libreadline-dev libgsl0-dev cython3 \
-                       python3-dev python3-numpy python3-scipy python3-matplotlib python3-pip python3-nose \
-                       ipython3 python3-venv python3-virtualenv python3-pyqt5 python-dev-is-python3 libgsl-dev libncurses-dev \
-                       python3-pkgconfig subversion cmake zip unzip make; \
-    apt-get clean
-
-RUN wget -q http://www.mpich.org/static/downloads/3.1.4/mpich-3.1.4.tar.gz \
-    && tar xf mpich-3.1.4.tar.gz \
-    && cd mpich-3.1.4 \
-    && ./configure --disable-fortran --enable-fast=all,O3 --prefix=/usr \
-    && make -j$(nproc) \
-    && make install \
-    && ldconfig \
-    && cd .. \
-    && rm -rf mpich-3.1.4 \
-    && rm mpich-3.1.4.tar.gz
+RUN apt-get update; apt-get install -y python3-venv python3-virtualenv git;
 
 # Create user different than root
 RUN useradd -ms /bin/bash docker
 USER docker
 ARG HOME=/home/docker
-RUN mkdir $HOME/packages
-RUN mkdir $HOME/build
+RUN mkdir $HOME/build; mkdir $HOME/packages
 ENV PACKAGES=$HOME/packages
 ENV BUILD=$HOME/build
 ENV BASEENV=/usr
-RUN mkdir $HOME/.local
 ENV LOCALENV=$HOME/.local
 ENV PYTHONPATH=$PYTHONPATH:$BASEENV:$LOCALENV
 ENV PATH="${BASEENV}/bin":"${LOCALENV}/bin":${PATH};
 
-# Basic python dependencies:
-RUN $BASEENV/bin/pip3 install --upgrade pip; \
-    $BASEENV/bin/pip3 install --upgrade nose ipython numpy scipy matplotlib; \
-    $BASEENV/bin/pip3 install parameters quantities neo "django<1.9" django-tagging future hgapi gitpython sumatra nixio numba gunicorn;
-
-# Install from sources libneurosim (NEST boost dependency)
-WORKDIR $PACKAGES
-RUN git clone --depth 1 https://github.com/INCF/libneurosim.git; \
-    cd libneurosim; ./autogen.sh;
-WORKDIR $BUILD
-RUN mkdir libneurosim; \
-    cd libneurosim; \
-    PYTHON=$BASEENV/bin/python $PACKAGES/libneurosim/configure --prefix=$BASEENV; \
-    make; make install; ls $BASEENV/lib $BASEENV/include;
-RUN ln -s /usr/lib/python3.10/config-x86_64-linux-gnu/libpython3.10.so $LOCALENV/lib/;
-
-# Install NEST, latest stable version 3.5
-ARG NEST_VER=3.5
-ARG NEST=nest-simulator
-ARG NEST_SRC=$PACKAGES/$NEST
-ARG NEST_INSTALL_DIR=$BUILD/nest
-ARG NEST_PYTHON_PREFIX=${NEST_INSTALL_DIR}/lib/python3.10/site-packages
-ARG NEST_MODULE_PATH=${NEST_INSTALL_DIR}/lib/nest
-
-# Install NEST 3.5:
-# https://github.com/nest/nest-simulator/commit/4e7a7559fd737a4d54a79d0006fc9ebec88ddefd
-WORKDIR $PACKAGES
-# ARG LAST_SHA_NEST=LATEST
-RUN git clone https://github.com/nest/nest-simulator.git
-RUN cd $NEST; \
-    git fetch origin && git checkout 4e7a7559fd737a4d54a79d0006fc9ebec88ddefd; \
-    cmake -DCMAKE_INSTALL_PREFIX=${NEST_INSTALL_DIR} \
-          -Dwith-mpi=ON  \
-          -Dwith-libneurosim=$LOCALENV \
-          -DPYTHON_LIBRARY=/usr/lib \
-          -DPYTHON_INCLUDE_DIR=/usr/include/python3.10m \
-          ${NEST_SRC}; \
-    make; make install
+# Create a dedicated Python env for working in it
+ENV VENV=$HOME/env/neurosci
+RUN $BASEENV/bin/pip3 install --upgrade pip;
+RUN $BASEENV/bin/pip3 install --upgrade nose;
 
 # Install NESTServerClient
-RUN $BASEENV/bin/pip3 install flask_cors RestrictedPython;
 WORKDIR $PACKAGES
 RUN git clone https://github.com/nest/nest-client.git
 RUN cd nest-client; \
      $BASEENV/bin/python3 setup.py install --user;
 
-# Install nestml
-WORKDIR $PACKAGES
-RUN $BASEENV/bin/pip3 install setuptools; \
-    git clone https://github.com/nest/nestml.git; \
-    cd nestml; \
-    $BASEENV/bin/python setup.py install --user;
-
-# Other (large) packages added for scientific work:
-RUN $BASEENV/bin/pip3 install plotly
-#RUN $BASEENV/bin/pip3 install torch
-#RUN $BASEENV/bin/pip3 install sbi
-# RUN $BASEENV/bin/pip3 install sbibm
-
-# Install TVB specific packages
-WORKDIR $PACKAGES
-RUN $BASEENV/bin/pip3 install pandas xarray pytest pytest-cov pytest-benchmark scikit-learn sqlalchemy numba dill; \
-    $BASEENV/bin/pip3 install --ignore-installed entrypoints; \
-    $BASEENV/bin/pip3 install werkzeug==2.0.1;
 
 # Install TVB-multiscale specific packages
-WORKDIR $PACKAGES
+
+# WORKDIR $PACKAGES
+
+# Install NEURON, NetPyNE and ANNarchy (and optionally pyNN)
 # Install NEURON and NetPyNE
 RUN $BASEENV/bin/pip3 install neuron
 RUN $BASEENV/bin/pip3 install netpyne
 # Install ANNarchy
-RUN $BASEENV/bin/pip3 install ANNarchy;
-# Install pyNN
-# RUN pip install pyNN
+# TODO: Find out why pip install doesn't work!
+# RUN $BASEENV/bin/pip3 install ANNarchy
+RUN $BASEENV/bin/pip3 install pyqtgraph pandoc tensorboardX;
+RUN $BASEENV/bin/pip3 install cython==0.29.36 --user;
+RUN git clone https://github.com/ANNarchy/ANNarchy.git
+RUN cd ANNarchy; \
+    $BASEENV/bin/python3 setup.py install --user;
+# RUN $BASEENV/bin/pip3 install pyNN
+# Install Pyspike:
+RUN $BASEENV/bin/pip3 install pyspike --user
 
-# Install PySpike
-WORKDIR $PACKAGES
-RUN git clone --depth 1 https://github.com/mariomulansky/PySpike.git; \
-    cd PySpike; \
-    $BASEENV/bin/python3 setup.py build_ext install --user;
-# Install Elephant
-WORKDIR $PACKAGES
-RUN $BASEENV/bin/pip3 install elephant;
+## Other (large) packages added for scientific work:
+RUN $BASEENV/bin/pip3 install plotly
+# RUN $BASEENV/bin/pip3 install torch
+# RUN $BASEENV/bin/pip3 install sbi
+# RUN $BASEENV/bin/pip3 install sbibm
+
+# Install TVB specific packages
+# WORKDIR $PACKAGES
+RUN $BASEENV/bin/pip3 install xarray pytest pytest-cov pytest-benchmark scikit-learn sqlalchemy numba dill; \
+    $BASEENV/bin/pip3 install --ignore-installed entrypoints;
 
 # Clone and install tvb-root
 ## TODO: Use Pypi for tvb-framework!!!
@@ -171,9 +116,10 @@ RUN cd tvb-multiscale; \
     git pull origin --allow-unrelated-histories; \
     $BASEENV/bin/python setup.py develop --no-deps --user;
 
+
 # Install Jupyter notebook specific packages
-# TODO: Resolve the need for notebook version 6.4.12
-RUN $BASEENV/bin/pip3 install jupyterlab notebook==6.4.12 ipympl jupyter_contrib_nbextensions --user;
+WORKDIR $PACKAGES
+RUN $BASEENV/bin/pip3 install jupyterlab notebook==6.4.12 ipympl jupyter_contrib_nbextensions;
 RUN $LOCALENV/bin/jupyter-contrib nbextension install --user;
 RUN $LOCALENV/bin/jupyter-nbextension enable --py widgetsnbextension;  # --sys-prefix
 # Due to this:
@@ -193,7 +139,8 @@ RUN $BASEENV/bin/pip3 install traitlets==5.9.0
 #ModuleNotFoundError: No module named 'matplotlib.docstring'
 RUN $BASEENV/bin/pip3 install matplotlib==3.5.3  # The version required by tvb-framework
 
-WORKDIR $PACKAGES
+# Checkout specific branch of tvb-multiscale
+# WORKDIR $PACKAGES
 RUN cd tvb-multiscale; \
     git checkout rising-net; \
     git pull --allow-unrelated-histories;
@@ -203,28 +150,40 @@ WORKDIR $PACKAGES
 RUN cd tvb-multiscale; \
     $LOCALENV/bin/nrnivmodl tvb_multiscale/tvb_netpyne/netpyne/mod;
 
-WORKDIR $PACKAGES
+## TODO: Solve problems with ray in this Docker image!
+## Install ray:
+#RUN $BASEENV/bin/pip3 install -U "ray"
 
-# Install ray:
-RUN $BASEENV/bin/pip3 install -U "ray"
-
+WORKDIR $HOME
 # Activate the right python env.
-ENV NEST_INSTALL_DIR=${NEST_INSTALL_DIR}
-ENV NEST_PYTHON_PREFIX=${NEST_PYTHON_PREFIX}
-ENV PYTHONPATH=$PYTHONPATH:${NEST_PYTHON_PREFIX}
-ENV PATH="${NEST_INSTALL_DIR}/bin":${PATH};
-# Note that the following are automatically reset if NEST is imported
-# via a call to  tvb_nest.simulator_nest.nest_factory.load_nest()
+ENV NEST_INSTALL_DIR=/opt/nest
+RUN . ${NEST_INSTALL_DIR}/bin/nest_vars.sh
+ENV NEST_PYTHON_PREFIX=${NEST_INSTALL_DIR}/lib/python3.10/site-packages
+ENV PYTHONPATH=$PYTHONPATH:$BASEENV:${NEST_PYTHON_PREFIX}
+## Note that the following are automatically reset if NEST is imported
+## via a call to  tvb_nest.simulator_nest.nest_factory.load_nest()
 ENV NEST_DATA_DIR=${NEST_INSTALL_DIR}/share/nest
 ENV SLI_PATH=${NEST_INSTALL_DIR}/share/nest/sli
 ENV NEST_MODULE_PATH=${NEST_MODULE_PATH}
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${NEST_MODULE_PATH}
 ENV NEST_DOC_DIR=${NEST_INSTALL_DIR}/share/doc/nest
 
-# Some configurations for NEST server:
-RUN mkdir $HOME/tmp;
-ENV NEST_SERVER_LOGFILE=$HOME/tmp/nest-server.log
-ENV NEST_SERVER_STDOUT=1
+ENV NEST_DESKTOP_HOST=${NEST_DESKTOP_HOST:-0.0.0.0}
+ENV NEST_DESKTOP_PORT=${NEST_DESKTOP_PORT:-8000}
+ENV NEST_SERVER_HOST=${NEST_SERVER_HOST:-0.0.0.0}
+ENV NEST_SERVER_MODULES=${NEST_SERVER_MODULES:-nest,numpy}
+ENV NEST_SERVER_PORT=${NEST_SERVER_PORT:-52425}
+ENV NEST_SERVER_RESTRICTION_OFF=${NEST_SERVER_RESTRICTION_OFF:-1}
+ENV NEST_SERVER_STDOUT=${NEST_SERVER_STDOUT:-1}
+
+ENV MUSIC_ROOT_DIR=/opt/music-install
+ENV MUSIC_ROOT=${MUSIC_ROOT_DIR}
+ENV MUSIC_PATH=${MUSIC_ROOT_DIR}
+ENV LD_LIBRARY_PATH=${MUSIC_PATH}/lib:$LD_LIBRARY_PATH
+ENV PATH=${MUSIC_PATH}/bin:$PATH
+ENV CPATH=${MUSIC_PATH}/include:$CPATH
+ENV PYTHONPATH=${MUSIC_PATH}/lib/python3.8/site-packages:$PYTHONPATH
+ENV PATH=$PATH:/usr/local/bin
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Run the following lines in case you want to install your own NEST module with NEST builders
@@ -233,7 +192,7 @@ ENV NEST_SERVER_STDOUT=1
 #WORKDIR $PACKAGES
 #RUN mkdir tvb-multiscale
 #COPY ./tvb-multiscale/ tvb-multiscale/
-#RUN cd tvb-multiscale; $BASEENV/bin/python3 setup.py develop --no-deps
+#RUN cd tvb-multiscale; $BASEENV/bin/python setup.py develop --no-deps
 ENV MYMODULES_DIR=$PACKAGES/tvb-multiscale/tvb_multiscale/tvb_nest/nest/modules
 ENV MYMODULES_BLD_DIR=$BUILD/nest_modules_builds
 RUN cp -r ${MYMODULES_DIR} ${MYMODULES_BLD_DIR}
@@ -251,12 +210,20 @@ RUN cp -r ${MYMODULES_DIR} ${MYMODULES_BLD_DIR}
 # Final configurations
 # tvb42
 RUN $LOCALENV/bin/jupyter-notebook --generate-config; \
-    echo "c.NotebookApp.password='sha1:12bff019c253:9daecd92c2e9bdb10b3b8a06767a74a0fe078d7c'">>/home/docker/.jupyter/jupyter_notebook_config.py
+    echo "c.NotebookApp.password='sha1:12bff019c253:9daecd92c2e9bdb10b3b8a06767a74a0fe078d7c'">>/home/docker/.jupyter/jupyter_notebook_config.py; \
+    echo "c.MultiKernelManager.default_kernel_name='neurosci'">>/home/docker/.jupyter/jupyter_notebook_config.py
+
+RUN ln -s /opt/bin/nest-server $LOCALENV/nest-server
 
 WORKDIR /home/docker/
 
+# Activate the right python env
+ENV PYTHONPATH $BASEENV
+ENV SLI_PATH $BASEENV
+RUN echo ". $BASEENV/bin/activate" >> .profile
+
 # For running examples
-# CMD $BASEENV/bin/python /home/docker/packages/tvb-multiscale/docker/installation_test.py
+#CMD $BASEENV/bin/python /home/docker/packages/tvb-multiscale/docker/installation_test.py
 # CMD $BASEENV/bin/python /home/docker/packages/tvb-multiscale/examples/tvb_nest/basal_ganglia_izhikevich.py.py
 # CMD $BASEENV/bin/python /home/docker/packages/tvb-multiscale/examples/tvb_nest/example.py
 
@@ -265,16 +232,16 @@ WORKDIR /home/docker/
 # CMD $BASEENV/bin/python /home/docker/packages/tvb-multiscale/docker/module_build_test.py
 
 # pynestml installation test:
-# CMD cd /home/docker/packages/nestml; $LOCALENV/bin/pytest setup.py test
+# CMD cd /home/docker/packages/nestml; $BASEENV/bin/pytest setup.py test
 
 # pyNN-NEST installation test:
-# CMD $LOCALENV/bin/python -c "import pyNN.nest as sim; sim.setup(); sim.end(); print(sim)";
+# CMD $BASEENV/bin/python -c "import pyNN.nest as sim; sim.setup(); sim.end(); print(sim)";
 
 #For running tests
-#CMD $LOCALENV/bin/pytest /home/docker/packages/tvb-multiscale/tests
+#CMD $BASEENV/bin/pytest /home/docker/packages/tvb-multiscale/tests
 
 #For running tests with coverage
-#CMD $LOCALENV/bin/pytest --cov=nest_tests_coverage /home/docker/packages/tvb-multiscale/tests
+#CMD $BASEENV/bin/pytest --cov=nest_tests_coverage /home/docker/packages/tvb-multiscale/tests
 
 #Run jupyter notebooks
 CMD $LOCALENV/bin/jupyter-notebook --ip 0.0.0.0 --no-browser --allow-root

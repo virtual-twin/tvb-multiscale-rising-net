@@ -227,8 +227,8 @@ def configure(**ARGS):
     if config.VERBOSE:
         print(config)
 
-    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config, file, recurse=1)
+    #with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
+        #dill.dump(config, file, recurse=1)
 
     return config, plotter
 

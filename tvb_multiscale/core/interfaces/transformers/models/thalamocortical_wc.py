@@ -7,8 +7,8 @@ import numpy as np
 from tvb.basic.neotraits.api import HasTraits
 from tvb.basic.neotraits._attr import NArray
 
-from tvb_multiscale.core.interfaces.base.transformers.models.base import SpikesToRates, LinearRate
-from tvb_multiscale.core.interfaces.base.transformers.models.elephant import \
+from tvb_multiscale.core.interfaces.transformers.models.base import SpikesToRates, LinearRate
+from tvb_multiscale.core.interfaces.transformers.models.elephant import \
     ElephantSpikesHistogram, ElephantSpikesHistogramRate, ElephantSpikesRate
 
 

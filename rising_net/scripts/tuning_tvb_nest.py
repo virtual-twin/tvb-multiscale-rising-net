@@ -6,11 +6,11 @@ Date: oct 2023
 Description: script for tuning TVB to NEST cosim interface
 """
 
-from examples.tvb_nest.notebooks.cerebellum.scripts.tvb_nest_script import *
+from tvb_nest_script import *
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
-from examples.tvb_nest.notebooks.cerebellum.scripts.nest_script import *        #build_NEST_network, plot_nest_results
+from nest_script import *        #build_NEST_network, plot_nest_results
 
 model_params = {'STIMULUS': 0.0, 'G': 6}        # Tuning is done at baseline
 
@@ -27,7 +27,7 @@ for tuned_value_tvb_nest in tuned_values_tvb_nest:
     config, plotter = configure(output_folder='nest_tvb_'+str(tuned_value_tvb_nest)+'_', verbose=2)
     print("config.NEST_PERIPHERY",config.NEST_PERIPHERY)
     config.model_params.update(model_params)
-    config.SIMULATION_LENGTH = 30000 #20000 30000
+    config.SIMULATION_LENGTH = 3 #20000 30000
     config.TRANSIENT_RATIO = 0.25
     config.MOSSY_MAX_RATE = 100
     config.w_TVB_to_NEST = tuned_value_tvb_nest

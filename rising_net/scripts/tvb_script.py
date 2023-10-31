@@ -1012,7 +1012,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                 per_variable=bold_ts.shape[1] > MAX_VARS_IN_COLS,
                                 figsize=FIGSIZE);
 
-    return results
+    return results, CxyR, fR, CxyL, fL
 
 
 def ansilob_affrerent_coupling_psd_rmse(ref_mossy_firing, afferent_ts, ftarg=None, transient=None):

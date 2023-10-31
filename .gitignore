@@ -139,6 +139,9 @@ venv.bak/
 
 # Cerebellum Rising-Net related data files
 /rising_net/working_files/cwc*
+/rising_net/data/balanced_DCN_IO.hdf5
+*pickle
+
 # CTWC package files
 /rising_net/ctwc-model-master
 
