@@ -117,7 +117,7 @@ def configure(**ARGS):
 
     # Simulation...
     config.SIMULATION_LENGTH = 2**10 + 1.0  # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
-    config.TRANSIENT_RATIO = 0.1
+    config.TRANSIENT_RATIO = 0.25
     config.NEST_PERIPHERY = False
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
@@ -160,8 +160,8 @@ def configure(**ARGS):
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
 
     # TVB - NEST interface parameters:
-    config.MOSSY_MAX_RATE = 100.0  # Hz
-    config.w_TVB_to_NEST = 0.65 
+    config.MOSSY_MAX_RATE = 122.0  # Hz
+    config.w_TVB_to_NEST = 0.04375
   
     # Fitting
     config.FIC = args['FIC']
