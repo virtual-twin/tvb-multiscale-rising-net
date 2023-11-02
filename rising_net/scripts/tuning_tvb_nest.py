@@ -21,8 +21,8 @@ from nest_script import *        # build_NEST_network, plot_nest_results
 #                 'PRIORS_DIST': 'uniform',
 #                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
-# # TVB - NEST interface parameters:
 # config.TRANSIENT_RATIO =0.25
+# # TVB - NEST interface parameters:
 # config.MOSSY_MAX_RATE = 122.0  # Hz
 # config.w_TVB_to_NEST = 0.04375
 
