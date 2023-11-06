@@ -218,7 +218,7 @@ class HasTraits(HasTraitsTVB):
         d = {}
         cls = type(self)
         for attr in list(cls.declarative_attrs):
-            d[attr] = getattr(self, d)
+            d[attr] = getattr(self, attr)
         return d
 
     def __setstate__(self, d):
