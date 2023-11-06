@@ -44,7 +44,7 @@ class GriffithsThalamoCortical(Model):
 
     is_cortical = NArray(
         label=":math:`is_cortical`",
-        dtype=np.bool,
+        dtype=bool,
         default=np.array([True]),
         doc="""Boolean flag vector for cortical regions""")
 
@@ -556,14 +556,14 @@ class WilsonCowanThalamoCortical(Model):
 
     is_cortical = NArray(
         label=":math:`is_cortical`",
-        dtype=np.bool,
+        dtype=bool,
         default=np.array([False]),
         required=False,
         doc="""Boolean flag vector for cortical regions""")
 
     is_thalamic = NArray(
         label=":math:`is_thalamic`",
-        dtype=np.bool,
+        dtype=bool,
         default=np.array([False]),
         doc="""Boolean flag vector for specific thalamic regions""")
 
@@ -1384,13 +1384,13 @@ class SigmoidalPreThalamoCortical(SigmoidalPre):
 
     is_thalamic = NArray(
         label=":math:`is_thalamic`",
-        dtype=np.bool,
+        dtype=bool,
         default=np.array([False]),
         doc="""Boolean flag vector for specific thalamic nuclei regions""")
 
     is_subcortical = NArray(
         label=":math:`is_subcortical`",
-        dtype=np.bool,
+        dtype=bool,
         default=np.array([False]),
         doc="""Boolean flag vector for subcortical regions, including specific thalamic nuclei ones""")
 
