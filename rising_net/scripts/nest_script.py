@@ -220,12 +220,13 @@ def build_NEST_network(config=None):
                 print("FAILED! Needing to compile it first!")
             import subprocess
             pwd = os.getcwd()
-            cereb_path = '/home/docker/packages/tvb-multiscale/tvb_multiscale/tvb_nest/nest/modules/cereb'
+            tvb_multiscale_base_path = pwd.split("rising_net")[0]
+            cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
             os.chdir(os.path.join(cereb_path, 'build'))
             # This is our shell command, executed by Popen.
             if config.VERBOSE:
                 print("Compiling cereb module...")
-            p = subprocess.Popen("cmake -Dwith-nest=/home/docker/env/neurosci/nest_build/bin/nest-config ..; make; make install",
+            p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
                                  stdout=subprocess.PIPE, shell=True)
             if config.VERBOSE:
                 print(p.communicate())
