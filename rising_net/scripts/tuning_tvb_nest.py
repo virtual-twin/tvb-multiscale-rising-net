@@ -80,3 +80,15 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
     # print("RMSE for TVB-NEST gains ", TUNED_VALUES_TVB_TO_NEST, " are ", RMSEs)
 
     return RMSE
+
+
+if __name__ == '__main__':
+    # Example use:
+    # $ python tuning_tvb_nest.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+    # Called tuning_tvb_nest.py with:
+    # keyword argument: w_TVB_to_NEST=world
+    # keyword argument: simulation_length=300.0
+
+    import sys
+
+    tuning_tvb_nest(**dict(arg.split('=') for arg in sys.argv[3:]))  # kwargs
