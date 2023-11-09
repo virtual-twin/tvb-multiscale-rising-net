@@ -1,17 +1,18 @@
 """
 File: tuning_tvb_nest_2023.py
-Author: Alice Geminiani 
+Author: Alice Geminiani
 Email: alice.geminiani@unipv.it
 Date: oct 2023
 Description: script for tuning TVB to NEST cosim interface
 """
 
-from tvb_nest_script import *
+from rising_net.scripts.tvb_nest_script import *
+from rising_net.scripts.nest_script import *  # build_NEST_network, plot_nest_results
+
 from tvb_multiscale.core.plot.plotter import Plotter
+from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
+
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
-
-from nest_script import *        # build_NEST_network, plot_nest_results
-
 
 # Assuming:
 # DEFAULT_ARGS = {'G': 6.0, 'STIMULUS': 0.1,
@@ -31,16 +32,15 @@ TUNED_VALUES_TVB_TO_NEST = [0.02, 0.04, 0.0425, 0.04375, 0.045, 0.05, 0.075, 0.1
 
 
 def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
+    # RMSEs = []
 
-# RMSEs = []
-
-# for w_TVB_to_NEST in TUNED_VALUES_TVB_TO_NEST:
+    # for w_TVB_to_NEST in TUNED_VALUES_TVB_TO_NEST:
     # Get configuration
-    config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST) + '_', verbose=2,
+    config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST), verbose=2,
                                 STIMULUS=0.0)  # We are fitting in resting state!!!
 
     config.w_TVB_to_NEST = w_TVB_to_NEST
-    config.MOSSY_MAX_RATE = kwargs.get("mossy_max_rate", config.MOSSY_MAX_RATE)     # 122.0 Hz
+    config.MOSSY_MAX_RATE = kwargs.get("mossy_max_rate", config.MOSSY_MAX_RATE)  # 122.0 Hz
     config.SIMULATION_LENGTH = kwargs.get("simulation_length", SIMULATION_LENGTH)
     config.TRANSIENT_RATIO = kwargs.get("transient_ratio", config.TRANSIENT_RATIO)  # 0.25
 
@@ -60,7 +60,7 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
     results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
 
     # Compute error
-    
+
     # Get spike events from NEST spike recorders
     events = nest_network.output_devices['mossy_fibers']['Right Ansiform lobule'].get_events()
 
@@ -72,14 +72,16 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
            (nest_network.output_devices['mossy_fibers']['Right Ansiform lobule'].number_of_neurons
             * duration)
     print("Approximate mossy_fibers rate during the last %g ms = %g" % (duration, rate))
-    RMSE = (rate-3.9)**2
+    RMSE = (rate - 3.9) ** 2
 
     print("RMSE for TVB-NEST gain = %g is %g" % (config.w_TVB_to_NEST, RMSE))
 
     # RMSEs.append(RMSE)
     # print("RMSE for TVB-NEST gains ", TUNED_VALUES_TVB_TO_NEST, " are ", RMSEs)
 
-    return RMSE
+    dump_pickled_dict({"mossy_rate": rate, "RMSE": RMSE}, os.path.join(config.out.FOLDER_RES, "rate_RMSE.pkl"))
+
+    return rate, RMSE
 
 
 if __name__ == '__main__':
@@ -91,4 +93,9 @@ if __name__ == '__main__':
 
     import sys
 
-    tuning_tvb_nest(**dict(arg.split('=') for arg in sys.argv[3:]))  # kwargs
+    kwargs = {}
+    for arg in sys.argv[1:]:
+        keyval = arg.split("=")
+        kwargs[keyval[0]] = float(keyval[1])
+
+    tuning_tvb_nest(**kwargs)
