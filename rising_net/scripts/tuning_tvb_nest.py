@@ -28,7 +28,7 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 # config.w_TVB_to_NEST = 0.04375
 
 SIMULATION_LENGTH = 30000.0
-TUNED_VALUES_TVB_TO_NEST = [0.02, 0.04, 0.0425, 0.04375, 0.045, 0.05, 0.075, 0.1]
+TUNED_VALUES_TVB_TO_NEST = [0.02, 0.03, 0.04, 0.0425, 0.04375, 0.045, 0.05, 0.06]
 
 
 def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
@@ -80,6 +80,10 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04375, **kwargs):
     # print("RMSE for TVB-NEST gains ", TUNED_VALUES_TVB_TO_NEST, " are ", RMSEs)
 
     dump_pickled_dict({"mossy_rate": rate, "RMSE": RMSE}, os.path.join(config.out.FOLDER_RES, "rate_RMSE.pkl"))
+
+    # Plot and save:
+    plot_tvb(transient, inds, results,
+             simulator=simulator, plotter=plotter, config=config, write_files=True)
 
     return rate, RMSE
 
