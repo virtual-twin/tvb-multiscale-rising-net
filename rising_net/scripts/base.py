@@ -228,7 +228,7 @@ def configure(**ARGS):
         print(config)
 
     with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config, file, recurse=1)
+        dill.dump(config.__dict__, file, recurse=1)
 
     return config, plotter
 
