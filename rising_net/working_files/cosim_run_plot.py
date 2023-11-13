@@ -43,6 +43,7 @@ def cosim_run_plot(**kwargs):
     config, plotter = configure(output_folder=path, verbose=2,
                                 DEFAULT_TVB_NOISE_SEED=seed,
                                 NEST_MASTER_SEED=143202461+seed,
+                                SIMULATION_LENGTH=kwargs.get("simulation_length", 30000.0),
                                 **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
