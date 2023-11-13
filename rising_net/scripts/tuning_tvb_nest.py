@@ -26,8 +26,6 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 # # TVB - NEST interface parameters:
 # config.MOSSY_MAX_RATE = 122.0  # Hz
 # config.w_TVB_to_NEST = 0.04
-# config.RANDOM_SEED_TVB = 10
-# config.RANDOM_SEED_NEST = 10
 
 SIMULATION_LENGTH = 30000.0
 TUNED_VALUES_TVB_TO_NEST = [0.02, 0.03, 0.04, 0.045, 0.05, 0.06]  # 0.0425, 0.04375,
@@ -39,14 +37,9 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04, **kwargs):
     # for w_TVB_to_NEST in TUNED_VALUES_TVB_TO_NEST:
     # Get configuration
     config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST), verbose=2,
-                                STIMULUS=0.0)  # We are fitting in resting state!!!
-
-    config.w_TVB_to_NEST = w_TVB_to_NEST
-    config.MOSSY_MAX_RATE = kwargs.get("mossy_max_rate", config.MOSSY_MAX_RATE)  # 122.0 Hz
-    config.SIMULATION_LENGTH = kwargs.get("simulation_length", SIMULATION_LENGTH)
-    config.TRANSIENT_RATIO = kwargs.get("transient_ratio", config.TRANSIENT_RATIO)  # 0.25
-    # config.RANDOM_SEED_TVB = 5
-    # config.RANDOM_SEED_NEST = 5
+                                STIMULUS=0.0,  # We are fitting in resting state!!!
+                                w_TVB_to_NEST=w_TVB_to_NEST,
+                                **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)

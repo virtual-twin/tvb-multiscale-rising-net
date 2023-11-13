@@ -110,14 +110,15 @@ def configure(**ARGS):
     # Integration
     config.DEFAULT_DT = 0.1
     config.DEFAULT_NSIG = 1e-4  # NOISE strength
-    config.DEFAULT_TVB_NOISE_SEED = 10
-    config.RANDOM_SEED_NEST = 10
+    config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42)
+    config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461)
     config.DEFAULT_STOCHASTIC_INTEGRATOR = EulerStochastic
     config.DEFAULT_INTEGRATOR = config.DEFAULT_STOCHASTIC_INTEGRATOR
 
     # Simulation...
-    config.SIMULATION_LENGTH = 2**10 + 1.0  # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
-    config.TRANSIENT_RATIO = 0.25
+    SIMULATION_LENGTH = 2**10 + 1.0  # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
+    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", SIMULATION_LENGTH)
+    config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.NEST_PERIPHERY = False
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
@@ -161,7 +162,7 @@ def configure(**ARGS):
 
     # TVB - NEST interface parameters:
     config.MOSSY_MAX_RATE = 122.0  # Hz
-    config.w_TVB_to_NEST = 0.04
+    config.w_TVB_to_NEST = args.get("w_TVB_to_NEST", 0.04)
   
     # Fitting
     config.FIC = args['FIC']

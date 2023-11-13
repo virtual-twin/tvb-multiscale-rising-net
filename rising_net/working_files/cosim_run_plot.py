@@ -26,7 +26,7 @@ def cosim_run_plot(**kwargs):
     # config.w_TVB_to_NEST = 0.04
 
     seed = int(kwargs.pop("seed", 10))
-    test_name = kwargs.get("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
+    test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
     if test_name=='cosim':
         COMPUTE_REF = False          # True if you want to run TVB-only
         CEREB_OFF = False
@@ -40,12 +40,10 @@ def cosim_run_plot(**kwargs):
     resfilename = "results_%s_noise_seed_%d" % (test_name, seed)
     path = os.path.join(os.getcwd(), resfilename)
     # Get configuration
-    config, plotter = configure(output_folder=path, verbose=0)
-    config.SIMULATION_LENGTH = kwargs.get("simulation_length", 30000.0)
-    config.RANDOM_SEED_TVB = seed
-    config.RANDOM_SEED_NEST = seed
-    config.VERBOSE = 2
-    print(config)
+    config, plotter = configure(output_folder=path, verbose=2,
+                                DEFAULT_TVB_NOISE_SEED=seed,
+                                NEST_MASTER_SEED=seed,
+                                **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
