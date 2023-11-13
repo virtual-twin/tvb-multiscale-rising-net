@@ -161,7 +161,7 @@ def configure(**ARGS):
 
     # TVB - NEST interface parameters:
     config.MOSSY_MAX_RATE = 122.0  # Hz
-    config.w_TVB_to_NEST = 0.04375
+    config.w_TVB_to_NEST = 0.04
   
     # Fitting
     config.FIC = args['FIC']
