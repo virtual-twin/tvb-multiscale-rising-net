@@ -27,10 +27,10 @@ def cosim_run_plot(**kwargs):
 
     seed = int(kwargs.pop("seed", 10))
     test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
-    if test_name=='cosim':
+    if test_name == 'cosim':
         COMPUTE_REF = False          # True if you want to run TVB-only
         CEREB_OFF = False
-    elif test_name=='tvb-only':
+    elif test_name == 'tvb-only':
         COMPUTE_REF = True
         CEREB_OFF = False
     elif test_name == 'cerebOFF':
