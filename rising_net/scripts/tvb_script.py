@@ -429,7 +429,7 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
         cmax=np.array([1.0]),
         a=simulator.model.beta)
 
-    # Set integrator abnd noise
+    # Set integrator and noise
     simulator.integrator = EulerStochastic()
     simulator.integrator.dt = config.DEFAULT_DT
     simulator.integrator.noise.nsig = np.array(
