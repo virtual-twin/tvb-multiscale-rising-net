@@ -934,6 +934,12 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                                 figformat="png",
                                                 show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
 
+        compute_plot_selected_spectra_coherence(source_ts, inds["cereb"],
+                                                transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                figures_path=config.figures.FOLDER_FIGURES, figname="Cereb",
+                                                figformat="png",
+                                                show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
+
         # Better summary figure:
         import matplotlib.pyplot as plt
 
