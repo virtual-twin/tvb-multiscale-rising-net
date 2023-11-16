@@ -61,6 +61,26 @@ def get_regions_indices(regs, labels):
     return iR
 
 
+def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=512, fmin=0.0, fmax=50.0):
+    n_regions = len(inds)
+    data = source_ts[transient:, 0, inds].squeeze().T
+    fs = 1000/sample_period
+    f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
+    finds = np.logical_and(f > fmin, f <= fmax)
+    f = f[finds]
+    Pxx_den = Pxx_den[:, finds]
+    Cxy = []
+    n_regions2 = int(n_regions * (n_regions - 1)/2)
+    pairs = []
+    if n_regions2:
+        for ii in range(n_regions):
+            for jj in range(ii+1, n_regions):
+                _, Cxyiijj = signal.coherence(data[ii], data[jj], fs, nperseg=nperseg)
+                Cxy.append(Cxyiijj[finds])
+                pairs.append([ii, jj])
+    return Pxx_den, np.array(Cxy).squeeze(), f, np.array(pairs).squeeze()
+
+
 def compute_plot_selected_spectra_coherence(source_ts, inds,
                                             transient=0.0, conn=None, nperseg=256, fmin=0.0, fmax=100.0,
                                             figsize=(15, 5), figures_path="", figname="", figformat="png", 
@@ -99,10 +119,10 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
     else:
         plt.close(fig)
 
-    CxyR = []
+    CxyRs = []
     fR = []
     fL = []
-    CxyL = []
+    CxyLs = []
     n_regions2 = int(n_regions * (n_regions - 1)/2)
     if n_regions2:
         fig, axes = plt.subplots(n_regions2, 2, figsize=(figsize[0], figsize[1]*n_regions))
@@ -116,7 +136,9 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
                 iR2 = 2*i2
                 iL2 = 2*i2 + 1
                 fR, CxyR = signal.coherence(data[iR1], data[iR2], fs, nperseg=nperseg)
+                CxyRs.append(CxyR)
                 fL, CxyL = signal.coherence(data[iL1], data[iL2], fs, nperseg=nperseg)
+                CxyLs.append(CxyL)
                 axes[ii, 0].plot(fR, CxyR.T,
                                  label="%s - %s" % (conn.region_labels[inds[iR1]], conn.region_labels[inds[iR2]]))
                 axes[ii, 0].plot(fL, CxyL.T,
@@ -141,7 +163,7 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
             plt.show()
         else:
             plt.close(fig)
-    return Pxx_den, f, CxyR, fR, CxyL, fL
+    return Pxx_den, f, CxyRs, fR, CxyLs, fL
 
 
 def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fmin=0.0, fmax=50.0, 
