@@ -259,6 +259,13 @@ def simulate_tvb_nest(simulator, nest_network, config):
     # Adjust simulation length to be an integer multiple of synchronization_time:
     simulator.simulation_length = \
         np.ceil(simulator.simulation_length / simulator.synchronization_time) * simulator.synchronization_time
+    # Serializing TVB cosimulator...:
+    from tvb_multiscale.core.tvb.cosimulator.cosimulator_serialization import serialize_tvb_cosimulator
+    sim_serial_filepath = os.path.join(config.out.FOLDER_RES, "tvb_serial_cosimulator_run.pkl")
+    sim_serial = serialize_tvb_cosimulator(simulator)
+    # ...and dumping the serialized TVB cosimulator to a file for the record:
+    from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
+    dump_pickled_dict(sim_serial, sim_serial_filepath)
     results = simulator.run()
     nest_network.nest_instance.Run(nest_network.nest_instance.GetKernelStatus("resolution"))
     #  Cleanup NEST network unless you plan to continue simulation later
