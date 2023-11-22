@@ -158,7 +158,7 @@ def barplots(inds, resname, results, **kwargs):
     errlows = mean - np.percentile(data, 10, axis=2)
     errhighs = np.percentile(data, 90, axis=2) - mean
 
-    data_label = "Gamma COH"
+    data_label = resname
     legend_label = "Test modes"
     legend = np.array(["cosim", "tvb-only", "cerebOFF"])
     index_label = "Regions ij"
@@ -224,8 +224,8 @@ def coherence_networks_plot(results,
             dataT[results["ij"][:, 0], results["ij"][:, 1]] = results[test_name][res].mean(axis=0)
             dataB.append(dataT)
         dataB = np.array(dataB)
-        vmins.append(dataB.min())
-        vmaxs.append(dataB.max())
+        vmins.append(np.percentile(dataB, 5))
+        vmaxs.append(np.percentile(dataB, 95))
         data.append(dataB)
     data = np.array(data)
     fig, axes = plt.subplots(2, 3, figsize=(figsize[0], 1.5*figsize[1]))
