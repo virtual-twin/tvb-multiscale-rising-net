@@ -10,6 +10,16 @@ from tvb_multiscale.core.plot.plotter import Plotter
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
+def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights):
+
+    for trg in trg_inds:
+        indegree = weights[trg].sum()                   # initial total indegree
+        weights[trg, src_inds] *= pathway_gain  # increase pathway
+        weights[trg] *= indegree/weights[trg].sum()     # restore indegree
+
+    return weights
+
+
 def cosim_run_plot(**kwargs):
 
     # Assuming:
@@ -24,6 +34,8 @@ def cosim_run_plot(**kwargs):
     # # TVB - NEST interface parameters:
     # config.MOSSY_MAX_RATE = 122.0  # Hz
     # config.w_TVB_to_NEST = 0.04
+
+    pathway_gain = kwargs.pop("pathway_gain", 1.0)
 
     seed = int(kwargs.pop("seed", 10))
     test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
@@ -49,6 +61,63 @@ def cosim_run_plot(**kwargs):
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
+
+    if pathway_gain > 1.0:
+        print("\n" + "-"*50)
+        print("Applying pathway gain = %g" % pathway_gain)
+        print("-" * 50 + "\n")
+
+        # A. INPUT SENSORY PATHWAY:
+
+        # 1. Trigeminal (stimulus) -> PosSens Trigeminal, PosSens, S1 brl, S1 thal, AnsiLob, CerebNuclei
+        connectivity.weights = \
+            apply_pathway_gain_increase(inds["trigeminal"],
+                                        np.concatenate([inds["ponssens"],
+                                                        inds["s1brlthal"],
+                                                        inds["s1brl"],
+                                                        inds["ansilob"],
+                                                        inds["cereb_nuclei"]]),
+                                        pathway_gain, connectivity.weights)
+
+        # # 2. PosSens Trigeminal -> PosSens, S1 brl, S1 thal, AnsiLob, CerebNuclei
+        # connectivity.weights[np.ix_(np.concatenate([inds["ponssens"][[0, 2]],
+        #                                             inds["s1brlthal"],
+        #                                             inds["s1brl"],
+        #                                             inds["ansilob"],
+        #                                             inds["cereb_nuclei"]]),
+        #                             inds["ponssens_trigeminal"])] *= pathway_gain
+        #
+        # # 3. PosSens -> S1 brl, S1 thal, AnsiLob, CerebNuclei
+        # connectivity.weights[np.ix_(np.concatenate([inds["s1brlthal"],
+        #                                             inds["s1brl"],
+        #                                             inds["ansilob"],
+        #                                             inds["cereb_nuclei"]]),
+        #                             inds["ponssens"][[0, 2]])] *= pathway_gain
+
+        # # B. INPUT FEEDBACK PATHWAY:
+        # # S1 Brl -> PonsSens, PosSens Trigeminal, Ansilob, CerebNuclei
+        # connectivity.weights[np.ix_(np.concatenate([inds["ponssens"],
+        #                                             inds["ansilob"],
+        #                                             inds["cereb_nuclei"]]),
+        #                             inds["s1brl"])] *= pathway_gain
+        #
+        # # C. INPUT MOTOR PATHWAY:
+        # # CerebNuclei -> M1, M1 thal
+        # connectivity.weights[np.ix_(np.concatenate([inds["m1thal"],
+        #                                             inds["m1"]]),
+        #                             inds["cereb_nuclei"])] *= pathway_gain
+        #
+        # # D. FEEDBACK MOTOR PATHWAY:
+        # # 1. M1 -> PonsMotor, AnsiLob, CerebNuclei
+        # connectivity.weights[np.ix_(np.concatenate([inds["ponsmotor"],
+        #                                             inds["ansilob"],
+        #                                             inds["cereb_nuclei"]]),
+        #                             inds["m1"])] *= pathway_gain
+        #
+        # # 2. PonsMotor -> AnsiLob, CerebNuclei
+        # connectivity.weights[np.ix_(np.concatenate([inds["ansilob"],
+        #                                             inds["cereb_nuclei"]]),
+        #                             inds["ponsmotor"])] *= pathway_gain
 
     # # Scale up connections from principal sensory trigeminal nucleus to ansiform lobule
     # reg1='Left Ansiform lobule'
