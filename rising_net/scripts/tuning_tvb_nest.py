@@ -34,11 +34,15 @@ TUNED_VALUES_TVB_TO_NEST = [0.02, 0.03, 0.04, 0.045, 0.05, 0.06]  # 0.0425, 0.04
 def tuning_tvb_nest(w_TVB_to_NEST=0.04, **kwargs):
     # RMSEs = []
 
+    seed = int(kwargs.pop("seed", 0))
+
     # for w_TVB_to_NEST in TUNED_VALUES_TVB_TO_NEST:
     # Get configuration
     config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST), verbose=2,
                                 STIMULUS=0.0,  # We are fitting in resting state!!!
                                 w_TVB_to_NEST=w_TVB_to_NEST,
+                                DEFAULT_TVB_NOISE_SEED=42+seed,
+                                NEST_MASTER_SEED=143202461 + seed,
                                 **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
