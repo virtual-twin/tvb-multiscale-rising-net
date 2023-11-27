@@ -132,7 +132,7 @@ def get_coherence(ii, jj, COH, ij, taskinds):
     return COH[:, np.where(np.logical_and(taskinds[ij[:, 0]] == ii, taskinds[ij[:, 1]] == jj))[0]]
 
 
-def barplots(inds, resname, results, **kwargs):
+def barplots(inds, resname, results, tests=["cosim", "tvb-only", "cerebOFF"], **kwargs):
     nR = inds.size
     pairs = []
     for i1 in range(nR):
@@ -141,7 +141,7 @@ def barplots(inds, resname, results, **kwargs):
     pairs = np.array(pairs)
 
     data = []
-    for iT, test_name in enumerate(["cosim", "tvb-only", "cerebOFF"]):
+    for iT, test_name in enumerate(tests):
 
         dataT = []
         for iP, pair in enumerate(pairs):
@@ -160,7 +160,7 @@ def barplots(inds, resname, results, **kwargs):
 
     data_label = resname
     legend_label = "Test modes"
-    legend = np.array(["cosim", "tvb-only", "cerebOFF"])
+    legend = np.array(tests)
     index_label = "Regions ij"
     index = []
     for iP, pair in enumerate(pairs):
@@ -243,7 +243,7 @@ def coherence_networks_plot(results,
         vmaxs.append(np.percentile(dataB, 95))
         data.append(dataB)
     data = np.array(data)
-    fig, axes = plt.subplots(2, 3, figsize=(figsize[0], 1.5*figsize[1]))
+    fig, axes = plt.subplots(len(resnames), len(tests), figsize=(figsize[0], 1.5*figsize[1]))
     for iB, (band, res) in enumerate(zip(bands, resnames)):
         for iT, test_name in enumerate(tests):
             axes[iB, iT] = half_matrix_plot(data[iB, iT].T, labels=results["short_labels"],
