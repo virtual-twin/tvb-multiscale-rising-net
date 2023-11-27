@@ -153,8 +153,9 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
              # Effective rate  = scale * (total_weighted_coupling_E_from_tvb - offset)
              # If E is in [0, 1.0], then, with a translation = 0.0, and a scale of 1e4
              # it is as if 100 neurons can fire each with a maximum spike rate of max_rate=100 Hz
-              'transformer_params': {"scale_factor": np.array([config.w_TVB_to_NEST * simulator.model.G[0].item() * config.MOSSY_MAX_RATE])
-                                     },   # "translation_factor": np.array([0.0])
+              'transformer_params': {
+                  "scale_factor": np.array([config.w_TVB_to_NEST * simulator.model.G[0].item() * config.MOSSY_MAX_RATE])
+                                     },  # "translation_factor": np.array([0.0])
               'spiking_proxy_inds': pop_regions_inds  # Same as "proxy_inds" for this kind of interface
               }
              )
@@ -199,13 +200,15 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
              # or import and set the appropriate NEST proxy device class, e.g., NESTSpikeRecorderMeanSet, directly
              # options "SPIKES" (i.e., spikes per neuron), "SPIKES_MEAN", "SPIKES_TOTAL"
              # (the last two are identical for the moment returning all populations spikes together)
-             # see tvb_multiscale.tvb_nest.interfaces.io.NESTOutputProxyModels for options and related NESTDevice classes,
+             # see tvb_multiscale.tvb_nest.interfaces.io.NESTOutputProxyModels
+             # for options and related NESTDevice classes,
              # and tvb_multiscale.tvb_nest.interfaces.io.DefaultNESTtoTVBModels for the default choices
              'proxy_model': "SPIKES_MEAN",
              # Set the enum entry or the corresponding label name for the "transformer_model",
              # or import and set the appropriate tranformer class, e.g., ElephantSpikesHistogramRate, directly
              # options: "SPIKES", "SPIKES_TO_RATE", "SPIKES_TO_HIST", "SPIKES_TO_HIST_RATE"
-             # see tvb_multiscale.core.interfaces.transformers.models.DefaultSpikeNetToTVBTransformers for options and related Transformer classes,
+             # see tvb_multiscale.core.interfaces.transformers.models.DefaultSpikeNetToTVBTransformers
+             # for options and related Transformer classes,
              # and tvb_multiscale.core.interfaces.transformers.models.DefaultSpikeNetToTVBModels for default choices
              'transformer_model': "SPIKES_TO_HIST_RATE",
              'transformer_params': transformer_params

@@ -764,7 +764,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
             data=results[1][1], time=results[1][0],
             connectivity=simulator.connectivity,
             labels_ordering=["Time", "State Variable", "Region", "Neurons"],
-            labels_dimensions={"State Variable": ["cortical coupling","subcortical coupling"],
+            labels_dimensions={"State Variable": ["cortical coupling", "subcortical coupling"],
                                "Region": simulator.connectivity.region_labels.tolist()},
             sample_period=simulator.monitors[1].period)
 
