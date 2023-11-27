@@ -13,9 +13,11 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights):
 
     for trg in trg_inds:
-        indegree = weights[trg].sum()                   # initial total indegree
-        weights[trg, src_inds] *= pathway_gain  # increase pathway
-        weights[trg] *= indegree/weights[trg].sum()     # restore indegree
+        indegree = weights[trg].sum()                  # initial total indegree
+        orig = weights[trg, src_inds]
+        norm = (indegree - pathway_gain * orig.sum()) / (indegree - orig.sum())
+        weights[trg, src_inds] *= (pathway_gain/norm)  # increase pathway
+        weights[trg] *= norm                           # restore indegree
 
     return weights
 
@@ -36,6 +38,7 @@ def cosim_run_plot(**kwargs):
     # config.w_TVB_to_NEST = 0.04
 
     pathway_gain = kwargs.pop("pathway_gain", 1.0)
+    pathway_mode = kwargs.pop("pathway_mode", "stim")
 
     seed = int(kwargs.pop("seed", 10))
     test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
@@ -49,7 +52,14 @@ def cosim_run_plot(**kwargs):
         COMPUTE_REF = True
         CEREB_OFF = True
 
-    resfilename = "results_%s_noise_seed_%d" % (test_name, seed)
+    resfilename = test_name
+    if pathway_gain > 1.0:
+        if pathway_gain == "stim":
+            resfilename += "_stimgain"
+        else:
+            resfilename += "_gain"
+        resfilename += "%d" % int(pathway_gain)
+    resfilename += "_nsd%d" % seed
     path = os.path.join(os.getcwd(), resfilename)
     # Get configuration
     config, plotter = configure(output_folder=path, verbose=2,
@@ -69,55 +79,78 @@ def cosim_run_plot(**kwargs):
 
         # A. INPUT SENSORY PATHWAY:
 
-        # 1. Trigeminal (stimulus) -> PosSens Trigeminal, PosSens, S1 brl, S1 thal, AnsiLob, CerebNuclei
+        # 1. PosSens Trigeminal <- Trigeminal (stimulus)
+        source = inds["trigeminal"]
+        # TODO: Think about this connection:
+        # if pathway_mode != "stim":
+        #     # 1. S1 brl field -> PosSens Trigeminal
+        #     source = np.concatenate([source,
+        #                              inds["s1brl"]])  # including B. FEEDBACK SENSORY PATHWAY
         connectivity.weights = \
-            apply_pathway_gain_increase(inds["trigeminal"],
-                                        np.concatenate([inds["ponssens"],
-                                                        inds["s1brlthal"],
-                                                        inds["s1brl"],
-                                                        inds["ansilob"],
-                                                        inds["cereb_nuclei"]]),
+            apply_pathway_gain_increase(source,
+                                        inds["ponssens_trigeminal"],
                                         pathway_gain, connectivity.weights)
 
-        # # 2. PosSens Trigeminal -> PosSens, S1 brl, S1 thal, AnsiLob, CerebNuclei
-        # connectivity.weights[np.ix_(np.concatenate([inds["ponssens"][[0, 2]],
-        #                                             inds["s1brlthal"],
-        #                                             inds["s1brl"],
-        #                                             inds["ansilob"],
-        #                                             inds["cereb_nuclei"]]),
-        #                             inds["ponssens_trigeminal"])] *= pathway_gain
-        #
-        # # 3. PosSens -> S1 brl, S1 thal, AnsiLob, CerebNuclei
-        # connectivity.weights[np.ix_(np.concatenate([inds["s1brlthal"],
-        #                                             inds["s1brl"],
-        #                                             inds["ansilob"],
-        #                                             inds["cereb_nuclei"]]),
-        #                             inds["ponssens"][[0, 2]])] *= pathway_gain
+        # 2. PosSens <- Trigeminal (stimulus)
+        source = inds["trigeminal"]
+        if pathway_mode != "stim":
+            # 2. S1 brl field & PosSens Trigeminal -> PosSens
+            source = np.concatenate([source,
+                                     inds["ponssens_trigeminal"],
+                                     inds["s1brl"]])  # including B. FEEDBACK SENSORY PATHWAY
+        connectivity.weights = \
+            apply_pathway_gain_increase(source,
+                                        inds["ponssens"][[0, 2]],
+                                        pathway_gain, connectivity.weights)
 
-        # # B. INPUT FEEDBACK PATHWAY:
-        # # S1 Brl -> PonsSens, PosSens Trigeminal, Ansilob, CerebNuclei
-        # connectivity.weights[np.ix_(np.concatenate([inds["ponssens"],
-        #                                             inds["ansilob"],
-        #                                             inds["cereb_nuclei"]]),
-        #                             inds["s1brl"])] *= pathway_gain
-        #
-        # # C. INPUT MOTOR PATHWAY:
-        # # CerebNuclei -> M1, M1 thal
-        # connectivity.weights[np.ix_(np.concatenate([inds["m1thal"],
-        #                                             inds["m1"]]),
-        #                             inds["cereb_nuclei"])] *= pathway_gain
-        #
-        # # D. FEEDBACK MOTOR PATHWAY:
-        # # 1. M1 -> PonsMotor, AnsiLob, CerebNuclei
-        # connectivity.weights[np.ix_(np.concatenate([inds["ponsmotor"],
-        #                                             inds["ansilob"],
-        #                                             inds["cereb_nuclei"]]),
-        #                             inds["m1"])] *= pathway_gain
-        #
-        # # 2. PonsMotor -> AnsiLob, CerebNuclei
-        # connectivity.weights[np.ix_(np.concatenate([inds["ansilob"],
-        #                                             inds["cereb_nuclei"]]),
-        #                             inds["ponsmotor"])] *= pathway_gain
+        # 3. S1 brl thal <- Trigeminal (stimulus)
+        source = inds["trigeminal"]
+        # TODO: Think about this connection as well!
+        # if pathway_mode != "stim":
+        #     # 2. PosSens Trigeminal -> S1 brl thal
+        #     source = np.concatenate([source,
+        #                              inds["ponssens_trigeminal"]])
+        connectivity.weights = \
+            apply_pathway_gain_increase(source,
+                                        inds["s1brlthal"],
+                                        pathway_gain, connectivity.weights)
+
+        # 4. AnsiLob <- Trigeminal (stimulus)
+        source = inds["trigeminal"]
+        if pathway_mode != "stim":
+            # 2. S1 brl & PosSens (Trigeminal) + M1 & MotorPons -> AnsiLob
+            source = np.concatenate([source,
+                                     inds["ponssens"],
+                                     # including B. FEEDBACK SENSORY PATHWAY
+                                     # inds["s1brl"], # TODO: Think about this connection as well!
+                                     # including # D. FEEDBACK MOTOR PATHWAY
+                                     inds["ponsmotor"],
+                                     # inds["m1"], # TODO: Think about this connection as well!
+                                     ])
+        connectivity.weights = \
+            apply_pathway_gain_increase(source,
+                                        inds["ansilob"],
+                                        pathway_gain, connectivity.weights)
+
+        if pathway_mode != "stim":
+            # C. INPUT MOTOR PATHWAY:
+            # 1. M1 <- CerebNuclei
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["cereb_nuclei"],
+                                            inds["m1"],
+                                            pathway_gain, connectivity.weights)
+            # 2.  M1 thal <- CerebNuclei
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["cereb_nuclei"],
+                                            inds["m1thal"],
+                                            pathway_gain, connectivity.weights)
+
+            # D. FEEDBACK MOTOR PATHWAY:
+            # 1. PonsMotor <- M1
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["m1"],
+                                            inds["ponsmotor"],
+                                            pathway_gain, connectivity.weights)
 
     # # Scale up connections from principal sensory trigeminal nucleus to ansiform lobule
     # reg1='Left Ansiform lobule'
@@ -196,17 +229,32 @@ def cosim_run_plot(**kwargs):
         #iR1
         connectivity.weights.shape
         for i in [iR1, iR2, iR3, iR4, iR5, iR6, iR7, iR8]:
-            connectivity.weights[i,:]=0
-            connectivity.weights[:,i]=0
+            connectivity.weights[i, :]=0
+            connectivity.weights[:, i]=0
                             # , iR2, iR3, iR4, iR5, iR6, iR7, iR8] = 0
-        connectivity.weights[iR1,:]
-
+        connectivity.weights[iR1, :]
 
     # Prepare model
     model = build_model(connectivity.number_of_regions, inds, maps, config)
 
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
+
+    # Plot task network:
+    from rising_net.plot_utils import matrix_plot, shorten_region_name
+    # Task related regions' indices:
+    TASKINDS = np.sort(np.concatenate([inds["m1"], inds["s1brl"],
+                                       inds["m1thal"], inds["s1brlthal"],
+                                       inds["trigeminal"], inds["ponsmotor"], inds["ponssens"],
+                                       inds['ansilob'], inds['cereb_nuclei']]))  # , inds['cereb_crtx']
+    ax = matrix_plot(simulator.connectivity.weights[TASKINDS][:, TASKINDS].copy(),
+                     labels=[shorten_region_name(reg, exclude=["of", "the", "to"])
+                             for reg in simulator.connectivity.region_labels[TASKINDS]],
+                     label="SC", ax=None, colorbar=True, fontsize=10)
+    from matplotlib import pyplot
+    fig = ax.get_figure()
+    fig.tight_layout()
+    pyplot.savefig(os.path.join(config.figures.FOLDER_FIGURES, "taskSC.png"), format="png")
 
     if COMPUTE_REF:
         # Run simulation and get results for reference values
@@ -268,7 +316,7 @@ if __name__ == '__main__':
     kwargs = {}
     for arg in sys.argv[1:]:
         keyval = arg.split("=")
-        if keyval[0] != "test_name":
+        if keyval[0] not in ["test_name", "pathway_mode"]:
             key = float(keyval[1])
         else:
             key = keyval[1]
