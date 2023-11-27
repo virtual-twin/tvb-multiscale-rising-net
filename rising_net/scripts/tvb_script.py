@@ -831,7 +831,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                 # Write to file
                 if writer:
                     try:
-                        write_RegionTimeSeriesXarray_to_h5(bold_ts._data, writer,
+                        write_RegionTimeSeriesXarray_to_h5(bold_ts, writer,
                                                            os.path.join(config.out.FOLDER_RES,
                                                                         bold_ts.title) + ".h5")
                     except Exception as e:
