@@ -175,6 +175,21 @@ def barplots(inds, resname, results, **kwargs):
     return ax
 
 
+def matrix_plot(data, labels=None, label=None, ax=None, colorbar=True, fontsize=16, **kwargs):
+    if ax is None:
+        ax = plt.axes()
+    im = ax.imshow(data, interpolation="nearest", **kwargs)
+    labels = ["%d. %s" % (iL, lbl) for iL, lbl in enumerate(labels)]
+    ticks = np.linspace(0, data.shape[0] - 1, data.shape[0])
+    ax.set_xticks(ticks, labels, rotation=90, fontsize=fontsize)
+    ax.set_yticks(ticks, labels, fontsize=fontsize)
+    if colorbar:
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.ax.tick_params(labelsize=fontsize)
+        cbar.set_label(label=label, size=fontsize)
+    return ax
+
+
 def half_matrix_plot(data, labels=None, label=None, ax=None, colorbar=True, fontsize=16, **kwargs):
 
     # TEST:
