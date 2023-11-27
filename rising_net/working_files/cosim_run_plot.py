@@ -39,6 +39,7 @@ def cosim_run_plot(**kwargs):
 
     pathway_gain = kwargs.pop("pathway_gain", 1.0)
     pathway_mode = kwargs.pop("pathway_mode", "stim")
+    stim = kwargs.get("STIMULUS", 0.1)
 
     seed = int(kwargs.pop("seed", 10))
     test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
@@ -52,9 +53,9 @@ def cosim_run_plot(**kwargs):
         COMPUTE_REF = True
         CEREB_OFF = True
 
-    resfilename = test_name
+    resfilename = test_name + "_stim0%d" % int(10*stim)
     if pathway_gain > 1.0:
-        if pathway_gain == "stim":
+        if pathway_mode == "stim":
             resfilename += "_stimgain"
         else:
             resfilename += "_gain"
@@ -103,9 +104,9 @@ def cosim_run_plot(**kwargs):
                                         inds["ponssens"][[0, 2]],
                                         pathway_gain, connectivity.weights)
 
+        # TODO: Think about these connections as well!
         # 3. S1 brl thal <- Trigeminal (stimulus)
         source = inds["trigeminal"]
-        # TODO: Think about this connection as well!
         # if pathway_mode != "stim":
         #     # 2. PosSens Trigeminal -> S1 brl thal
         #     source = np.concatenate([source,
@@ -118,6 +119,7 @@ def cosim_run_plot(**kwargs):
         # 4. AnsiLob <- Trigeminal (stimulus)
         source = inds["trigeminal"]
         if pathway_mode != "stim":
+
             # 2. S1 brl & PosSens (Trigeminal) + M1 & MotorPons -> AnsiLob
             source = np.concatenate([source,
                                      inds["ponssens"],
@@ -133,6 +135,11 @@ def cosim_run_plot(**kwargs):
                                         pathway_gain, connectivity.weights)
 
         if pathway_mode != "stim":
+            # 5. Cereb nuclei <- AnsiLob
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["ansilob"],
+                                            inds["cereb_nuclei"],
+                                            pathway_gain, connectivity.weights)
             # C. INPUT MOTOR PATHWAY:
             # 1. M1 <- CerebNuclei
             connectivity.weights = \
@@ -247,12 +254,12 @@ def cosim_run_plot(**kwargs):
                                        inds["m1thal"], inds["s1brlthal"],
                                        inds["trigeminal"], inds["ponsmotor"], inds["ponssens"],
                                        inds['ansilob'], inds['cereb_nuclei']]))  # , inds['cereb_crtx']
+    fig, ax = plt.subplots()
     ax = matrix_plot(simulator.connectivity.weights[TASKINDS][:, TASKINDS].copy(),
                      labels=[shorten_region_name(reg, exclude=["of", "the", "to"])
                              for reg in simulator.connectivity.region_labels[TASKINDS]],
-                     label="SC", ax=None, colorbar=True, fontsize=10)
+                     label="SC", ax=ax, colorbar=True, fontsize=10)
     from matplotlib import pyplot
-    fig = ax.get_figure()
     fig.tight_layout()
     pyplot.savefig(os.path.join(config.figures.FOLDER_FIGURES, "taskSC.png"), format="png")
 
