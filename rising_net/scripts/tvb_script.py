@@ -228,11 +228,13 @@ def build_model(number_of_regions, inds, maps, config):
             inds_stim = inds['thalspec']
         # Stimuli:
         A_st = 0 * dummy.astype("f")
+        B_st = 0 * dummy.astype("f")
         f_st = 0 * dummy.astype("f")
         # Stimulus to M1
         A_st[inds_stim] = STIMULUS
+        B_st[inds_stim] = config.STIMULUS_BASELINE
         f_st[inds_stim] = config.STIMULUS_RATE  # Hz
-        model_params.update({"A_st": A_st, "f_st": f_st})
+        model_params.update({"A_st": A_st, "B_st": B_st, "f_st": f_st})
 
     model = WilsonCowanThalamoCortical(is_cortical=maps['is_cortical'][:, np.newaxis],
                                        is_thalamic=maps['is_thalamic'][:, np.newaxis],
