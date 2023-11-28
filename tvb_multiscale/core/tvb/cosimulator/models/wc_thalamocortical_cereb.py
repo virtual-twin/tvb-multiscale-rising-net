@@ -723,6 +723,12 @@ class WilsonCowanThalamoCortical(Model):
         domain=Range(lo=0.0, hi=100.0, step=0.1),
         doc="""Frequency of sinusoidal stimulus to excitatory population""")
 
+    B_st = NArray(
+        label=":math:`B_st",
+        default=np.array([0.0]),
+        domain=Range(lo=0.0, hi=10.0, step=0.01),
+        doc="""Baseline of sinusoidal stimulus to excitatory population""")
+
     # Used for phase-plane axis ranges and to bound random initial() conditions.
     state_variable_range = Final(
         label="State Variable ranges [lo, hi]",
@@ -883,9 +889,11 @@ class WilsonCowanThalamoCortical(Model):
 
         # Prepare stimulus only for those regions that have some
         self.A_st = self._assert_size(self.A_st)
+        self.B_st = self._assert_size(self.B_st)
         self._stim_inds = self.A_st != 0.0
         if np.sum(self._stim_inds):
             self._A_st = self.A_st[self._stim_inds]
+            self._B_st = self.B_st[self._stim_inds]
             # convert f to angular frequency omega:
             self._omega_st = 2 * np.pi / 1000 * self._assert_size(self.f_st)[self._stim_inds]
             self._stim = 1
@@ -1031,7 +1039,7 @@ class WilsonCowanThalamoCortical(Model):
 
         # Add the stimulus:
         if self._stim is not None:
-            self._stim = self._A_st * np.sin(self._omega_st * time)
+            self._stim = self._A_st * ( self._B_st + np.sin(self._omega_st * time) )
 
         return state_variables
 
