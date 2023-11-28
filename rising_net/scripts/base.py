@@ -20,7 +20,8 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 from tvb.simulator.integrators import EulerStochastic
 
 
-DEFAULT_ARGS = {'G': 6.0, 'STIMULUS': 0.1,
+DEFAULT_ARGS = {'G': 6.0, '': 0.1,
+                "STIMULUS_BASELINE": 0.0,
                 'I_e': -0.35, 'I_s': 0.085,
                 'w_ie': -3.0, 'w_rs': -2.0,
                 'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
@@ -141,6 +142,7 @@ def configure(**ARGS):
 
     # Model parameters
     config.STIMULUS_RATE = 6.0  # or 8.0?? Hz
+    config.STIMULUS_BASELINE = args['STIMULUS_BASELINE']  # 1.0 or 0.0
 
     config.model_params = OrderedDict()
     config.model_params['G'] = args['G']
