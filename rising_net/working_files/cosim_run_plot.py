@@ -73,6 +73,11 @@ def cosim_run_plot(**kwargs):
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
 
+    # # For symmetric connectomme:
+    # connectivity.weights = np.sqrt(connectivity.weights * connectivity.weights.T)
+    # connectivity.tract_lengths = np.sqrt(connectivity.tract_lengths * connectivity.tract_lengths.T)
+    # connectivity.configure()
+
     if pathway_gain > 1.0:
         print("\n" + "-"*50)
         print("Applying pathway gain = %g" % pathway_gain)
@@ -272,9 +277,6 @@ def cosim_run_plot(**kwargs):
         simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config)
         # Simulate TVB-NEST model
         results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
-
-    print(results)
-
 
 
     # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
