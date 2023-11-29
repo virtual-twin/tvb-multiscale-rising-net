@@ -21,6 +21,7 @@ from tvb.simulator.integrators import EulerStochastic
 
 
 DEFAULT_ARGS = {'G': 6.0, '': 0.1,
+                "STIMULUS": 0.1,
                 "STIMULUS_BASELINE": 0.0,
                 'I_e': -0.35, 'I_s': 0.085,
                 'w_ie': -3.0, 'w_rs': -2.0,
