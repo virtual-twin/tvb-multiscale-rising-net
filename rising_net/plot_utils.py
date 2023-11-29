@@ -25,6 +25,8 @@ def percent_plot(x, data, percentile_min=10, percentile_max=90, n=5,
 
     if mode == "semilog":
         data = np.log(data)
+    if data.ndim < 2:
+        data = data[np.newaxis]
 
     # calculate the lower and upper percentile groups, skipping 50 percentile
     perc1 = np.percentile(data, np.linspace(percentile_min, 50, num=n, endpoint=False), axis=0)[::-1]
@@ -134,26 +136,27 @@ def get_coherence(ii, jj, COH, ij, taskinds):
 
 def barplots(inds, resname, results, tests=["cosim", "tvb-only", "cerebOFF"], **kwargs):
     nR = inds.size
-    pairs = []
-    for i1 in range(nR):
-        for i2 in range(i1 + 1, nR):
-            pairs.append([inds[i1], inds[i2]])
-    pairs = np.array(pairs)
-
     data = []
     for iT, test_name in enumerate(tests):
-
         dataT = []
-        for iP, pair in enumerate(pairs):
-            coh = get_coherence(pair[0], pair[1], results[test_name][resname], results['ij'], results["inds"])
-            if coh.size == 0:
-                coh = get_coherence(pair[1], pair[0], results[test_name][resname], results['ij'], results["inds"])
-            dataT.append(coh)
+        pairs = []
+        for i1 in range(nR):
+            for i2 in range(i1 + 1, nR):
+                pair = [inds[i1], inds[i2]]
+                coh = get_coherence(pair[0], pair[1], results[test_name][resname], results['ij'], results["inds"])
+                if coh.size == 0:
+                    pair = pair[::-1]
+                    coh = get_coherence(pair[0], pair[1], results[test_name][resname], results['ij'], results["inds"])
+                pairs.append(list(pair))
+                dataT.append(coh)
 
         data.append(np.array(dataT).copy())
 
     data = np.array(data).squeeze()
+    pairs = np.array(pairs)
 
+    if data.ndim < 3:
+        data = data[:, :, np.newaxis]
     mean = data.mean(axis=2)
     errlows = mean - np.percentile(data, 10, axis=2)
     errhighs = np.percentile(data, 90, axis=2) - mean
@@ -199,17 +202,18 @@ def half_matrix_plot(data, labels=None, label=None, ax=None, colorbar=True, font
 
     if ax is None:
         ax = plt.axes()
-    mask = 1 - np.tri(data.shape[0], k=-1)
+    mask = 1 - np.tri(data.shape[0], k=0)
     data = np.ma.array(data, mask=mask)
+    np.fill_diagonal(data, np.nan)
     im = ax.imshow(data, interpolation="nearest", **kwargs)
-    ticks = np.linspace(0, data.shape[0]-2, data.shape[0]-1)
+    ticks = np.linspace(0, data.shape[0]-1, data.shape[0])
     if labels is not None:
         labels = ["%d. %s" % (iL, lbl) for iL, lbl in enumerate(labels)]
-        ax.set_xticks(ticks, labels[:-1], rotation=90, fontsize=fontsize)
-        ax.set_yticks(1+ticks, labels[1:], fontsize=fontsize)
+        ax.set_xticks(ticks, labels, rotation=90, fontsize=fontsize)
+        ax.set_yticks(ticks, labels, fontsize=fontsize)
     else:
         ax.set_xticks(ticks, rotation=90, fontsize=fontsize)
-        ax.set_yticks(1+ticks, fontsize=fontsize)
+        ax.set_yticks(ticks, fontsize=fontsize)
     if colorbar:
         cbar = plt.colorbar(im, ax=ax)
         cbar.ax.tick_params(labelsize=fontsize)
