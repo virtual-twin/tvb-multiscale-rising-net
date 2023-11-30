@@ -8,7 +8,7 @@ from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
 
 def percent_plot(x, data, percentile_min=10, percentile_max=90, n=5,
-                 plot_mean=False, plot_median=True,
+                 plot_mean=True, plot_median=False,
                  color='b', alpha=0.5, ax=None, mode="linear",
                  **line_kwargs):
 
@@ -31,7 +31,6 @@ def percent_plot(x, data, percentile_min=10, percentile_max=90, n=5,
     # calculate the lower and upper percentile groups, skipping 50 percentile
     perc1 = np.percentile(data, np.linspace(percentile_min, 50, num=n, endpoint=False), axis=0)[::-1]
     perc2 = np.percentile(data, np.linspace(50, percentile_max, num=n + 1)[1:], axis=0)
-
 
     if ax is None:
         ax = plt.axes()
@@ -85,6 +84,125 @@ def psd_percent_plot(results,
                 axes[iR, 1].set_xlabel("f (Hz)", fontsize=fontsize)
     fig.tight_layout()
     return fig, axes
+
+
+def plot_pathway_psd_coh(results, inds,
+                         anslob_psd=None, tests=["tvb-only", "cerebOFF"], colors=["g", "r"],
+                         percentile_min=1, percentile_max=99, n=1,
+                         plot_mean=False, plot_median=True, mode="semilog",
+                         alpha=0.5, figsize=(20, 20), fontsize=16, **line_kwargs):
+    REGIONS = ["s1brl", "m1",
+               "s1brlthal", "m1thal",
+               "ponssens", "ponsmotor",
+               "ansilob", "cereb_nuclei",
+               "trigeminal", "ponssens_trigeminal"]
+
+    REGPAIRS = [["s1brl", "m1"],
+                ["s1brl", "s1brlthal"], ["m1", "m1thal"],
+                ["s1brl", "ponssens"], ["m1", "ponsmotor"],
+                ["ponssens", "ansilob"], ["ponsmotor", "ansilob"],
+                ["trigeminal", "s1brlthal"],
+                ["trigeminal", "ansilob"],
+                ["trigeminal", "ponssens_trigeminal"],
+                ["ponssens_trigeminal", "ansilob"],
+                ["ansilob", "cereb_nuclei"],
+                ["cereb_nuclei", "s1brlthal"], ["cereb_nuclei", "m1thal"]]
+
+    mosaic = np.tile(["."], (7, 7)).astype('O')
+    # PSD plots:
+    for ax, reg in zip([[0, 1], [0, 6],
+                        [2, 1], [2, 6],
+                        [2, 2], [2, 5],
+                        [4, [3, 4]], [6, [3, 4]],
+                        [6, 0], [4, 1]],
+                       REGIONS):
+        mosaic[ax[0], ax[1]] = reg
+    # COH plots:
+    for ax, regs, in zip([[0, [3, 4]],
+                          [1, 1], [1, 6],
+                          [1, 2], [1, 5],
+                          [2, 3], [2, 4],
+                          [3, 0], [4, 2], [5, 1], [5, 2],
+                          [5, [3, 4]],
+                          [6, [1, 2]], [6, [5, 6]]],
+                         REGPAIRS):
+        mosaic[ax[0], ax[1]] = "-".join(regs)
+
+    figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+    figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+
+    # PSD plots:
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for reg, hemiI in zip(REGIONS,
+                              [True, True,
+                               True, True,
+                               False, False,
+                               False, False,
+                               False, False]):
+            if hemiI:
+                ind = inds[reg][hemi]
+            else:
+                ind = inds[reg][1 - hemi]
+            iR = np.where(results["inds"] == ind)[0].item()
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                             **line_kwargs)
+            axH[reg].set_title(results['short_labels'][iR])
+            if mode == "semilog":
+                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
+            else:
+                axH[reg].set_ylabel('PSD', fontsize=fontsize)
+
+    # COH plots:
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for regs, hemiI in zip(REGPAIRS,
+                               [[True, True],
+                                [True, True], [True, True],
+                                [True, False], [True, False],  # ??
+                                [False, False], [False, False],
+                                [False, True], [False, False], [False, False], [False, False],
+                                [False, False],
+                                [False, True], [False, True]]):
+            pair = []
+            for reg in regs:
+                if hemiI:
+                    ind = inds[reg][hemi]
+                else:
+                    ind = inds[reg][1 - hemi]
+                pair.append(np.where(results["inds"] == ind)[0].item())
+            try:
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            except:
+                pair = pair[::-1]
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            ax = axH["-".join(regs)]
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=ax, mode=mode,
+                             **line_kwargs)
+                for band, COH in zip(["theta", "gamma"], ["COHth", "COHgm"]):
+                    if mode == "semilog":
+                        mean = np.log(results[test]['COH'][:, iR, :]).mean()
+                    else:
+                        mean = results[test]['COH'][:, iR, :].mean()
+                    ax.plot(results[band], [mean] * 2,
+                            color=col, linewidth=2.0)
+            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
+                                      results['short_labels'][pair[1]]), fontsize=fontsize)
+            if mode == "semilog":
+                ax.set_ylabel('log(COH)', fontsize=fontsize)
+            else:
+                ax.set_ylabel('COH', fontsize=fontsize)
+        figH.tight_layout()
+
+    return figR, axR, figL, axL
 
 
 def group_percent_barplot(data, errlows, errhighs,
