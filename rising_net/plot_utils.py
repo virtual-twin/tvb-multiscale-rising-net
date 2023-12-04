@@ -187,11 +187,13 @@ def plot_pathway_psd_coh(results, inds,
                              plot_mean=plot_mean, plot_median=plot_median,
                              color=col, alpha=alpha, ax=ax, mode=mode,
                              **line_kwargs)
-                for band, COH in zip(["theta", "gamma"], ["COHth", "COHgm"]):
+                for band, COH, f in zip(["theta", "gamma"],
+                                        ["COHth", "COHgm"],
+                                        ["fth", "fgm"]):
                     if mode == "semilog":
-                        mean = np.log(results[test]['COH'][:, iR, :]).mean()
+                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
                     else:
-                        mean = results[test]['COH'][:, iR, :].mean()
+                        mean = results[test]['COH'][:, iR, results[f]].mean()
                     ax.plot(results[band], [mean] * 2,
                             color=col, linewidth=2.0)
             ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
