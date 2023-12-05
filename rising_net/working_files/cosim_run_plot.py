@@ -10,16 +10,28 @@ from tvb_multiscale.core.plot.plotter import Plotter
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights):
+def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights, hemispheres=-1):
 
-    for trg in trg_inds:
+    for iT, trg in enumerate(trg_inds):
         indegree = weights[trg].sum()                  # initial total indegree
-        orig = weights[trg, src_inds]
+        if hemispheres > 0:
+            hemi_src_inds = src_inds[slice(np.mod(iT, 2), None, 2)]
+        elif hemispheres < 0:
+            hemi_src_inds = src_inds[slice(np.abs(np.mod(iT, 2)-1), None, 2)]
+        else:
+            hemi_src_inds = src_inds
+        orig = weights[trg, hemi_src_inds]
         norm = (indegree - pathway_gain * orig.sum()) / (indegree - orig.sum())
-        weights[trg, src_inds] *= (pathway_gain/norm)  # increase pathway
-        weights[trg] *= norm                           # restore indegree
+        weights[trg, hemi_src_inds] *= (pathway_gain/norm)  # increase pathway
+        weights[trg] *= norm                                # restore indegree
 
-    return weights
+    return np.abs(weights)
+
+
+def print_weight_to_indegree(src, trg, inds, w, hemispheres=1):
+    print("\n" + "-"*25)
+    print("%s -> %s\n" % (src, trg))
+    print(w[inds[trg]][:, inds[src]] / w[inds[trg]].sum() * 200 / (2 - np.abs(hemispheres)))
 
 
 def cosim_run_plot(**kwargs):
@@ -38,8 +50,11 @@ def cosim_run_plot(**kwargs):
     # config.w_TVB_to_NEST = 0.04
 
     pathway_gain = kwargs.pop("pathway_gain", 1.0)
-    pathway_mode = kwargs.pop("pathway_mode", "stim")
+    pathway_mode = kwargs.pop("pathway_mode", "task")
     stim = kwargs.get("STIMULUS", 0.1)
+
+    cn_to_s1brlthal = kwargs.pop("cn_to_s1brlthal", True)
+    hemispheres = int(kwargs.pop("hemispheres", -1))
 
     seed = int(kwargs.pop("seed", 10))
     test_name = kwargs.pop("test_name", "cosim")  # 'cosim', 'tvb-only', 'cerebOFF'
@@ -71,7 +86,10 @@ def cosim_run_plot(**kwargs):
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
-    connectivity = build_connectivity(connectome, inds, config)
+    connectivity = build_connectivity(connectome, inds, config,
+                                      hemispheres=hemispheres,
+                                      cereb_nuclei_to_s1thal=cn_to_s1brlthal,
+                                      trigeminal_to_m1thal=False)
 
     # # For symmetric connectomme:
     # connectivity.weights = np.sqrt(connectivity.weights * connectivity.weights.T)
@@ -79,6 +97,7 @@ def cosim_run_plot(**kwargs):
     # connectivity.configure()
 
     if pathway_gain > 1.0:
+        hemispheres = np.abs(hemispheres)
         print("\n" + "-"*50)
         print("Applying pathway gain = %g" % pathway_gain)
         print("-" * 50 + "\n")
@@ -86,7 +105,7 @@ def cosim_run_plot(**kwargs):
         # A. INPUT SENSORY PATHWAY:
 
         # 1. PosSens Trigeminal <- Trigeminal (stimulus)
-        source = inds["trigeminal"]
+        source = inds["trigeminal"]  # ipsilaterally or bilaterally
         # TODO: Think about this connection:
         # if pathway_mode != "stim":
         #     # 1. S1 brl field -> PosSens Trigeminal
@@ -95,74 +114,93 @@ def cosim_run_plot(**kwargs):
         connectivity.weights = \
             apply_pathway_gain_increase(source,
                                         inds["ponssens_trigeminal"],
-                                        pathway_gain, connectivity.weights)
+                                        pathway_gain, connectivity.weights,
+                                        hemispheres=hemispheres)
 
         # 2. PosSens <- Trigeminal (stimulus)
         source = inds["trigeminal"]
         if pathway_mode != "stim":
             # 2. S1 brl field & PosSens Trigeminal -> PosSens
             source = np.concatenate([source,
-                                     inds["ponssens_trigeminal"],
-                                     inds["s1brl"]])  # including B. FEEDBACK SENSORY PATHWAY
+                                     inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
+                                     # including B. FEEDBACK SENSORY PATHWAY
+                                     inds["s1brl"][::-1]])         # contralaterally or bilaterally
         connectivity.weights = \
             apply_pathway_gain_increase(source,
-                                        inds["ponssens"][[0, 2]],
-                                        pathway_gain, connectivity.weights)
+                                        inds["ponssens"],
+                                        pathway_gain, connectivity.weights,
+                                        hemispheres=hemispheres)
 
         # TODO: Think about these connections as well!
         # 3. S1 brl thal <- Trigeminal (stimulus)
         source = inds["trigeminal"]
         # if pathway_mode != "stim":
-        #     # 2. PosSens Trigeminal -> S1 brl thal
+        #     # 2. S1 brl thal <- PosSens Trigeminal
         #     source = np.concatenate([source,
         #                              inds["ponssens_trigeminal"]])
         connectivity.weights = \
-            apply_pathway_gain_increase(source,
+            apply_pathway_gain_increase(source[::-1],      # contralaterally or bilaterally
                                         inds["s1brlthal"],
-                                        pathway_gain, connectivity.weights)
+                                        pathway_gain, connectivity.weights,
+                                        hemispheres=hemispheres)
 
-        # 4. AnsiLob <- Trigeminal (stimulus)
-        source = inds["trigeminal"]
         if pathway_mode != "stim":
+            # 4. S1 brl <- S1 brl thal
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["s1brlthal"],  # only ipsilaterally
+                                            inds["s1brl"],
+                                            pathway_gain, connectivity.weights,
+                                            hemispheres=1)
 
-            # 2. S1 brl & PosSens (Trigeminal) + M1 & MotorPons -> AnsiLob
+        # 5. AnsiLob <- Trigeminal (stimulus)
+        source = inds["trigeminal"]      # ipsilaterally or bilaterally
+        if pathway_mode != "stim":
+            # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
             source = np.concatenate([source,
-                                     inds["ponssens"],
+                                     inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
+                                     inds["ponssens"],     # ipsilaterally or bilaterally
                                      # including B. FEEDBACK SENSORY PATHWAY
-                                     # inds["s1brl"], # TODO: Think about this connection as well!
+                                     # inds["s1brl"][::-1], # TODO: Think about this connection as well!
                                      # including # D. FEEDBACK MOTOR PATHWAY
-                                     inds["ponsmotor"],
-                                     # inds["m1"], # TODO: Think about this connection as well!
+                                     inds["ponsmotor"],  # ipsilaterally or bilaterally
+                                     # inds["m1"][::-1], # TODO: Think about this connection as well!
                                      ])
         connectivity.weights = \
             apply_pathway_gain_increase(source,
                                         inds["ansilob"],
-                                        pathway_gain, connectivity.weights)
+                                        pathway_gain, connectivity.weights,
+                                        hemispheres=hemispheres)
 
         if pathway_mode != "stim":
             # 5. Cereb nuclei <- AnsiLob
             connectivity.weights = \
-                apply_pathway_gain_increase(inds["ansilob"],
+                apply_pathway_gain_increase(inds["ansilob"],     # ipsilaterally or bilaterally
                                             inds["cereb_nuclei"],
-                                            pathway_gain, connectivity.weights)
+                                            pathway_gain, connectivity.weights,
+                                            hemispheres=hemispheres)
             # C. INPUT MOTOR PATHWAY:
-            # 1. M1 <- CerebNuclei
+
+            # 1.  M1 thal <- CerebNuclei
             connectivity.weights = \
-                apply_pathway_gain_increase(inds["cereb_nuclei"],
-                                            inds["m1"],
-                                            pathway_gain, connectivity.weights)
-            # 2.  M1 thal <- CerebNuclei
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["cereb_nuclei"],
+                apply_pathway_gain_increase(inds["cereb_nuclei"][::-1],  # contralaterally or bilaterally
                                             inds["m1thal"],
-                                            pathway_gain, connectivity.weights)
+                                            pathway_gain, connectivity.weights,
+                                            hemispheres=hemispheres)
+
+            # 2. M1 <- M1 thal
+            connectivity.weights = \
+                apply_pathway_gain_increase(inds["m1thal"],  # only ipsilaterally
+                                            inds["m1"],
+                                            pathway_gain, connectivity.weights,
+                                            hemispheres=1)
 
             # D. FEEDBACK MOTOR PATHWAY:
             # 1. PonsMotor <- M1
             connectivity.weights = \
-                apply_pathway_gain_increase(inds["m1"],
+                apply_pathway_gain_increase(inds["m1"][::-1],       # contralaterally or bilaterally
                                             inds["ponsmotor"],
-                                            pathway_gain, connectivity.weights)
+                                            pathway_gain, connectivity.weights,
+                                            hemispheres=hemispheres)
 
     # # Scale up connections from principal sensory trigeminal nucleus to ansiform lobule
     # reg1='Left Ansiform lobule'
@@ -246,11 +284,30 @@ def cosim_run_plot(**kwargs):
                             # , iR2, iR3, iR4, iR5, iR6, iR7, iR8] = 0
         connectivity.weights[iR1, :]
 
+
     # Prepare model
     model = build_model(connectivity.number_of_regions, inds, maps, config)
 
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
+
+    print("\n" + "-" * 50)
+    print("Pathway connections to indegree %:")
+
+    for conns in [
+        ["s1brl", "m1"], ["m1", "s1brl"],
+        ["s1brlthal", "s1brl"],
+        ["s1brl", "s1brlthal"], ["trigeminal", "s1brlthal"], ["cereb_nuclei", "s1brlthal"],
+        ["m1thal", "m1"],
+        ["m1", "m1thal"], ["trigeminal", "m1thal"], ["cereb_nuclei", "m1thal"],
+        ["s1brl", "ponssens"], ["m1", "ponsmotor"],
+        ["ponssens", "ansilob"], ["ponsmotor", "ansilob"],
+        ["trigeminal", "ansilob"], ["ponssens_trigeminal", "ansilob"],
+        ["ansilob", "cereb_nuclei"]
+
+    ]:
+        print_weight_to_indegree(conns[0], conns[1], inds, simulator.connectivity.weights, hemispheres=hemispheres)
+
 
     # Plot task network:
     from rising_net.plot_utils import matrix_plot, shorten_region_name
@@ -310,7 +367,7 @@ def cosim_run_plot(**kwargs):
         pickle.dump([CxyR, fR, fL, CxyL], handle)
     print(coherence_path)
 
-    return results
+    return results, simulator
 
 
 if __name__ == '__main__':
