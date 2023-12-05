@@ -24,7 +24,7 @@ def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights, hemis
         norm = (indegree - pathway_gain * orig.sum()) / (indegree - orig.sum())
         weights[trg, hemi_src_inds] *= (pathway_gain/norm)  # increase pathway
         weights[trg] *= norm                                # restore indegree
-
+        assert np.isclose(weights[trg].sum(), indegree)
     return np.abs(weights)
 
 
