@@ -26,6 +26,7 @@ def load_connectome(config):
     major_structs_labels = np.load(config.MAJOR_STRUCTS_LABELS_FILE)
     voxel_count = np.load(config.VOXEL_COUNT_FILE)
     inds = np.load(config.INDS_FILE, allow_pickle=True).item()
+    inds["ponssens"] = inds["ponssens"][[0, 2]]
     if config.VERBOSE > 1:
         print("major_structs_labels:\n", np.unique(major_structs_labels))
         print("ROI inds:\n", inds)
@@ -141,7 +142,8 @@ def scale_connections(connectivity, brain_connections_to_scale):
 
 
 def build_connectivity(connectome, inds, config,
-                       reverse_hemispheres=False, cereb_nuclei_to_s1thal=False, trigeminal_to_m1thal=False):
+                       hemispheres=-1,  # -1: contralatterally, 0: bilaterally, 1: ipsilaterally
+                       cereb_nuclei_to_s1thal=True, trigeminal_to_m1thal=False):
     from tvb.datatypes.connectivity import Connectivity
 
     connectivity = Connectivity(**connectome)
@@ -171,31 +173,58 @@ def build_connectivity(connectome, inds, config,
 
     connectivity.configure()
 
+    if "w" in config.THAL_CRTX_FIX:
+        if config.VERBOSE:
+            print("Fixing thalamocortical weights!")
+        # Fix structural connectivity (specific) thalamo-cortical weights to 1,
+        # such that all thalamo-cortical weights are equal to the parameters
+        # w_er, w_es, w_se, w_si
+        connectivity.weights[inds["crtx"], inds["thalspec"]] = 1.0
+        connectivity.weights[inds["thalspec"], inds["crtx"]] = 1.0
+
     # Remove connections between specific thalami and the rest of the subcortex:
     trigeminal_inds = inds["trigeminal"]
     cereb_nuclei_inds = inds["cereb_nuclei"]
-    if reverse_hemispheres:
+    if hemispheres == -1:
         trigeminal_inds = trigeminal_inds[::-1]
         cereb_nuclei_inds = cereb_nuclei_inds[::-1]
-    w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"], trigeminal_inds].copy()
-    if trigeminal_to_m1thal:
-        w_m1thal_trigeminal = connectivity.weights[inds["m1thal"], trigeminal_inds].copy()
-    w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"], inds["cereb_nuclei"]].copy()
-    if cereb_nuclei_to_s1thal:
-        w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"]].copy()
+    if hemispheres == 0:
+        w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"]][:, trigeminal_inds].copy()
+        if trigeminal_to_m1thal:
+            w_m1thal_trigeminal = connectivity.weights[inds["m1thal"]][:, trigeminal_inds].copy()
+        w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"]][:, inds["cereb_nuclei"]].copy()
+        if cereb_nuclei_to_s1thal:
+            w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"]][:, inds["cereb_nuclei"]].copy()
+    else:
+        w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"], trigeminal_inds].copy()
+        if trigeminal_to_m1thal:
+            w_m1thal_trigeminal = connectivity.weights[inds["m1thal"], trigeminal_inds].copy()
+        w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"], inds["cereb_nuclei"]].copy()
+        if cereb_nuclei_to_s1thal:
+            w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"]].copy()
 
     connectivity.weights[inds["subcrtx_not_thalspec"][:, None], inds["thalspec"][None, :]] = 0.0
     connectivity.weights[inds["thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]] = 0.0
 
     # Retain connections
-    # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
-    connectivity.weights[inds["s1brlthal"], trigeminal_inds] = w_s1brlthal_trigeminal
-    if trigeminal_to_m1thal:
-        connectivity.weights[inds["m1thal"], trigeminal_inds] = w_m1thal_trigeminal
-    # from merged Cerebellar Nuclei to M1:
-    connectivity.weights[inds["m1thal"], cereb_nuclei_inds] = w_m1thal_cerebnuclei
-    if cereb_nuclei_to_s1thal:
-        connectivity.weights[inds["s1brlthal"], cereb_nuclei_inds] = w_s1brlthal_cerebnuclei
+    if hemispheres == 0:
+        # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
+        connectivity.weights[inds["s1brlthal"][:, None], trigeminal_inds[None, :]] = w_s1brlthal_trigeminal
+        if trigeminal_to_m1thal:
+            connectivity.weights[inds["m1thal"][:, None], trigeminal_inds[None, :]] = w_m1thal_trigeminal
+        # from merged Cerebellar Nuclei to M1:
+        connectivity.weights[inds["m1thal"][:, None], cereb_nuclei_inds[None, :]] = w_m1thal_cerebnuclei
+        if cereb_nuclei_to_s1thal:
+            connectivity.weights[inds["s1brlthal"][:, None], cereb_nuclei_inds[None, :]] = w_s1brlthal_cerebnuclei
+    else:
+        # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
+        connectivity.weights[inds["s1brlthal"], trigeminal_inds] = w_s1brlthal_trigeminal
+        if trigeminal_to_m1thal:
+            connectivity.weights[inds["m1thal"], trigeminal_inds] = w_m1thal_trigeminal
+        # from merged Cerebellar Nuclei to M1:
+        connectivity.weights[inds["m1thal"], cereb_nuclei_inds] = w_m1thal_cerebnuclei
+        if cereb_nuclei_to_s1thal:
+            connectivity.weights[inds["s1brlthal"], cereb_nuclei_inds] = w_s1brlthal_cerebnuclei
 
     # Homogenize crtx <-> subcrtx connnectivity
     # connectivity.weights[inds["crtx"][:, None], inds["subcrtx_not_thalspec"][None, :]] *= 0.0 # 0.0 # 0.02
@@ -389,15 +418,6 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
 
     # Variability to thalamocortical connections:
     if config.THAL_CRTX_FIX:
-
-        if "w" in config.THAL_CRTX_FIX:
-            if config.VERBOSE:
-                print("Fixing thalamocortical weights!")
-            # Fix structural connectivity (specific) thalamo-cortical weights to 1,
-            # such that all thalamo-cortical weights are equal to the parameters
-            # w_er, w_es, w_se, w_si
-            simulator.connectivity.weights[inds["crtx"], inds["thalspec"]] = 1.0
-            simulator.connectivity.weights[inds["thalspec"], inds["crtx"]] = 1.0
 
         if "d" in config.THAL_CRTX_FIX:
             if config.VERBOSE:
