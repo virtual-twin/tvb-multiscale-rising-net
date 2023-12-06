@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import pickle
+import warnings
 
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
@@ -10,28 +11,264 @@ from tvb_multiscale.core.plot.plotter import Plotter
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-def apply_pathway_gain_increase(src_inds, trg_inds, pathway_gain, weights, hemispheres=-1):
-
+def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, hemispheres=-1,
+                                 fix_inds=[], preserve_indegree=True):
+    FIXflag = False
+    if len(fix_inds):
+        FIXflag = True
+    if src_inds is None:
+        src_inds = np.arange(weights.shape[1]).astype('i')
+        if FIXflag:
+            src_inds = np.delete(src_inds, fix_inds)
     for iT, trg in enumerate(trg_inds):
+        print("trg=", trg)
         indegree = weights[trg].sum()                  # initial total indegree
+        print("indegree=", indegree)
         if hemispheres > 0:
             hemi_src_inds = src_inds[slice(np.mod(iT, 2), None, 2)]
         elif hemispheres < 0:
             hemi_src_inds = src_inds[slice(np.abs(np.mod(iT, 2)-1), None, 2)]
         else:
             hemi_src_inds = src_inds
+        print("hemi_src_inds=", hemi_src_inds)
+        nsrc = len(hemi_src_inds)
+        pathway_gain_corr = np.minimum(90.0, nsrc * pathway_gain) / nsrc
+        print("pathway_gain_corr=", pathway_gain_corr)
         orig = weights[trg, hemi_src_inds]
-        norm = (indegree - pathway_gain * orig.sum()) / (indegree - orig.sum())
-        weights[trg, hemi_src_inds] *= (pathway_gain/norm)  # increase pathway
-        weights[trg] *= norm                                # restore indegree
-        assert np.isclose(weights[trg].sum(), indegree)
+        if FIXflag:
+            hemi_fix_inds = fix_inds[slice(np.mod(iT, 2), None, 2)]  # Only ipsilaterally
+            fix = weights[trg, hemi_fix_inds]
+        else:
+            fix = np.array([])
+        print("orig=", orig)
+        normden = indegree - orig.sum() - fix.sum()
+        print("normden=", normden)
+        if normden:
+            norm = (indegree - pathway_gain_corr * orig.sum() - fix.sum()) / normden
+            # to restore indegree:
+            weights[trg] *= norm
+            pathway_gain_corr /= norm
+        else:
+            norm = 1.0
+        print("norm=", norm)
+        weights[trg, hemi_src_inds] *= pathway_gain_corr  # increase pathway
+        print("w=\n", weights[trg, hemi_src_inds])
+        if FIXflag:
+            if norm != 1.0:
+                weights[trg, hemi_fix_inds] /= norm               # set fixed connections
+            print("wfix=\n", weights[trg, hemi_fix_inds])
+        print("indegree=", weights[trg].sum())
+        try:
+            assert np.isclose(weights[trg].sum(), indegree)
+        except Exception as e:
+            print(indegree)
+            print(weights[trg].sum())
+            if preserve_indegree:
+                raise e
+            else:
+                warnings.warn(str(e))
     return np.abs(weights)
 
 
 def print_weight_to_indegree(src, trg, inds, w, hemispheres=1):
     print("\n" + "-"*25)
-    print("%s -> %s\n" % (src, trg))
+    print("%s -> %s" % (src, trg))
+    print(w[inds[trg]][:, inds[src]])
+    print("%:")
     print(w[inds[trg]][:, inds[src]] / w[inds[trg]].sum() * 200 / (2 - np.abs(hemispheres)))
+
+
+def apply_pathway_gain(weights, inds, pathway_gain, pathway_mode, hemispheres=-1):
+
+    hemispheres = np.abs(hemispheres)
+    print("\n" + "-" * 50)
+    print("Applying pathway gain = %g" % pathway_gain)
+    print("-" * 50 + "\n")
+
+    # A. INPUT SENSORY PATHWAY:
+
+    # 1. PosSens Trigeminal <- Trigeminal (stimulus)
+    # source = inds["trigeminal"]  # ipsilaterally or bilaterally
+    # TODO: Think about this connection:
+    # if pathway_mode != "stim":
+    #     # 1. S1 brl field -> PosSens Trigeminal
+    #     source = np.concatenate([source,
+    #                              inds["s1brl"]])  # including B. FEEDBACK SENSORY PATHWAY
+    print("-" * 25 + "\n")
+    print("trigeminal -> ponssens_trigeminal")
+    weights = \
+        apply_pathway_gain_to_target(inds["trigeminal"],         # ipsilaterally or bilaterally
+                                     inds["ponssens_trigeminal"],
+                                     pathway_gain, weights,
+                                     hemispheres=hemispheres)
+
+    # # 2. PosSens <- Trigeminal (stimulus)
+    # source = inds["trigeminal"]
+    if pathway_mode != "stim":
+        # 2. S1 brl field & PosSens Trigeminal -> PosSens
+        # source = np.concatenate([source,
+        #                          # inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
+        #                          # including B. FEEDBACK SENSORY PATHWAY
+        #                          inds["s1brl"]])         # ipsilaterally or bilaterally
+        # 2. S1 brl field -> PosSens
+        print("-" * 25 + "\n")
+        print("s1brl -> ponssens")
+        weights = \
+            apply_pathway_gain_to_target(inds["s1brl"],  # ipsilaterally or bilaterally
+                                         inds["ponssens"],
+                                         pathway_gain, weights,
+                                         hemispheres=hemispheres)
+
+    # TODO: Think about these connections as well!
+    # 3. S1 brl thal <- Trigeminal (stimulus)
+    # source = inds["trigeminal"]
+    # if pathway_mode != "stim":
+    #     # 2. S1 brl thal <- PosSens Trigeminal
+    #     source = np.concatenate([source,
+    #                              inds["ponssens_trigeminal"]])
+    # print("-" * 25 + "\n")
+    # print("trigeminal -> s1brlthal")
+    # weights = \
+    #     apply_pathway_gain_to_target(inds["trigeminal"][::-1],  # contralaterally or bilaterally
+    #                                  inds["s1brlthal"],
+    #                                  pathway_gain, weights,
+    #                                  hemispheres=hemispheres,
+    #                                  fix_inds=inds["s1brl"])
+
+    # if pathway_mode != "stim":
+    #     # 4. S1 brl <- S1 brl thal
+    #     weights = \
+    #         apply_pathway_gain_to_target(inds["s1brlthal"],  # only ipsilaterally
+    #                                      inds["s1brl"],
+    #                                      pathway_gain, weights,
+    #                                      hemispheres=1)
+
+    # 5. AnsiLob <- Trigeminal (stimulus)
+    source = inds["trigeminal"]  # ipsilaterally or bilaterally
+    print("-" * 25 + "\n")
+    print("trigeminal -> ansilob")
+    if pathway_mode != "stim":
+        # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
+        source = np.concatenate([source,
+                                 inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
+                                 inds["ponssens"][::-1],  # contralaterally or bilaterally
+                                 # including B. FEEDBACK SENSORY PATHWAY
+                                 # inds["s1brl"][::-1], # TODO: Think about this connection as well!
+                                 # including # D. FEEDBACK MOTOR PATHWAY
+                                 inds["ponsmotor"][::-1],  # contralaterally or bilaterally
+                                 # inds["m1"][::-1], # TODO: Think about this connection as well!
+                                 ])
+        print("[ponssens_trigeminal, ponssens, ponsmotor] -> ansilob")
+    weights = \
+        apply_pathway_gain_to_target(source,
+                                     inds["ansilob"],
+                                     pathway_gain, weights,
+                                     hemispheres=hemispheres)
+
+    if pathway_mode != "stim":
+        # 5. Cereb nuclei <- AnsiLob
+        print("-" * 25 + "\n")
+        print("ansilob -> cereb_nuclei")
+        weights = \
+            apply_pathway_gain_to_target(inds["ansilob"],  # ipsilaterally or bilaterally
+                                         inds["cereb_nuclei"],
+                                         pathway_gain, weights,
+                                         hemispheres=hemispheres)
+        # C. INPUT MOTOR PATHWAY:
+
+        # # 1.  M1 thal <- CerebNuclei
+        # print("-" * 25 + "\n")
+        # print("cereb_nuclei -> m1thal")
+        # weights = \
+        #     apply_pathway_gain_to_target(inds["cereb_nuclei"][::-1],  # contralaterally or bilaterally
+        #                                  inds["m1thal"],
+        #                                  pathway_gain, weights,
+        #                                  hemispheres=hemispheres,
+        #                                  fix_inds=inds["m1"])
+
+        # # 2. M1 <- M1 thal
+        # weights = \
+        #     apply_pathway_gain_to_target(inds["m1thal"],  # only ipsilaterally
+        #                                 inds["m1"],
+        #                                 pathway_gain, weights,
+        #                                 hemispheres=1)
+
+        # D. FEEDBACK MOTOR PATHWAY:
+        # 1. PonsMotor <- M1
+        print("-" * 25 + "\n")
+        print("m1 -> ponsmotor")
+        weights = \
+            apply_pathway_gain_to_target(inds["m1"],       # ipsilaterally or bilaterally
+                                         inds["ponsmotor"],
+                                         pathway_gain, weights,
+                                         hemispheres=hemispheres)
+
+    weights = apply_pathway_gain_to_target(inds["s1brl"], inds["m1"], pathway_gain, weights,
+                                           hemispheres=0,
+                                           fix_inds=inds["m1thal"])
+    weights = apply_pathway_gain_to_target(None, inds["m1"], 1.0 / pathway_gain, weights,
+                                           hemispheres=0,
+                                           fix_inds=inds["m1thal"],
+                                           preserve_indegree=False)
+    weights = apply_pathway_gain_to_target(inds["m1"], inds["s1brl"], pathway_gain, weights,
+                                           hemispheres=0,
+                                           fix_inds=inds["s1brlthal"])
+    weights = apply_pathway_gain_to_target(None, inds["s1brl"], 1.0 / pathway_gain, weights,
+                                           hemispheres=0,
+                                           fix_inds=inds["s1brlthal"],
+                                           preserve_indegree=False)
+
+
+    # # Scale up connections from principal sensory trigeminal nucleus to ansiform lobule
+    # reg1='Left Ansiform lobule'
+    # reg2='Right Ansiform lobule'
+    # reg3 = 'Left Principal sensory nucleus of the trigeminal'
+    # reg4 = 'Right Principal sensory nucleus of the trigeminal'
+    # reg5 = 'Left Spinal nucleus of the trigeminal'
+    # reg6 = 'Right Spinal nucleus of the trigeminal'
+    # #find the indices in region labels of these strings
+    # iR1 = np.where([reg1 in reg for reg in connectivity.region_labels])[0]
+    # iR2 = np.where([reg2 in reg for reg in connectivity.region_labels])[0]
+    # iR3 = np.where([reg3 in reg for reg in connectivity.region_labels])[0]
+    # iR4 = np.where([reg4 in reg for reg in connectivity.region_labels])[0]
+    # iR5 = np.where([reg5 in reg for reg in connectivity.region_labels])[0]
+    # iR6 = np.where([reg6 in reg for reg in connectivity.region_labels])[0]
+    #
+    # pathway_gain = 1
+    # '''# PST to AN
+    # connectivity.weights[iR1, iR3] *= pathway_gain
+    # connectivity.weights[iR1, iR4] *= pathway_gain
+    # connectivity.weights[iR2, iR3] *= pathway_gain
+    # connectivity.weights[iR2, iR4] *= pathway_gain
+    # # SNT to PST
+    # connectivity.weights[iR3, iR5] *= pathway_gain
+    # connectivity.weights[iR3, iR6] *= pathway_gain
+    # connectivity.weights[iR4, iR5] *= pathway_gain
+    # connectivity.weights[iR4, iR6] *= pathway_gain
+    # '''
+    # # SNT to AN
+    # connectivity.weights[iR1, iR5] *= pathway_gain
+    # connectivity.weights[iR1, iR6] *= pathway_gain
+    # connectivity.weights[iR2, iR5] *= pathway_gain
+    # connectivity.weights[iR2, iR6] *= pathway_gain
+
+    # # To have the full sensory whisking pathway
+    # reg7 = 'Left Primary somatosensory area, barrel field'
+    # reg8 = 'Right Primary somatosensory area, barrel field'
+    # iR7 = np.where([reg7 in reg for reg in connectivity.region_labels])[0]
+    # iR8 = np.where([reg8 in reg for reg in connectivity.region_labels])[0]
+    # # S1 to PST
+    # connectivity.weights[iR3, iR7] *= pathway_gain
+    # connectivity.weights[iR3, iR8] *= pathway_gain
+    # connectivity.weights[iR4, iR7] *= pathway_gain
+    # connectivity.weights[iR4, iR8] *= pathway_gain
+    # # SNT to S1
+    # connectivity.weights[iR7, iR5] *= pathway_gain
+    # connectivity.weights[iR7, iR6] *= pathway_gain
+    # connectivity.weights[iR8, iR5] *= pathway_gain
+    # connectivity.weights[iR8, iR6] *= pathway_gain
+
+    return weights
 
 
 def cosim_run_plot(**kwargs):
@@ -97,160 +334,8 @@ def cosim_run_plot(**kwargs):
     # connectivity.configure()
 
     if pathway_gain > 1.0:
-        hemispheres = np.abs(hemispheres)
-        print("\n" + "-"*50)
-        print("Applying pathway gain = %g" % pathway_gain)
-        print("-" * 50 + "\n")
-
-        # A. INPUT SENSORY PATHWAY:
-
-        # 1. PosSens Trigeminal <- Trigeminal (stimulus)
-        source = inds["trigeminal"]  # ipsilaterally or bilaterally
-        # TODO: Think about this connection:
-        # if pathway_mode != "stim":
-        #     # 1. S1 brl field -> PosSens Trigeminal
-        #     source = np.concatenate([source,
-        #                              inds["s1brl"]])  # including B. FEEDBACK SENSORY PATHWAY
-        connectivity.weights = \
-            apply_pathway_gain_increase(source,
-                                        inds["ponssens_trigeminal"],
-                                        pathway_gain, connectivity.weights,
-                                        hemispheres=hemispheres)
-
-        # 2. PosSens <- Trigeminal (stimulus)
-        source = inds["trigeminal"]
-        if pathway_mode != "stim":
-            # 2. S1 brl field & PosSens Trigeminal -> PosSens
-            source = np.concatenate([source,
-                                     inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
-                                     # including B. FEEDBACK SENSORY PATHWAY
-                                     inds["s1brl"][::-1]])         # contralaterally or bilaterally
-        connectivity.weights = \
-            apply_pathway_gain_increase(source,
-                                        inds["ponssens"],
-                                        pathway_gain, connectivity.weights,
-                                        hemispheres=hemispheres)
-
-        # TODO: Think about these connections as well!
-        # 3. S1 brl thal <- Trigeminal (stimulus)
-        source = inds["trigeminal"]
-        # if pathway_mode != "stim":
-        #     # 2. S1 brl thal <- PosSens Trigeminal
-        #     source = np.concatenate([source,
-        #                              inds["ponssens_trigeminal"]])
-        connectivity.weights = \
-            apply_pathway_gain_increase(source[::-1],      # contralaterally or bilaterally
-                                        inds["s1brlthal"],
-                                        pathway_gain, connectivity.weights,
-                                        hemispheres=hemispheres)
-
-        if pathway_mode != "stim":
-            # 4. S1 brl <- S1 brl thal
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["s1brlthal"],  # only ipsilaterally
-                                            inds["s1brl"],
-                                            pathway_gain, connectivity.weights,
-                                            hemispheres=1)
-
-        # 5. AnsiLob <- Trigeminal (stimulus)
-        source = inds["trigeminal"]      # ipsilaterally or bilaterally
-        if pathway_mode != "stim":
-            # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
-            source = np.concatenate([source,
-                                     inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
-                                     inds["ponssens"],     # ipsilaterally or bilaterally
-                                     # including B. FEEDBACK SENSORY PATHWAY
-                                     # inds["s1brl"][::-1], # TODO: Think about this connection as well!
-                                     # including # D. FEEDBACK MOTOR PATHWAY
-                                     inds["ponsmotor"],  # ipsilaterally or bilaterally
-                                     # inds["m1"][::-1], # TODO: Think about this connection as well!
-                                     ])
-        connectivity.weights = \
-            apply_pathway_gain_increase(source,
-                                        inds["ansilob"],
-                                        pathway_gain, connectivity.weights,
-                                        hemispheres=hemispheres)
-
-        if pathway_mode != "stim":
-            # 5. Cereb nuclei <- AnsiLob
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["ansilob"],     # ipsilaterally or bilaterally
-                                            inds["cereb_nuclei"],
-                                            pathway_gain, connectivity.weights,
-                                            hemispheres=hemispheres)
-            # C. INPUT MOTOR PATHWAY:
-
-            # 1.  M1 thal <- CerebNuclei
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["cereb_nuclei"][::-1],  # contralaterally or bilaterally
-                                            inds["m1thal"],
-                                            pathway_gain, connectivity.weights,
-                                            hemispheres=hemispheres)
-
-            # 2. M1 <- M1 thal
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["m1thal"],  # only ipsilaterally
-                                            inds["m1"],
-                                            pathway_gain, connectivity.weights,
-                                            hemispheres=1)
-
-            # D. FEEDBACK MOTOR PATHWAY:
-            # 1. PonsMotor <- M1
-            connectivity.weights = \
-                apply_pathway_gain_increase(inds["m1"][::-1],       # contralaterally or bilaterally
-                                            inds["ponsmotor"],
-                                            pathway_gain, connectivity.weights,
-                                            hemispheres=hemispheres)
-
-    # # Scale up connections from principal sensory trigeminal nucleus to ansiform lobule
-    # reg1='Left Ansiform lobule'
-    # reg2='Right Ansiform lobule'
-    # reg3 = 'Left Principal sensory nucleus of the trigeminal'
-    # reg4 = 'Right Principal sensory nucleus of the trigeminal'
-    # reg5 = 'Left Spinal nucleus of the trigeminal'
-    # reg6 = 'Right Spinal nucleus of the trigeminal'
-    # #find the indices in region labels of these strings
-    # iR1 = np.where([reg1 in reg for reg in connectivity.region_labels])[0]
-    # iR2 = np.where([reg2 in reg for reg in connectivity.region_labels])[0]
-    # iR3 = np.where([reg3 in reg for reg in connectivity.region_labels])[0]
-    # iR4 = np.where([reg4 in reg for reg in connectivity.region_labels])[0]
-    # iR5 = np.where([reg5 in reg for reg in connectivity.region_labels])[0]
-    # iR6 = np.where([reg6 in reg for reg in connectivity.region_labels])[0]
-    #
-    # pathway_gain = 1
-    # '''# PST to AN
-    # connectivity.weights[iR1, iR3] *= pathway_gain
-    # connectivity.weights[iR1, iR4] *= pathway_gain
-    # connectivity.weights[iR2, iR3] *= pathway_gain
-    # connectivity.weights[iR2, iR4] *= pathway_gain
-    # # SNT to PST
-    # connectivity.weights[iR3, iR5] *= pathway_gain
-    # connectivity.weights[iR3, iR6] *= pathway_gain
-    # connectivity.weights[iR4, iR5] *= pathway_gain
-    # connectivity.weights[iR4, iR6] *= pathway_gain
-    # '''
-    # # SNT to AN
-    # connectivity.weights[iR1, iR5] *= pathway_gain
-    # connectivity.weights[iR1, iR6] *= pathway_gain
-    # connectivity.weights[iR2, iR5] *= pathway_gain
-    # connectivity.weights[iR2, iR6] *= pathway_gain
-
-    # # To have the full sensory whisking pathway
-    # reg7 = 'Left Primary somatosensory area, barrel field'
-    # reg8 = 'Right Primary somatosensory area, barrel field'
-    # iR7 = np.where([reg7 in reg for reg in connectivity.region_labels])[0]
-    # iR8 = np.where([reg8 in reg for reg in connectivity.region_labels])[0]
-    # # S1 to PST
-    # connectivity.weights[iR3, iR7] *= pathway_gain
-    # connectivity.weights[iR3, iR8] *= pathway_gain
-    # connectivity.weights[iR4, iR7] *= pathway_gain
-    # connectivity.weights[iR4, iR8] *= pathway_gain
-    # # SNT to S1
-    # connectivity.weights[iR7, iR5] *= pathway_gain
-    # connectivity.weights[iR7, iR6] *= pathway_gain
-    # connectivity.weights[iR8, iR5] *= pathway_gain
-    # connectivity.weights[iR8, iR6] *= pathway_gain
-
+        connectivity.weights = apply_pathway_gain(connectivity.weights, inds,
+                                                  pathway_gain, pathway_mode, hemispheres=hemispheres)
 
     # Put cereb weights to 0 if CEREB_OFF
     if CEREB_OFF:
