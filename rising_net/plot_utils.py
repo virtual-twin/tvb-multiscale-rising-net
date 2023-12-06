@@ -136,7 +136,7 @@ def plot_pathway_psd_coh(results, inds,
         for reg, hemiI in zip(REGIONS,
                               [True, True,
                                True, True,
-                               False, False,
+                               True, True,
                                False, False,
                                False, False]):
             if hemiI:
@@ -161,8 +161,8 @@ def plot_pathway_psd_coh(results, inds,
         for regs, hemiI in zip(REGPAIRS,
                                [[True, True],
                                 [True, True], [True, True],
-                                [True, False], [True, False],  # ??
-                                [False, False], [False, False],
+                                [True, True], [True, True],  # ??
+                                [True, False], [True, False],
                                 [False, True], [False, False], [False, False], [False, False],
                                 [False, False],
                                 [False, True], [False, True]]):
