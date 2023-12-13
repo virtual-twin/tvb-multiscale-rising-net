@@ -897,6 +897,9 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
 
     NPERSEG = 512
 
+    PSD_target = compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None)
+    compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient=transient, write_files=True, plotter=plotter)
+
     if isinstance(results, (list, tuple)):
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
 
