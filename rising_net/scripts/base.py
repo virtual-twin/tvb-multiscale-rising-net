@@ -20,12 +20,13 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 from tvb.simulator.integrators import EulerStochastic
 
 
-DEFAULT_ARGS = {'G': 6.0, '': 0.1,
+DEFAULT_ARGS = {'G': 6.0,
                 "STIMULUS": 0.1,
                 "STIMULUS_BASELINE": 0.0,
                 'I_e': -0.35, 'I_s': 0.085,
                 'w_ie': -3.0, 'w_rs': -2.0,
                 'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
+                "NOISE": 1e-4,
                 'PRIORS_DIST': 'uniform',
                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
@@ -111,7 +112,7 @@ def configure(**ARGS):
 
     # Integration
     config.DEFAULT_DT = 0.1
-    config.DEFAULT_NSIG = 1e-4  # NOISE strength
+    config.DEFAULT_NSIG = args.get("NOISE", 1e-4)  # NOISE strength
     config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42)
     config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461)
     config.DEFAULT_STOCHASTIC_INTEGRATOR = EulerStochastic
