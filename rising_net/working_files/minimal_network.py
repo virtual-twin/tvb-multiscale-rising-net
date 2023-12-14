@@ -77,7 +77,7 @@ def get_config(**kwargs):
         experiment_name = experiment_name[1:]
 
     if FIC:
-        experiment_name += "_".join([experiment_name, "FIC"])
+        experiment_name = "_".join([experiment_name, "FIC"])
 
     if len(test_name):
         experiment_name = "_".join([experiment_name, test_name])
