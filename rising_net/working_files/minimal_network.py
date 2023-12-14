@@ -343,7 +343,7 @@ def simulate_minimal(**kwargs):
                 connectivity.weights[inds["cereb_nuclei"], inds["ansilob"]] = 2.0
             if CEREB > 1:
                 connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0
-                connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 1.0
+                connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 2.0
             elif M1STIM:
                 connectivity.weights[inds["m1thal"], inds["trigeminal"][::-1]] = 1.0
 
