@@ -37,10 +37,11 @@ def get_config(**kwargs):
     STIMULUS = kwargs.get("STIMULUS", 0.1)
     STIMULUS_BASELINE = kwargs.get("STIMULUS_BASELINE", 0.1)
     NOISE = int(kwargs.pop("NOISE", 4))
+    CNS1TH = float(kwargs.pop("CNS1TH", 1.0))
     G = float(kwargs.get("G", 1.0))
     FIC = float(kwargs.get("FIC", 1.11))
     SET_WEIGHTS = kwargs.pop("SET_WEIGHTS", True)
-    SET_DELAYS = kwargs.pop("SET_DELAYS", False)
+    # SET_DELAYS = kwargs.pop("SET_DELAYS", False)
     hemispheres = int(kwargs.pop("hemispheres", -1))
 
     seed = int(kwargs.pop("seed", -1))
@@ -60,8 +61,8 @@ def get_config(**kwargs):
     if SET_WEIGHTS:
         experiment_name = "_".join([experiment_name, "SetW"])
 
-    if SET_DELAYS:
-        experiment_name = "_".join([experiment_name, "SetDel"])
+    # if SET_DELAYS:
+    #     experiment_name = "_".join([experiment_name, "SetDel"])
 
     if pathway_gain > 1.0:
         if pathway_mode == "stim":
@@ -112,13 +113,14 @@ def get_config(**kwargs):
     config.RANDOM_SEED_TVB = seed
     config.RANDOM_SEED_NEST = seed
     config.CEREB = CEREB
+    config.CNS1TH = CNS1TH
     config.TRIGEMINAL = TRIGEMINAL
     config.M1STIM = M1STIM
     config.HEMISPHERES = hemispheres
     config.PATHWAY_GAIN = pathway_gain
     config.PATHWAY_MODE = pathway_mode
     config.SET_WEIGHTS = SET_WEIGHTS
-    config.SET_DELAYS = SET_DELAYS
+    # config.SET_DELAYS = SET_DELAYS
     config.STIMULUS_RATE = 8.0  # Hz
     config.VERBOSITY = 2.0
 
@@ -244,6 +246,7 @@ def simulate_minimal(**kwargs):
     TRIGEMINAL = getattr(config, "TRIGEMINAL", True)
     M1STIM = getattr(config, "M1STIM", True)
     hemispheres = getattr(config, "HEMISPHERES", -1)
+    CNS1TH = getattr(config, "CNS1TH", 1.0)
 
     # CONNECTOME:
     connectivity, inds, maps = newconn_and_inds(config, plotter)
@@ -344,36 +347,40 @@ def simulate_minimal(**kwargs):
             if CEREB > 1:
                 connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0
                 connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 2.0
+                if CNS1TH > 0.0:
+                    connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = CNS1TH
             elif M1STIM:
                 connectivity.weights[inds["m1thal"], inds["trigeminal"][::-1]] = 1.0
 
-    if config.SET_DELAYS:
-        # M1 <-> S1 ipsilateral:
-        connectivity.tract_lengths[inds["m1"], inds["s1brl"]] = set_delays(10.0)
-        connectivity.tract_lengths[inds["s1brl"], inds["m1"]] = set_delays(10.0)
-
-        # M1 <-> S1 contralateral:
-        connectivity.tract_lengths[inds["m1"], inds["s1brl"][::-1]] = set_delays(20.0)
-        connectivity.tract_lengths[inds["s1brl"], inds["m1"][::-1]] = set_delays(20.0)
-
-        # SpecThal -> Crtx Ipsilateral only:
-        connectivity.tract_lengths[inds["m1"], inds["m1thal"]] = set_delays(20.0)
-        connectivity.tract_lengths[inds["s1brl"], inds["s1brlthal"]] = set_delays(20.0)
-
-        # Crtx -> SpecThal Ipsilateral only:
-        connectivity.tract_lengths[inds["m1thal"], inds["m1"]] = set_delays(20.0)
-        connectivity.tract_lengths[inds["s1brlthal"], inds["s1brl"]] = set_delays(20.0)
-
-        if TRIGEMINAL:
-            # Trigeminal -> SpecThal contralateral only:
-            connectivity.tract_lengths[inds["s1brlthal"], inds["trigeminal"][::-1]] = set_delays(10.0)
-            if CEREB:
-                connectivity.weights[inds["cereb_nuclei"], inds["ansilob"]] = set_delays(5.0)
-            if CEREB > 1:
-                connectivity.weights[inds["ansilob"], inds["trigeminal"]] = set_delays(10.0)
-                connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = set_delays(10.0)
-            elif M1STIM:
-                connectivity.tract_lengths[inds["m1thal"], inds["trigeminal"][::-1]] = set_delays(10.0)
+    # if config.SET_DELAYS:
+    #     # M1 <-> S1 ipsilateral:
+    #     connectivity.tract_lengths[inds["m1"], inds["s1brl"]] = set_delays(10.0)
+    #     connectivity.tract_lengths[inds["s1brl"], inds["m1"]] = set_delays(10.0)
+    #
+    #     # M1 <-> S1 contralateral:
+    #     connectivity.tract_lengths[inds["m1"], inds["s1brl"][::-1]] = set_delays(20.0)
+    #     connectivity.tract_lengths[inds["s1brl"], inds["m1"][::-1]] = set_delays(20.0)
+    #
+    #     # SpecThal -> Crtx Ipsilateral only:
+    #     connectivity.tract_lengths[inds["m1"], inds["m1thal"]] = set_delays(20.0)
+    #     connectivity.tract_lengths[inds["s1brl"], inds["s1brlthal"]] = set_delays(20.0)
+    #
+    #     # Crtx -> SpecThal Ipsilateral only:
+    #     connectivity.tract_lengths[inds["m1thal"], inds["m1"]] = set_delays(20.0)
+    #     connectivity.tract_lengths[inds["s1brlthal"], inds["s1brl"]] = set_delays(20.0)
+    #
+    #     if TRIGEMINAL:
+    #         # Trigeminal -> SpecThal contralateral only:
+    #         connectivity.tract_lengths[inds["s1brlthal"], inds["trigeminal"][::-1]] = set_delays(10.0)
+    #         if CEREB:
+    #             connectivity.tract_lengths[inds["cereb_nuclei"], inds["ansilob"]] = set_delays(5.0)
+    #         if CEREB > 1:
+    #             connectivity.tract_lengths[inds["ansilob"], inds["trigeminal"]] = set_delays(10.0)
+    #             connectivity.tract_lengths[inds["m1thal"], inds["cereb_nuclei"][::-1]] = set_delays(10.0)
+    #             if CNS1TH > 0.0:
+    #                 onnectivity.tract_lengths[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = set_delays(10.0)
+    #         elif M1STIM:
+    #             connectivity.tract_lengths[inds["m1thal"], inds["trigeminal"][::-1]] = set_delays(10.0)
 
     plotter.plot_tvb_connectivity(connectivity)
 
@@ -455,6 +462,8 @@ def simulate_minimal(**kwargs):
              ["m1", "m1thal"]]
     if CEREB:
         conns += [["trigeminal", "ansilob"], ["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"]]
+        if CNS1TH > 0.0:
+            conns += [["cereb_nuclei", "s1brlthal"]]
     elif M1STIM:
         conns += [["trigeminal", "m1thal"]]
     for conn in conns:
@@ -497,7 +506,7 @@ def get_reg_pairs_inds(regs, inds, hemis, results):
     return iR
 
 
-def plot_pathway_psd_coh_minimal(results, inds, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
                                  percentile_min=1, percentile_max=99, n=1,
                                  plot_mean=False, plot_median=True, mode="semilog",
                                  alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
@@ -542,6 +551,11 @@ def plot_pathway_psd_coh_minimal(results, inds, tests=["cerebON", "cerebOFF"], c
                         [5, 1]]          # TRAL
         ipsiCOH += [[False, False], [False, True],
                     [False, False]]
+
+        if CNS1TH > 0.0:
+            REGPAIRS += [["cereb_nuclei", "s1brlthal"]]
+            subplotsCOH += [[5, 2]]
+            ipsiCOH += [[False, True]]
     else:
         nRows = 4
         # PSD plots:
