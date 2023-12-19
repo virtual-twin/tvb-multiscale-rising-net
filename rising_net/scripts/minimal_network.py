@@ -38,6 +38,8 @@ def get_config(**kwargs):
     STIMULUS_BASELINE = kwargs.get("STIMULUS_BASELINE", 0.1)
     NOISE = int(kwargs.pop("NOISE", 4))
     CNS1TH = float(kwargs.pop("CNS1TH", 1.0))
+    PONS = float(kwargs.pop("PONS", 0.5))
+    SENSTRIG = float(kwargs.pop("SENSTRIG", 1.0))
     G = float(kwargs.get("G", 1.0))
     FIC = float(kwargs.get("FIC", 1.11))
     SET_WEIGHTS = kwargs.pop("SET_WEIGHTS", True)
@@ -114,6 +116,8 @@ def get_config(**kwargs):
     config.RANDOM_SEED_NEST = seed
     config.CEREB = CEREB
     config.CNS1TH = CNS1TH
+    config.PONS = PONS
+    config.SENSTRIG = SENSTRIG
     config.TRIGEMINAL = TRIGEMINAL
     config.M1STIM = M1STIM
     config.HEMISPHERES = hemispheres
@@ -136,6 +140,8 @@ def newconn_and_inds(config, plotter):
     TRIGEMINAL = getattr(config, "TRIGEMINAL", True)
     M1STIM = getattr(config, "M1STIM", True)
     HEMISPHERES = getattr(config, "HEMISPHERES", -1)
+    PONS = getattr(config, "PONS", 0.5)
+    SENSTRIG = getattr(config, "SENSTRIG", 1.0)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
@@ -155,6 +161,10 @@ def newconn_and_inds(config, plotter):
     regs = ["m1", "s1brl", "m1thal", "s1brlthal", "trigeminal"]
     if CEREB:
         regs += ["ansilob", "cereb_nuclei"]
+        if SENSTRIG > 0.0:
+            regs += ["ponssens_trigeminal"]
+        if PONS > 0.0:
+            regs += ["ponssens", "ponsmotor"]
     for reg in regs:
         for iH, hemi in zip([0, 1], ["right_", "left_"]):
             indegree[hemi + reg] = connectivity.weights[inds[reg][iH]].sum()
@@ -204,9 +214,11 @@ def newconn_and_inds(config, plotter):
         newinds["ansilob"] = []
     newinds["motor"] = np.sort(np.concatenate([newinds["m1"], newinds["m1thal"],
                                                newinds["trigeminal"] if TRIGEMINAL else [],
-                                               newinds["cereb"] if CEREB else []])).astype('i')
+                                               newinds["cereb"] if CEREB else [],
+                                               newinds["ponssens_trigeminal"] if SENSTRIG > 0.0 else []])).astype('i')
     newinds["sens"] = np.sort(np.concatenate([newinds["s1brl"], newinds["s1brlthal"],
-                                              newinds["trigeminal"] if TRIGEMINAL else []])).astype('i')
+                                              newinds["trigeminal"] if TRIGEMINAL else [],
+                                              newinds["ponssens_trigeminal"] if SENSTRIG > 0.0 else []])).astype('i')
 
     newinds["facial"] = []
 
@@ -218,6 +230,9 @@ def newconn_and_inds(config, plotter):
     newmaps["is_subcortical"] = np.logical_not(newmaps["is_cortical"])
     newmaps["is_subcortical_not_thalspec"] = np.array([False] * connectivity.number_of_regions).astype("bool")
     newmaps["is_subcortical_not_thalspec"][newinds["trigeminal"].tolist() +
+                                           newinds["ponssens_trigeminal"].tolist() if SENSTRIG > 0.0 else [] +
+                                           newinds["ponsmotor"].tolist() if PONS > 0.0 else [] +
+                                           newinds["ponssens"].tolist() if PONS > 0.0 else [] +
                                            newinds["cereb"].tolist() if CEREB else []] = True
     newinds["subcrtx_not_thalspec"] = np.where(newmaps["is_subcortical_not_thalspec"])[0].astype('i')
 
@@ -242,11 +257,13 @@ def simulate_minimal(**kwargs):
     # Configuration
     config, plotter = get_config(**kwargs)
 
-    CEREB = getattr(config, "CEREB", True)
+    CEREB = getattr(config, "CEREB", 2)
     TRIGEMINAL = getattr(config, "TRIGEMINAL", True)
     M1STIM = getattr(config, "M1STIM", True)
     hemispheres = getattr(config, "HEMISPHERES", -1)
     CNS1TH = getattr(config, "CNS1TH", 1.0)
+    SENSTRIG = getattr(config, "SENSTRIG", 1.0)
+    PONS = getattr(config, "PONS", 0.5)
 
     # CONNECTOME:
     connectivity, inds, maps = newconn_and_inds(config, plotter)
@@ -339,13 +356,25 @@ def simulate_minimal(**kwargs):
         connectivity.weights[inds["m1thal"], inds["m1"]] = 1.0
         connectivity.weights[inds["s1brlthal"], inds["s1brl"]] = 1.0
 
+        if PONS > 0.0:
+            connectivity.weights[inds["ponsmotor"], inds["m1"]] = 1.0
+            connectivity.weights[inds["ponssens"], inds["s1brl"]] = 1.0
+
         if TRIGEMINAL:
             # Trigeminal -> SpecThal contralateral only:
             connectivity.weights[inds["s1brlthal"], inds["trigeminal"][::-1]] = 1.0
+            if SENSTRIG > 0.0:
+                connectivity.weights[inds["ponssens_trigeminal"], inds["trigeminal"][::-1]] = 2.0
+                connectivity.weights[inds["s1brlthal"], inds["ponssens_trigeminal"][::-1]] = SENSTRIG
             if CEREB:
                 connectivity.weights[inds["cereb_nuclei"], inds["ansilob"]] = 2.0
             if CEREB > 1:
-                connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0
+                connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0 - SENSTRIG
+                if SENSTRIG > 0.0:
+                    connectivity.weights[inds["ansilob"], inds["ponssens_trigeminal"]] = SENSTRIG
+                if PONS > 0.0:
+                    connectivity.weights[inds["ansilob"], inds["ponssens"]] = PONS
+                    connectivity.weights[inds["ansilob"], inds["ponsmotor"]] = PONS
                 connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 2.0
                 if CNS1TH > 0.0:
                     connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = CNS1TH
@@ -460,8 +489,16 @@ def simulate_minimal(**kwargs):
              ["s1brl", "s1brlthal"], ["trigeminal", "s1brlthal"],
              ["m1thal", "m1"],
              ["m1", "m1thal"]]
+    if SENSTRIG > 0.1:
+        conns += [["trigeminal", "ponsses_trigeminal"], ["ponsses_trigeminal", "s1brlthal"]]
+    if PONS > 0.0:
+        conns += [["s1brl", "ponssens"], ["m1", "ponsmotor"]]
     if CEREB:
         conns += [["trigeminal", "ansilob"], ["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"]]
+        if SENSTRIG > 0.0:
+            conns += [["ponssens_trigeminal", "ansilob"]]
+        if PONS > 0.0:
+            conns += [["ponssens", "ansilob"], ["ponsmotor", "ansilob"]]
         if CNS1TH > 0.0:
             conns += [["cereb_nuclei", "s1brlthal"]]
     elif M1STIM:
@@ -504,230 +541,6 @@ def get_reg_pairs_inds(regs, inds, hemis, results):
         iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
                                      results["ij"][:, 1].flatten() == pair[1]))[0].item()
     return iR
-
-
-def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0):
-    CEREB = False
-    for test in tests:
-        if test.find("cereb") > -1:
-            CEREB = True
-
-    REGIONS = ["s1brl", "m1",
-               "s1brlthal", "m1thal"]
-    # PSD plots:
-    subplotsPSD = [[0, 0], [0, 2],  # S1, M1
-
-                   [2, 0], [2, 2]]  # S1Th, M1Th
-    ipsiPSD = [True, True,
-               True, True]
-
-    REGPAIRS = [["s1brl", "m1"],
-                ["s1brl", "s1brlthal"], ["m1", "m1thal"],
-                ["trigeminal", "s1brlthal"]]
-
-    subplotsCOH = [[0, 1],  # S1M1
-                   [1, 0], [1, 2],  # S1S1th, M1M1Th
-
-                   [3, 0]]  # TRS1Th
-    ipsiCOH = [[True, True],
-               [True, True], [True, True],
-               [False, True]]
-    if CEREB:
-        nRows = 6
-        REGIONS += ["ansilob", "cereb_nuclei", "trigeminal"]
-        ipsiPSD += [False, False, False]
-        # PSD plots:
-        subplotsPSD += [[4, 1], [3, 1],  # AL, CN
-                        [5, 0]]  # TR
-
-        REGPAIRS += [["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"], ["trigeminal", "ansilob"]]
-        # COH plots:
-        subplotsCOH += [[4, 2], [3, 2],  # ALCN, CNM1Th
-
-                        [5, 1]]  # TRAL
-        ipsiCOH += [[False, False], [False, True],
-                    [False, False]]
-
-        if CNS1TH > 0.0:
-            REGPAIRS += [["cereb_nuclei", "s1brlthal"]]
-            subplotsCOH += [[5, 2]]
-            ipsiCOH += [[False, True]]
-    else:
-        nRows = 4
-        # PSD plots:
-        REGIONS += ["trigeminal"]
-        subplotsPSD += [[3, 1]]  # TR
-        ipsiPSD += [False]
-
-        REGPAIRS += [["trigeminal", "m1thal"]]
-        subplotsCOH += [[3, 2]]
-        ipsiCOH += [[False, True]]
-
-    mosaic = np.tile(["."], (nRows, 3)).astype('O')
-
-    # PSD plots:
-    for ax, reg in zip(subplotsPSD, REGIONS):
-        mosaic[ax[0], ax[1]] = reg
-    # COH plots:
-    for ax, regs, in zip(subplotsCOH, REGPAIRS):
-        mosaic[ax[0], ax[1]] = "-".join(regs)
-
-    return mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH
-
-
-def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
-                                 percentile_min=1, percentile_max=99, n=1,
-                                 plot_mean=False, plot_median=True, mode="semilog",
-                                 alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
-
-    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
-
-    figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
-    figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
-
-    print(axR)
-    print(axL)
-    # PSD plots:
-
-    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
-        for reg, hemiI in zip(REGIONS, ipsiPSD):
-            if hemiI:
-                ind = inds[reg][hemi]
-            else:
-                ind = inds[reg][1 - hemi]
-            iR = np.where(results["inds"] == ind)[0].item()
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
-                             **line_kwargs)
-            axH[reg].set_title(results['short_labels'][iR])
-            if mode == "semilog":
-                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
-            else:
-                axH[reg].set_ylabel('PSD', fontsize=fontsize)
-
-    # COH plots:
-    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
-        for regs, hemiIs in zip(REGPAIRS, ipsiCOH):
-            pair = []
-            for reg, hemiI in zip(regs, hemiIs):
-                if hemiI:
-                    ind = inds[reg][hemi]
-                else:
-                    ind = inds[reg][1 - hemi]
-                pair.append(np.where(results["inds"] == ind)[0].item())
-            try:
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            except:
-                pair = pair[::-1]
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            ax = axH["-".join(regs)]
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=ax, mode=mode,
-                             **line_kwargs)
-                for band, COH, f in zip(["theta", "gamma"],
-                                        ["COHth", "COHgm"],
-                                        ["fth", "fgm"]):
-                    if mode == "semilog":
-                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
-                    else:
-                        mean = results[test]['COH'][:, iR, results[f]].mean()
-                    ax.plot(results[band], [mean] * 2,
-                            color=col, linewidth=2.0)
-            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
-                                      results['short_labels'][pair[1]]), fontsize=fontsize)
-            if mode == "semilog":
-                ax.set_ylabel('log(COH)', fontsize=fontsize)
-            else:
-                ax.set_ylabel('COH', fontsize=fontsize)
-        figH.tight_layout()
-
-    return figR, axR, figL, axL
-
-
-def plot_pathway_sync_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
-                              percentile_min=1, percentile_max=99, n=1,
-                              plot_mean=False, plot_median=True, mode="semilog",
-                              alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
-
-    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
-
-    figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
-    figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
-
-    print(axR)
-    print(axL)
-    # PSD plots:
-    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
-        for reg, hemiI in zip(REGIONS, ipsiPSD):
-            if hemiI:
-                ind = inds[reg][hemi]
-            else:
-                ind = inds[reg][1 - hemi]
-            iR = np.where(results["inds"] == ind)[0].item()
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
-                             **line_kwargs)
-            axH[reg].set_title(results['short_labels'][iR])
-            if mode == "semilog":
-                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
-            else:
-                axH[reg].set_ylabel('PSD', fontsize=fontsize)
-
-    # SYNC plots:
-    results["syncij"] = []
-    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
-        for regs, hemiIs in zip(REGPAIRS, ipsiCOH):
-            pair = []
-            for reg, hemiI in zip(regs, hemiIs):
-                if hemiI:
-                    ind = inds[reg][hemi]
-                else:
-                    ind = inds[reg][1 - hemi]
-                pair.append(np.where(results["inds"] == ind)[0].item())
-            results["syncij"].append(pair)
-            try:
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            except:
-                pair = pair[::-1]
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            ax = axH["-".join(regs)]
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=ax, mode=mode,
-                             **line_kwargs)
-                for band, COH, f in zip(["theta", "gamma"],
-                                        ["COHth", "COHgm"],
-                                        ["fth", "fgm"]):
-                    if mode == "semilog":
-                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
-                    else:
-                        mean = results[test]['COH'][:, iR, results[f]].mean()
-                    ax.plot(results[band], [mean] * 2,
-                            color=col, linewidth=2.0)
-            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
-                                      results['short_labels'][pair[1]]), fontsize=fontsize)
-            if mode == "semilog":
-                ax.set_ylabel('log(COH)', fontsize=fontsize)
-            else:
-                ax.set_ylabel('COH', fontsize=fontsize)
-        figH.tight_layout()
-
-    return figR, axR, figL, axL
 
 
 def plot_comparison(tests, **kwargs):
@@ -800,7 +613,7 @@ def plot_comparison(tests, **kwargs):
 
     dump_pickled_dict(results, os.path.join(config.out.FOLDER_RES, "res_PSD_COH.pkl"))
 
-    figR, axR, figL, axL = plot_pathway_psd_coh_minimal(
+    figR, axR, figL, axL = plot_pathway_psd_coh(
         results, inds,
         tests=TESTS, colors=["g", "r"],
         percentile_min=1, percentile_max=99, n=1,
