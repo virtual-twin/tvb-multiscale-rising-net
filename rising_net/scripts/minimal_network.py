@@ -10,9 +10,9 @@ from matplotlib import pyplot as plt
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 from rising_net.scripts.tvb_nest_script import *
-from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
-from rising_net.utils import *
-from rising_net.plot_utils import *
+from rising_net.scripts.nest_script import *        # build_NEST_network, plot_nest_results
+from rising_net.scripts.utils import *
+from rising_net.scripts.plot_utils import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
@@ -506,11 +506,7 @@ def get_reg_pairs_inds(regs, inds, hemis, results):
     return iR
 
 
-def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
-                                 percentile_min=1, percentile_max=99, n=1,
-                                 plot_mean=False, plot_median=True, mode="semilog",
-                                 alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
-
+def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0):
     CEREB = False
     for test in tests:
         if test.find("cereb") > -1:
@@ -529,10 +525,10 @@ def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "c
                 ["s1brl", "s1brlthal"], ["m1", "m1thal"],
                 ["trigeminal", "s1brlthal"]]
 
-    subplotsCOH = [[0, 1],          # S1M1
+    subplotsCOH = [[0, 1],  # S1M1
                    [1, 0], [1, 2],  # S1S1th, M1M1Th
 
-                   [3, 0]]          # TRS1Th
+                   [3, 0]]  # TRS1Th
     ipsiCOH = [[True, True],
                [True, True], [True, True],
                [False, True]]
@@ -542,13 +538,13 @@ def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "c
         ipsiPSD += [False, False, False]
         # PSD plots:
         subplotsPSD += [[4, 1], [3, 1],  # AL, CN
-                        [5, 0]]          # TR
+                        [5, 0]]  # TR
 
         REGPAIRS += [["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"], ["trigeminal", "ansilob"]]
         # COH plots:
         subplotsCOH += [[4, 2], [3, 2],  # ALCN, CNM1Th
 
-                        [5, 1]]          # TRAL
+                        [5, 1]]  # TRAL
         ipsiCOH += [[False, False], [False, True],
                     [False, False]]
 
@@ -560,7 +556,7 @@ def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "c
         nRows = 4
         # PSD plots:
         REGIONS += ["trigeminal"]
-        subplotsPSD += [[3, 1]]    # TR
+        subplotsPSD += [[3, 1]]  # TR
         ipsiPSD += [False]
 
         REGPAIRS += [["trigeminal", "m1thal"]]
@@ -575,6 +571,16 @@ def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "c
     # COH plots:
     for ax, regs, in zip(subplotsCOH, REGPAIRS):
         mosaic[ax[0], ax[1]] = "-".join(regs)
+
+    return mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH
+
+
+def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+                                 percentile_min=1, percentile_max=99, n=1,
+                                 plot_mean=False, plot_median=True, mode="semilog",
+                                 alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
+
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
 
     figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
     figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
@@ -612,6 +618,84 @@ def plot_pathway_psd_coh_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "c
                 else:
                     ind = inds[reg][1 - hemi]
                 pair.append(np.where(results["inds"] == ind)[0].item())
+            try:
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            except:
+                pair = pair[::-1]
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            ax = axH["-".join(regs)]
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=ax, mode=mode,
+                             **line_kwargs)
+                for band, COH, f in zip(["theta", "gamma"],
+                                        ["COHth", "COHgm"],
+                                        ["fth", "fgm"]):
+                    if mode == "semilog":
+                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                    else:
+                        mean = results[test]['COH'][:, iR, results[f]].mean()
+                    ax.plot(results[band], [mean] * 2,
+                            color=col, linewidth=2.0)
+            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
+                                      results['short_labels'][pair[1]]), fontsize=fontsize)
+            if mode == "semilog":
+                ax.set_ylabel('log(COH)', fontsize=fontsize)
+            else:
+                ax.set_ylabel('COH', fontsize=fontsize)
+        figH.tight_layout()
+
+    return figR, axR, figL, axL
+
+
+def plot_pathway_sync_minimal(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+                              percentile_min=1, percentile_max=99, n=1,
+                              plot_mean=False, plot_median=True, mode="semilog",
+                              alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
+
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
+
+    figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+    figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+
+    print(axR)
+    print(axL)
+    # PSD plots:
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for reg, hemiI in zip(REGIONS, ipsiPSD):
+            if hemiI:
+                ind = inds[reg][hemi]
+            else:
+                ind = inds[reg][1 - hemi]
+            iR = np.where(results["inds"] == ind)[0].item()
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                             **line_kwargs)
+            axH[reg].set_title(results['short_labels'][iR])
+            if mode == "semilog":
+                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
+            else:
+                axH[reg].set_ylabel('PSD', fontsize=fontsize)
+
+    # SYNC plots:
+    results["syncij"] = []
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for regs, hemiIs in zip(REGPAIRS, ipsiCOH):
+            pair = []
+            for reg, hemiI in zip(regs, hemiIs):
+                if hemiI:
+                    ind = inds[reg][hemi]
+                else:
+                    ind = inds[reg][1 - hemi]
+                pair.append(np.where(results["inds"] == ind)[0].item())
+            results["syncij"].append(pair)
             try:
                 iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
                                              results["ij"][:, 1].flatten() == pair[1]))[0].item()
@@ -718,7 +802,7 @@ def plot_comparison(tests, **kwargs):
 
     figR, axR, figL, axL = plot_pathway_psd_coh_minimal(
         results, inds,
-        tests=TESTS, colors=[ "g", "r"],
+        tests=TESTS, colors=["g", "r"],
         percentile_min=1, percentile_max=99, n=1,
         plot_mean=True, plot_median=False, mode="semilog",
         alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)

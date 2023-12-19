@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import os
+
+import numpy
 import numpy as np
 from scipy import signal
+from scipy.interpolate import interp1d
+from scipy.signal import welch
 from sklearn.decomposition import FastICA
 from matplotlib import pyplot as plt
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesX
@@ -266,3 +270,110 @@ def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None)
 
 # fig.tight_layout()
 # plt.show()
+
+
+def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
+    # Time and frequency
+    fs = 1000.0 / dt  # sampling frequency in sec
+    if transient is None:
+        transient = 0
+    else:
+        transient = int(np.ceil(transient / dt))  # in data points
+    # Remove possible transient and transpose time and signals:
+    data = data[transient:].T
+
+    # Window:
+    # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
+    # fmin = ftarg[0]  # The minimum frequency of the PSD_target...
+    # win_len = int(np.ceil(1000.0 / fmin / dt))  # ...will determine the length of the sliding window....
+    nperseg = 512  # int(np.ceil(2048 / dt))  # NPERSEG[np.argmin(np.abs(NPERSEG - win_len))]
+
+    # Compute Power Spectrum
+    f, Pxx_den = welch(data, fs, nperseg=nperseg)
+
+    if average_region_ps:
+        # Average power spectra across regions for the case of 1D computations
+        Pxx_den = Pxx_den.mean(axis=0, keepdims=True)
+
+    # Compute spectrum interpolation...
+    interp = interp1d(f, Pxx_den, kind='linear', axis=1,
+                      copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
+    # ...to the target frequencies:
+    Pxx_den = interp(ftarg)
+
+    # Normalize to get a density summing to 1.0:
+    for ii in range(Pxx_den.shape[0]):
+        Pxx_den[ii] = Pxx_den[ii] / np.sum(Pxx_den[ii])
+
+    return Pxx_den
+
+
+def raw_data_or_time_series(data):
+    if isinstance(data, (tuple, list)):
+        # For raw TVB monitor results
+        ts = data[1]
+        time = data[0]
+    elif isinstance(data, np.ndarray):
+        ts = data
+        time = None
+    else:
+        # For TVB TimeSeries instances
+        ts = data.data
+        time = data.time
+        sampling_period = data.sampling_period
+        return ts, time, sampling_period
+    if time is not None:
+        sampling_period = np.mean(np.diff(time))
+    else:
+        sampling_period = None
+    return ts, time, sampling_period
+
+
+def compute_data_PSDs_from_raw(raw_results, ftarg, inds, transient=None, average_region_ps=False):
+    data, time, sampling_period = raw_data_or_time_series(raw_results)
+    return compute_data_PSDs(data[:, 0, inds, 0].squeeze(),
+                             sampling_period, ftarg,
+                             transient=transient, average_region_ps=average_region_ps)
+
+
+def _compute_tensorpac(xphases, xamplitudes, fs=10000.0, method=2, **kwargs):
+
+    try:
+        from tensorpac import Pac
+    except:
+        import subprocess
+        print("Installing tensorpac...")
+        p = subprocess.Popen("pip install tensorpac", stdout=subprocess.PIPE, shell=True)
+        print(p.communicate())
+        from tensorpac import Pac
+
+    p = Pac(**kwargs)
+
+    # extract all of the phases and amplitudes
+    phases = p.filter(fs, xphases, ftype='phase', n_jobs=1)
+    amplitudes = p.filter(fs, xamplitudes, ftype='amplitude', n_jobs=1)
+
+    # method of PAC
+    # 2: Modulation Index
+    p.idpac = (method, 0, 0)
+
+    # compute only the pac without filtering
+    xpac = p.fit(phases, amplitudes)
+
+    return xpac, p
+
+
+def compute_tensorpac(results, pairs, method=2, **kwargs):
+    data, time, sampling_period = raw_data_or_time_series(results)
+    if transient is None:
+        transient = 0
+    else:
+        transient = int(np.ceil(transient / sampling_period))  # in data points
+    data = data[transient:]
+    fs = 1000 / sampling_period
+    xpacs = []
+    for pair in pairs:
+        xpacs.append(_compute_tensorpac(data[:, 0, pair[0]].squeeze(),
+                                        data[:, 0, pair[1]].squeeze(),
+                                        fs=fs, method=method, **kwargs))
+    return {"syncij": pairs, "pac": np.array(xpacs)}

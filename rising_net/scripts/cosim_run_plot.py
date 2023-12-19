@@ -395,7 +395,7 @@ def cosim_run_plot(**kwargs):
 
 
     # Plot task network:
-    from rising_net.plot_utils import matrix_plot, shorten_region_name
+    from rising_net.scripts.plot_utils import matrix_plot, shorten_region_name
     # Task related regions' indices:
     TASKINDS = np.sort(np.concatenate([inds["m1"], inds["s1brl"],
                                        inds["m1thal"], inds["s1brlthal"],
@@ -420,9 +420,7 @@ def cosim_run_plot(**kwargs):
         # Simulate TVB-NEST model
         results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
 
-
     # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
-
 
     # Compute coherence
     transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
@@ -432,14 +430,11 @@ def cosim_run_plot(**kwargs):
     results = plot_tvb(transient, inds,
                        results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
 
-
-
     results_path = os.path.join(config.out.FOLDER_RES, '%s.pickle' % resfilename)
     with open(results_path, 'wb') as handle:
        pickle.dump(results, handle)
     print(results_path)
     # results = pickle.load(results_path, 'rb'))  # to load results
-
 
     cohfilename = "coherence_30sec_%s_noise_seed_%d" % (test_name, seed)
     coherence_path = os.path.join(config.out.FOLDER_RES, '%s.pickle' % cohfilename)
