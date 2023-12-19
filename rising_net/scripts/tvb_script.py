@@ -5,7 +5,7 @@ from scipy.signal import welch
 from scipy.interpolate import interp1d
 
 from rising_net.scripts.base import *
-from rising_net.utils import get_regions_indices
+from rising_net.scripts.utils import get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -632,59 +632,6 @@ def compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None):
     return PSD_target
 
 
-def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
-    # Time and frequency
-    fs = 1000.0 / dt  # sampling frequency in sec
-    if transient is None:
-        transient = 0
-    else:
-        transient = int(np.ceil(transient / dt))  # in data points
-    # Remove possible transient and transpose time and signals:
-    data = data[transient:].T
-
-    # Window:
-    # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
-    # fmin = ftarg[0]  # The minimum frequency of the PSD_target...
-    # win_len = int(np.ceil(1000.0 / fmin / dt))  # ...will determine the length of the sliding window....
-    nperseg = 512  # int(np.ceil(2048 / dt))  # NPERSEG[np.argmin(np.abs(NPERSEG - win_len))]
-
-    # Compute Power Spectrum
-    f, Pxx_den = welch(data, fs, nperseg=nperseg)
-
-    if average_region_ps:
-        # Average power spectra across regions for the case of 1D computations
-        Pxx_den = Pxx_den.mean(axis=0, keepdims=True)
-
-    # Compute spectrum interpolation...
-    interp = interp1d(f, Pxx_den, kind='linear', axis=1,
-                      copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
-    # ...to the target frequencies:
-    Pxx_den = interp(ftarg)
-
-    # Normalize to get a density summing to 1.0:
-    for ii in range(Pxx_den.shape[0]):
-        Pxx_den[ii] = Pxx_den[ii] / np.sum(Pxx_den[ii])
-
-    return Pxx_den
-
-
-def raw_data_or_time_series(data):
-    if isinstance(data, (tuple, list)):
-        # For raw TVB monitor results
-        return data[1], data[0]
-    else:
-        # For TVB TimeSeries instances
-        return data.data, data.time
-
-
-def compute_data_PSDs_from_raw(raw_results, ftarg, inds, transient=None, average_region_ps=False):
-    data, time = raw_data_or_time_series(raw_results)
-    return compute_data_PSDs(data[:, 0, inds, 0].squeeze(),
-                             np.mean(np.diff(time)),
-                             ftarg,
-                             transient=transient, average_region_ps=average_region_ps)
-
-
 def compute_data_PSDs_1D(raw_results, PSD_target, inds, transient=None, write_files=True, plotter=None):
 
     # Select regions' data, compute PSDs, average them across region,
@@ -879,7 +826,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
 
 def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None, write_files=True):
-    from rising_net.utils import \
+    from rising_net.scripts.utils import \
         compute_plot_selected_spectra_coherence  # , compute_plot_ica
 
     if plotter is None:
@@ -1084,7 +1031,7 @@ def ansilob_affrerent_coupling_psd_rmse(ref_mossy_firing, afferent_ts, ftarg=Non
     total_afferent_ts_ansilob = afferent_ts[1][:, 0, inds["ansilob"]] + afferent_ts[1][:, 1, inds["ansilob"]]
     Pxx_den_ansilob = compute_data_PSDs(total_afferent_ts_ansilob.squeeze(),
                                         np.mean(np.diff(afferent_ts[0])), ftarg,
-                                       transient=transient, average_region_ps=False)
+                                        transient=transient, average_region_ps=False)
     MSE = np.square(np.subtract(Pxx_den_ansilob, Pxx_den_ref)).mean()
     RMSE = math.sqrt(MSE)
     print("RMSEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE with pathway gain = ", pathway_gain,
