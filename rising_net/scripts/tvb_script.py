@@ -184,12 +184,15 @@ def build_connectivity(connectome, inds, config,
 
     # Remove connections between specific thalami and the rest of the subcortex:
     trigeminal_inds = inds["trigeminal"]
+    senstrig_inds = inds["ponssens_trigeminal"]
     cereb_nuclei_inds = inds["cereb_nuclei"]
     if hemispheres == -1:
         trigeminal_inds = trigeminal_inds[::-1]
+        senstrig_inds = senstrig_inds[::-1]
         cereb_nuclei_inds = cereb_nuclei_inds[::-1]
     if hemispheres == 0:
         w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"]][:, trigeminal_inds].copy()
+        w_s1brlthal_senstrig = connectivity.weights[inds["s1brlthal"]][:, senstrig_inds].copy()
         if trigeminal_to_m1thal:
             w_m1thal_trigeminal = connectivity.weights[inds["m1thal"]][:, trigeminal_inds].copy()
         w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"]][:, inds["cereb_nuclei"]].copy()
@@ -197,6 +200,7 @@ def build_connectivity(connectome, inds, config,
             w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"]][:, inds["cereb_nuclei"]].copy()
     else:
         w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"], trigeminal_inds].copy()
+        w_s1brlthal_senstrig = connectivity.weights[inds["s1brlthal"], senstrig_inds].copy()
         if trigeminal_to_m1thal:
             w_m1thal_trigeminal = connectivity.weights[inds["m1thal"], trigeminal_inds].copy()
         w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"], inds["cereb_nuclei"]].copy()
@@ -210,6 +214,7 @@ def build_connectivity(connectome, inds, config,
     if hemispheres == 0:
         # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
         connectivity.weights[inds["s1brlthal"][:, None], trigeminal_inds[None, :]] = w_s1brlthal_trigeminal
+        connectivity.weights[inds["s1brlthal"][:, None], senstrig_inds[None, :]] = w_s1brlthal_senstrig
         if trigeminal_to_m1thal:
             connectivity.weights[inds["m1thal"][:, None], trigeminal_inds[None, :]] = w_m1thal_trigeminal
         # from merged Cerebellar Nuclei to M1:
@@ -219,6 +224,7 @@ def build_connectivity(connectome, inds, config,
     else:
         # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
         connectivity.weights[inds["s1brlthal"], trigeminal_inds] = w_s1brlthal_trigeminal
+        connectivity.weights[inds["s1brlthal"], senstrig_inds] = w_s1brlthal_senstrig
         if trigeminal_to_m1thal:
             connectivity.weights[inds["m1thal"], trigeminal_inds] = w_m1thal_trigeminal
         # from merged Cerebellar Nuclei to M1:
