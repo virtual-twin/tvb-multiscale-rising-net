@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-
+import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib import pyplot
 
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
@@ -86,7 +87,7 @@ def psd_percent_plot(results,
     return fig, axes
 
 
-def plot_pathway_psd_coh(results, inds,
+def plot_pathway_psd_coh_old(results, inds,
                          anslob_psd=None, tests=["tvb-only", "cerebOFF"], colors=["g", "r"],
                          percentile_min=1, percentile_max=99, n=1,
                          plot_mean=False, plot_median=True, mode="semilog",
@@ -379,3 +380,215 @@ def coherence_networks_plot(results,
     fig.tight_layout()
     return fig, axes
 
+
+def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0):
+
+    """
+         0000 1111 2222 3333 4444 5555
+    0000 S1          S1M1          M1
+    1111 S1Th S1PS	       M1PM M1Th
+    2222 S1Th STS1  PS   PM       M1Th
+    3333 TrS1 StS1 PSAL PMAL
+    4444  St  StAL   AL
+    5555 TrSt TrAL  ALCN     CNM1t
+    6666  Tr         CN      CNS1t
+    """
+    if PONS + SENSTRIG > 0.0:
+        REGIONS = ["s1brl", "m1",
+                   "s1brlthal", "m1thal",
+                   "ponssens", "ponsmotor",
+                   "ponssens_trigeminal",
+                   "ansilob", "cereb_nuclei",
+                   "trigeminal"]
+
+        # PSD plots:
+        subplotsPSD = [[0, 0], [0, 5],            # S1, M1
+                       [2, 0], [2, 5],            # S1Th, M1Th
+                       [2, 2], [2, 4],            # PonsSens, PonsMotor
+                       [4, 0],                    # PonssensTrigeminal
+                       [4, [2, 3]], [6, [2, 3]],  # Ansilob, CerebNuclei
+                       [6, 0]]                    # Trigeminal
+
+        ipsiPSD = [True, True,
+                   True, True,
+                   True, True,
+                   False,
+                   False, False,
+                   False]
+
+        REGPAIRS = [["s1brl", "m1"],
+                    ["s1brl", "s1brlthal"], ["m1", "m1thal"],
+                    ["s1brl", "ponssens"], ["m1", "ponsmotor"],
+                    ["ponssens", "ansilob"], ["ponsmotor", "ansilob"],
+                    ["trigeminal", "s1brlthal"], ["ponssens_trigeminal", "s1brlthal"],
+                    ["ponssens_trigeminal", "ansilob"],
+                    ["trigeminal", "ponssens_trigeminal"],
+                    ["trigeminal", "ansilob"],
+                    ["ansilob", "cereb_nuclei"],
+                    ["cereb_nuclei", "m1thal"], ["cereb_nuclei", "s1brlthal"]]
+
+        subplotsCOH = [[0, [2, 3]],               # S1 <-> M1
+                       [1, 0], [1, 5],            # Crtx <-> Thal
+                       [1, 2], [1, 4],            # Crtx -> Pons
+                       [3, 2], [3, 3],            # Pons -> Ansilob
+                       [3, 0], [3, 0],            # [Trig, SensTrig] -> S1 thal
+                       [4, 1],                    # SensTrig -> Ansilob
+                       [5, 0],                    # Trig -> SensTrig
+                       [5, 1],                    # Trig -> Ansilob
+                       [5, [2, 3]],               # Ansilob -> CerebNuclei
+                       [5, [4, 5]], [6, [4, 5]]]  # CerebNuclei -> [M1thal, S1thal]
+
+        ipsiCOH = [[True, True],                  # S1 <-> M1
+                   [True, True],  [True, True],   # Crtx <-> Thal
+                   [True, True],  [True, True],   # Crtx -> Pons
+                   [True, False], [True, False],  # Pons -> Ansilob
+                   [False, True], [False, True],  # [Trig, SensTrig] -> S1 thal
+                   [False, False],                # SensTrig -> Ansilob
+                   [False, False],                # Trig -> SensTrig
+                   [False, False],                # Trig -> Ansilob
+                   [False, False],                # Ansilob -> CerebNuclei
+                   [False, True], [False, True]]  # CerebNuclei -> [M1thal, S1thal]
+    else:
+        CEREB = False
+        for test in tests:
+            if test.find("cereb") > -1:
+                CEREB = True
+
+        REGIONS = ["s1brl", "m1",
+                   "s1brlthal", "m1thal"]
+        # PSD plots:
+        subplotsPSD = [[0, 0], [0, 2],  # S1, M1
+
+                       [2, 0], [2, 2]]  # S1Th, M1Th
+        ipsiPSD = [True, True,
+                   True, True]
+
+        REGPAIRS = [["s1brl", "m1"],
+                    ["s1brl", "s1brlthal"], ["m1", "m1thal"],
+                    ["trigeminal", "s1brlthal"]]
+
+        subplotsCOH = [[0, 1],  # S1M1
+                       [1, 0], [1, 2],  # S1S1th, M1M1Th
+
+                       [3, 0]]  # TRS1Th
+        ipsiCOH = [[True, True],
+                   [True, True], [True, True],
+                   [False, True]]
+        if CEREB:
+            nRows = 6
+            REGIONS += ["ansilob", "cereb_nuclei", "trigeminal"]
+            ipsiPSD += [False, False, False]
+            # PSD plots:
+            subplotsPSD += [[4, 1], [3, 1],  # AL, CN
+                            [5, 0]]  # TR
+
+            REGPAIRS += [["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"], ["trigeminal", "ansilob"]]
+            # COH plots:
+            subplotsCOH += [[4, 2], [3, 2],  # ALCN, CNM1Th
+
+                            [5, 1]]  # TRAL
+            ipsiCOH += [[False, False], [False, True],
+                        [False, False]]
+
+            if CNS1TH > 0.0:
+                REGPAIRS += [["cereb_nuclei", "s1brlthal"]]
+                subplotsCOH += [[5, 2]]
+                ipsiCOH += [[False, True]]
+        else:
+            nRows = 4
+            # PSD plots:
+            REGIONS += ["trigeminal"]
+            subplotsPSD += [[3, 1]]  # TR
+            ipsiPSD += [False]
+
+            REGPAIRS += [["trigeminal", "m1thal"]]
+            subplotsCOH += [[3, 2]]
+            ipsiCOH += [[False, True]]
+
+        mosaic = np.tile(["."], (nRows, 3)).astype('O')
+
+    # PSD plots:
+    for ax, reg in zip(subplotsPSD, REGIONS):
+        mosaic[ax[0], ax[1]] = reg
+    # COH plots:
+    for ax, regs, in zip(subplotsCOH, REGPAIRS):
+        mosaic[ax[0], ax[1]] = "-".join(regs)
+
+    return mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH
+
+
+def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+                         percentile_min=1, percentile_max=99, n=1,
+                         plot_mean=False, plot_median=True, mode="semilog",
+                         alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
+
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
+
+    figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+    figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
+
+    print(axR)
+    print(axL)
+    # PSD plots:
+
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for reg, hemiI in zip(REGIONS, ipsiPSD):
+            if hemiI:
+                ind = inds[reg][hemi]
+            else:
+                ind = inds[reg][1 - hemi]
+            iR = np.where(results["inds"] == ind)[0].item()
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                             **line_kwargs)
+            axH[reg].set_title(results['short_labels'][iR])
+            if mode == "semilog":
+                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
+            else:
+                axH[reg].set_ylabel('PSD', fontsize=fontsize)
+
+    # COH plots:
+    for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
+        for regs, hemiIs in zip(REGPAIRS, ipsiCOH):
+            pair = []
+            for reg, hemiI in zip(regs, hemiIs):
+                if hemiI:
+                    ind = inds[reg][hemi]
+                else:
+                    ind = inds[reg][1 - hemi]
+                pair.append(np.where(results["inds"] == ind)[0].item())
+            try:
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            except:
+                pair = pair[::-1]
+                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            ax = axH["-".join(regs)]
+            for col, test in zip(colors, tests):
+                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                             plot_mean=plot_mean, plot_median=plot_median,
+                             color=col, alpha=alpha, ax=ax, mode=mode,
+                             **line_kwargs)
+                for band, COH, f in zip(["theta", "gamma"],
+                                        ["COHth", "COHgm"],
+                                        ["fth", "fgm"]):
+                    if mode == "semilog":
+                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                    else:
+                        mean = results[test]['COH'][:, iR, results[f]].mean()
+                    ax.plot(results[band], [mean] * 2,
+                            color=col, linewidth=2.0)
+            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
+                                      results['short_labels'][pair[1]]), fontsize=fontsize)
+            if mode == "semilog":
+                ax.set_ylabel('log(COH)', fontsize=fontsize)
+            else:
+                ax.set_ylabel('COH', fontsize=fontsize)
+        figH.tight_layout()
+
+    return figR, axR, figL, axL
