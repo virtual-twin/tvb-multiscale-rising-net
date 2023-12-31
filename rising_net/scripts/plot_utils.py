@@ -393,7 +393,10 @@ def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SE
     5555 TrSt TrAL  ALCN     CNM1t
     6666  Tr         CN      CNS1t
     """
-    if PONS + SENSTRIG > 0.0:
+    if SENSTRIG + PONS > 0.0:
+
+        mosaic = np.tile(["."], (7, 6)).astype('O')
+
         REGIONS = ["s1brl", "m1",
                    "s1brlthal", "m1thal",
                    "ponssens", "ponsmotor",
@@ -404,7 +407,7 @@ def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SE
         # PSD plots:
         subplotsPSD = [[0, 0], [0, 5],            # S1, M1
                        [2, 0], [2, 5],            # S1Th, M1Th
-                       [2, 2], [2, 4],            # PonsSens, PonsMotor
+                       [2, 2], [2, 3],            # PonsSens, PonsMotor
                        [4, 0],                    # PonssensTrigeminal
                        [4, [2, 3]], [6, [2, 3]],  # Ansilob, CerebNuclei
                        [6, 0]]                    # Trigeminal
@@ -429,9 +432,9 @@ def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SE
 
         subplotsCOH = [[0, [2, 3]],               # S1 <-> M1
                        [1, 0], [1, 5],            # Crtx <-> Thal
-                       [1, 2], [1, 4],            # Crtx -> Pons
+                       [1, 1], [1, 4],            # Crtx -> Pons
                        [3, 2], [3, 3],            # Pons -> Ansilob
-                       [3, 0], [3, 0],            # [Trig, SensTrig] -> S1 thal
+                       [3, 0], [3, 1],            # [Trig, SensTrig] -> S1 thal
                        [4, 1],                    # SensTrig -> Ansilob
                        [5, 0],                    # Trig -> SensTrig
                        [5, 1],                    # Trig -> Ansilob
@@ -517,12 +520,13 @@ def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SE
     return mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH
 
 
-def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
                          percentile_min=1, percentile_max=99, n=1,
                          plot_mean=False, plot_median=True, mode="semilog",
                          alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
 
-    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests, CNS1TH)
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = \
+        prepare_plot_pathway(tests, CNS1TH, PONS, SENSTRIG)
 
     figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
     figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
@@ -533,62 +537,80 @@ def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, tests=["cerebON", "cerebOFF"
 
     for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
         for reg, hemiI in zip(REGIONS, ipsiPSD):
-            if hemiI:
-                ind = inds[reg][hemi]
+            indhs = inds.get(reg, [])
+            if len(indhs):
+                if hemiI:
+                    ind = indhs[hemi]
+                else:
+                    ind = indhs[1 - hemi]
+                iR = np.where(results["inds"] == ind)[0].item()
+                for col, test in zip(colors, tests):
+                    percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
+                                 percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                                 plot_mean=plot_mean, plot_median=plot_median,
+                                 color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                                 **line_kwargs)
+                axH[reg].set_title(results['short_labels'][iR])
+                if mode == "semilog":
+                    axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
+                else:
+                    axH[reg].set_ylabel('PSD', fontsize=fontsize)
             else:
-                ind = inds[reg][1 - hemi]
-            iR = np.where(results["inds"] == ind)[0].item()
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=axH[reg], mode=mode,
-                             **line_kwargs)
-            axH[reg].set_title(results['short_labels'][iR])
-            if mode == "semilog":
-                axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
-            else:
-                axH[reg].set_ylabel('PSD', fontsize=fontsize)
+                axH[reg].set_axis_off()
 
     # COH plots:
     for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
         for regs, hemiIs in zip(REGPAIRS, ipsiCOH):
+            try:
+                ax = axH["-".join(regs)]
+            except:
+                try:
+                    ax = axH["-".join(regs[::-1])]
+                except Exception as e:
+                    print(axH)
+                    raise e
+
             pair = []
             for reg, hemiI in zip(regs, hemiIs):
-                if hemiI:
-                    ind = inds[reg][hemi]
-                else:
-                    ind = inds[reg][1 - hemi]
-                pair.append(np.where(results["inds"] == ind)[0].item())
-            try:
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            except:
-                pair = pair[::-1]
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            ax = axH["-".join(regs)]
-            for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
-                             percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                             plot_mean=plot_mean, plot_median=plot_median,
-                             color=col, alpha=alpha, ax=ax, mode=mode,
-                             **line_kwargs)
-                for band, COH, f in zip(["theta", "gamma"],
-                                        ["COHth", "COHgm"],
-                                        ["fth", "fgm"]):
-                    if mode == "semilog":
-                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                indhs = inds.get(reg, [])
+                if len(indhs):
+                    if hemiI:
+                        ind = inds[reg][hemi]
                     else:
-                        mean = results[test]['COH'][:, iR, results[f]].mean()
-                    ax.plot(results[band], [mean] * 2,
-                            color=col, linewidth=2.0)
-            ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
-                                      results['short_labels'][pair[1]]), fontsize=fontsize)
-            if mode == "semilog":
-                ax.set_ylabel('log(COH)', fontsize=fontsize)
+                        ind = inds[reg][1 - hemi]
+                    pair.append(np.where(results["inds"] == ind)[0].item())
+
+            if len(pair) == 2:
+                try:
+                    iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                                 results["ij"][:, 1].flatten() == pair[1]))[0].item()
+                except:
+                    pair = pair[::-1]
+                    iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+                                                 results["ij"][:, 1].flatten() == pair[1]))[0].item()
+                for col, test in zip(colors, tests):
+                    percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                                 percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                                 plot_mean=plot_mean, plot_median=plot_median,
+                                 color=col, alpha=alpha, ax=ax, mode=mode,
+                                 **line_kwargs)
+                    for band, COH, f in zip(["theta", "gamma"],
+                                            ["COHth", "COHgm"],
+                                            ["fth", "fgm"]):
+                        if mode == "semilog":
+                            mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                        else:
+                            mean = results[test]['COH'][:, iR, results[f]].mean()
+                        ax.plot(results[band], [mean] * 2,
+                                color=col, linewidth=2.0)
+                ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
+                                          results['short_labels'][pair[1]]), fontsize=fontsize)
+                if mode == "semilog":
+                    ax.set_ylabel('log(COH)', fontsize=fontsize)
+                else:
+                    ax.set_ylabel('COH', fontsize=fontsize)
             else:
-                ax.set_ylabel('COH', fontsize=fontsize)
+                ax.set_axis_off()
         figH.tight_layout()
 
     return figR, axR, figL, axL

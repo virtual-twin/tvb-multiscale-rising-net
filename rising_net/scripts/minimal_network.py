@@ -5,6 +5,8 @@ import glob
 import pickle
 import os
 import shutil
+
+import numpy as np
 from matplotlib import pyplot as plt
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
@@ -17,6 +19,24 @@ from rising_net.scripts.plot_utils import *
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
+
+
+def intval(x):
+    if x == 0.0:
+        return 0
+    elif np.abs(x) < 0.1:
+        return int(np.abs(np.log10(x)))
+    elif x < 1.0:
+        return int(10*x)
+    else:
+        return int(x)
+#
+#
+# def foldername(**kwargs):
+#     name = ""
+#     for key, val in kwargs.items():
+#         name += "%s%d" % (key, intval(val))
+#     return name
 
 
 def get_config(**kwargs):
@@ -34,17 +54,16 @@ def get_config(**kwargs):
     simulation_length = kwargs.pop("simulation_length", 3000.0)
     pathway_gain = kwargs.pop("pathway_gain", 1.0)
     pathway_mode = kwargs.pop("pathway_mode", "task")
-    STIMULUS = kwargs.get("STIMULUS", 0.1)
-    STIMULUS_BASELINE = kwargs.get("STIMULUS_BASELINE", 0.1)
-    NOISE = int(kwargs.pop("NOISE", 4))
+    STIMULUS = kwargs.get("STIMULUS", 0.5)
+    STIMULUS_BASELINE = kwargs.get("STIMULUS_BASELINE", 1.0)
+    NOISE = int(kwargs.pop("NOISE", 6))
     CNS1TH = float(kwargs.pop("CNS1TH", 1.0))
-    PONS = float(kwargs.pop("PONS", 0.5))
+    PONS = float(kwargs.pop("PONS", 0.0))
     SENSTRIG = float(kwargs.pop("SENSTRIG", 1.0))
-    G = float(kwargs.get("G", 1.0))
-    FIC = float(kwargs.get("FIC", 1.11))
+    G = float(kwargs.get("G", 6.0))
+    FIC = float(kwargs.get("FIC", 0.0))  # 1.11
     SET_WEIGHTS = kwargs.pop("SET_WEIGHTS", True)
-    # SET_DELAYS = kwargs.pop("SET_DELAYS", False)
-    hemispheres = int(kwargs.pop("hemispheres", -1))
+    HEMISPHERES = int(kwargs.pop("HEMISPHERES", -1))
 
     seed = int(kwargs.pop("seed", -1))
     if seed >= 0:
@@ -63,9 +82,6 @@ def get_config(**kwargs):
     if SET_WEIGHTS:
         experiment_name = "_".join([experiment_name, "SetW"])
 
-    # if SET_DELAYS:
-    #     experiment_name = "_".join([experiment_name, "SetDel"])
-
     if pathway_gain > 1.0:
         if pathway_mode == "stim":
             experiment_name = "stimgain"
@@ -73,9 +89,14 @@ def get_config(**kwargs):
             experiment_name = "gain"
         experiment_name += "%d" % int(pathway_gain)
 
+    # experiment_name = "_".join([experiment_name,
+    #                             "stimbase%d_stim%d_noise%d_G%d" %
+    #                             (intval(STIMULUS_BASELINE), intval(STIMULUS), NOISE, intval(G))])
+
     experiment_name = "_".join([experiment_name,
-                                "stimbase%d_stim%d_noise%d_G%d" %
-                                (int(STIMULUS_BASELINE), int(10*STIMULUS), NOISE, int(G))])
+                                "stimbase%d_PONS%d_noise%d_stim%d" %
+                                (intval(STIMULUS_BASELINE), intval(PONS), NOISE, intval(STIMULUS))])
+
     if experiment_name[0] == "_":
         experiment_name = experiment_name[1:]
 
@@ -120,7 +141,7 @@ def get_config(**kwargs):
     config.SENSTRIG = SENSTRIG
     config.TRIGEMINAL = TRIGEMINAL
     config.M1STIM = M1STIM
-    config.HEMISPHERES = hemispheres
+    config.HEMISPHERES = HEMISPHERES
     config.PATHWAY_GAIN = pathway_gain
     config.PATHWAY_MODE = pathway_mode
     config.SET_WEIGHTS = SET_WEIGHTS
@@ -134,14 +155,20 @@ def get_config(**kwargs):
     return config, plotter
 
 
-def newconn_and_inds(config, plotter):
-
-    CEREB = getattr(config, "CEREB", True)
+def getflags_from_config(config):
+    CEREB = getattr(config, "CEREB", 2)
     TRIGEMINAL = getattr(config, "TRIGEMINAL", True)
     M1STIM = getattr(config, "M1STIM", True)
     HEMISPHERES = getattr(config, "HEMISPHERES", -1)
-    PONS = getattr(config, "PONS", 0.5)
+    CNS1TH = getattr(config, "CNS1TH", 1.0)
     SENSTRIG = getattr(config, "SENSTRIG", 1.0)
+    PONS = getattr(config, "PONS", 0.5)
+    return CEREB, TRIGEMINAL, M1STIM, HEMISPHERES, CNS1TH, SENSTRIG, PONS
+
+
+def newconn_and_inds(config, plotter):
+
+    CEREB, TRIGEMINAL, M1STIM, HEMISPHERES, CNS1TH, SENSTRIG, PONS = getflags_from_config(config)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
@@ -154,17 +181,16 @@ def newconn_and_inds(config, plotter):
         connectivity.weights[inds["trigeminal"]] = 0.0
         connectivity.weights[:, inds["trigeminal"]] = 0.0
 
-    # Keep only the spinal trigeminal and M1 and S1 barrel field and their specific thalami.
-    # Maintain the total indegree, though.
+    # Keep only the selected regions.
     indegree = {}
     taskinds = []
     regs = ["m1", "s1brl", "m1thal", "s1brlthal", "trigeminal"]
     if CEREB:
         regs += ["ansilob", "cereb_nuclei"]
-        if SENSTRIG > 0.0:
-            regs += ["ponssens_trigeminal"]
-        if PONS > 0.0:
-            regs += ["ponssens", "ponsmotor"]
+    if SENSTRIG > 0.0:
+        regs += ["ponssens_trigeminal"]
+    if PONS > 0.0:
+        regs += ["ponssens", "ponsmotor"]
     for reg in regs:
         for iH, hemi in zip([0, 1], ["right_", "left_"]):
             indegree[hemi + reg] = connectivity.weights[inds[reg][iH]].sum()
@@ -257,13 +283,7 @@ def simulate_minimal(**kwargs):
     # Configuration
     config, plotter = get_config(**kwargs)
 
-    CEREB = getattr(config, "CEREB", 2)
-    TRIGEMINAL = getattr(config, "TRIGEMINAL", True)
-    M1STIM = getattr(config, "M1STIM", True)
-    hemispheres = getattr(config, "HEMISPHERES", -1)
-    CNS1TH = getattr(config, "CNS1TH", 1.0)
-    SENSTRIG = getattr(config, "SENSTRIG", 1.0)
-    PONS = getattr(config, "PONS", 0.5)
+    CEREB, TRIGEMINAL, M1STIM, HEMISPHERES, CNS1TH, SENSTRIG, PONS = getflags_from_config(config)
 
     # CONNECTOME:
     connectivity, inds, maps = newconn_and_inds(config, plotter)
@@ -277,7 +297,7 @@ def simulate_minimal(**kwargs):
     pathway_mode = config.PATHWAY_MODE
     if pathway_gain > 1.0:
         from cosim_run_plot import apply_pathway_gain_to_target
-        hemispheres = np.abs(hemispheres)
+        hemispheres = np.abs(HEMISPHERES)
         print("\n" + "-"*50)
         print("Applying pathway gain = %g" % pathway_gain)
         print("-" * 50 + "\n")
@@ -356,9 +376,12 @@ def simulate_minimal(**kwargs):
         connectivity.weights[inds["m1thal"], inds["m1"]] = 1.0
         connectivity.weights[inds["s1brlthal"], inds["s1brl"]] = 1.0
 
-        if PONS > 0.0:
-            connectivity.weights[inds["ponsmotor"], inds["m1"]] = 1.0
-            connectivity.weights[inds["ponssens"], inds["s1brl"]] = 1.0
+        if CEREB:
+            connectivity.weights[inds["cereb_nuclei"], inds["ansilob"]] = 2.0
+            if CEREB > 1:
+                connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 2.0
+                if CNS1TH > 0.0:
+                    connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = CNS1TH
 
         if TRIGEMINAL:
             # Trigeminal -> SpecThal contralateral only:
@@ -366,50 +389,19 @@ def simulate_minimal(**kwargs):
             if SENSTRIG > 0.0:
                 connectivity.weights[inds["ponssens_trigeminal"], inds["trigeminal"][::-1]] = 2.0
                 connectivity.weights[inds["s1brlthal"], inds["ponssens_trigeminal"][::-1]] = SENSTRIG
-            if CEREB:
-                connectivity.weights[inds["cereb_nuclei"], inds["ansilob"]] = 2.0
             if CEREB > 1:
                 connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0 - SENSTRIG
                 if SENSTRIG > 0.0:
                     connectivity.weights[inds["ansilob"], inds["ponssens_trigeminal"]] = SENSTRIG
-                if PONS > 0.0:
-                    connectivity.weights[inds["ansilob"], inds["ponssens"]] = PONS
-                    connectivity.weights[inds["ansilob"], inds["ponsmotor"]] = PONS
-                connectivity.weights[inds["m1thal"], inds["cereb_nuclei"][::-1]] = 2.0
-                if CNS1TH > 0.0:
-                    connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = CNS1TH
             elif M1STIM:
                 connectivity.weights[inds["m1thal"], inds["trigeminal"][::-1]] = 1.0
 
-    # if config.SET_DELAYS:
-    #     # M1 <-> S1 ipsilateral:
-    #     connectivity.tract_lengths[inds["m1"], inds["s1brl"]] = set_delays(10.0)
-    #     connectivity.tract_lengths[inds["s1brl"], inds["m1"]] = set_delays(10.0)
-    #
-    #     # M1 <-> S1 contralateral:
-    #     connectivity.tract_lengths[inds["m1"], inds["s1brl"][::-1]] = set_delays(20.0)
-    #     connectivity.tract_lengths[inds["s1brl"], inds["m1"][::-1]] = set_delays(20.0)
-    #
-    #     # SpecThal -> Crtx Ipsilateral only:
-    #     connectivity.tract_lengths[inds["m1"], inds["m1thal"]] = set_delays(20.0)
-    #     connectivity.tract_lengths[inds["s1brl"], inds["s1brlthal"]] = set_delays(20.0)
-    #
-    #     # Crtx -> SpecThal Ipsilateral only:
-    #     connectivity.tract_lengths[inds["m1thal"], inds["m1"]] = set_delays(20.0)
-    #     connectivity.tract_lengths[inds["s1brlthal"], inds["s1brl"]] = set_delays(20.0)
-    #
-    #     if TRIGEMINAL:
-    #         # Trigeminal -> SpecThal contralateral only:
-    #         connectivity.tract_lengths[inds["s1brlthal"], inds["trigeminal"][::-1]] = set_delays(10.0)
-    #         if CEREB:
-    #             connectivity.tract_lengths[inds["cereb_nuclei"], inds["ansilob"]] = set_delays(5.0)
-    #         if CEREB > 1:
-    #             connectivity.tract_lengths[inds["ansilob"], inds["trigeminal"]] = set_delays(10.0)
-    #             connectivity.tract_lengths[inds["m1thal"], inds["cereb_nuclei"][::-1]] = set_delays(10.0)
-    #             if CNS1TH > 0.0:
-    #                 onnectivity.tract_lengths[inds["s1brlthal"], inds["cereb_nuclei"][::-1]] = set_delays(10.0)
-    #         elif M1STIM:
-    #             connectivity.tract_lengths[inds["m1thal"], inds["trigeminal"][::-1]] = set_delays(10.0)
+        if PONS > 0.0:
+            connectivity.weights[inds["ponsmotor"], inds["m1"]] = 1.0
+            connectivity.weights[inds["ponssens"], inds["s1brl"]] = 1.0
+            if CEREB > 1:
+                connectivity.weights[inds["ansilob"], inds["ponssens"]] = PONS
+                connectivity.weights[inds["ansilob"], inds["ponsmotor"]] = PONS
 
     plotter.plot_tvb_connectivity(connectivity)
 
@@ -489,12 +481,14 @@ def simulate_minimal(**kwargs):
              ["s1brl", "s1brlthal"], ["trigeminal", "s1brlthal"],
              ["m1thal", "m1"],
              ["m1", "m1thal"]]
-    if SENSTRIG > 0.1:
-        conns += [["trigeminal", "ponsses_trigeminal"], ["ponsses_trigeminal", "s1brlthal"]]
+    if SENSTRIG > 0.0:
+        conns += [["trigeminal", "ponssens_trigeminal"], ["ponssens_trigeminal", "s1brlthal"]]
     if PONS > 0.0:
         conns += [["s1brl", "ponssens"], ["m1", "ponsmotor"]]
     if CEREB:
-        conns += [["trigeminal", "ansilob"], ["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"]]
+        conns += [["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"]]
+        if TRIGEMINAL:
+            conns += [["trigeminal", "ansilob"]]
         if SENSTRIG > 0.0:
             conns += [["ponssens_trigeminal", "ansilob"]]
         if PONS > 0.0:
@@ -504,7 +498,7 @@ def simulate_minimal(**kwargs):
     elif M1STIM:
         conns += [["trigeminal", "m1thal"]]
     for conn in conns:
-        print_weight_to_indegree(conn[0], conn[1], inds, simulator.connectivity.weights, hemispheres=hemispheres)
+        print_weight_to_indegree(conn[0], conn[1], inds, simulator.connectivity.weights, hemispheres=HEMISPHERES)
 
     # SIMULATION:
     results, transient = simulate(simulator, config)
@@ -548,6 +542,8 @@ def plot_comparison(tests, **kwargs):
     # CONFIGURATION:
     config, plotter = get_config(**kwargs)
 
+    CEREB, TRIGEMINAL, M1STIM, HEMISPHERES, CNS1TH, SENSTRIG, PONS = getflags_from_config(config)
+
     # CONNECTIVITY:
     connectivity, inds, maps = newconn_and_inds(config, None)
 
@@ -556,12 +552,15 @@ def plot_comparison(tests, **kwargs):
     print(BASEPATH)
 
     # Task related regions' indices:
-    inds["taskcereb"] = np.sort(np.concatenate([inds['ansilob'], inds['cereb_nuclei']]))  # newinds['cereb_crtx']
-    TASKINDS = np.sort(np.concatenate([inds["m1"], inds["s1brl"],
-                                       inds["m1thal"], inds["s1brlthal"],
-                                       inds["trigeminal"], #, newinds["ponsmotor"], newinds["ponssens"],
-                                       inds['taskcereb']
-                                      ]))
+    TASKINDS = np.concatenate([inds["m1"], inds["s1brl"],
+                               inds["m1thal"], inds["s1brlthal"]])
+    for reg in ["trigeminal", "ponssens_trigeminal",
+                "ansilob", "cereb_nuclei",
+                "ponsmotor", "ponssens"]:
+        this_inds = inds.get(reg, [])
+        if len(this_inds):
+            TASKINDS = np.concatenate([TASKINDS, this_inds])
+
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[TASKINDS]
     # Task related regions' abreviated labels:
@@ -581,12 +580,11 @@ def plot_comparison(tests, **kwargs):
         results[test_name] = {}
         Ps = []
         Cs = []
-        CsTheta = []
-        CsGamma = []
 
         testpath_old = "_".join([BASEPATH, test_name])
         testpath = os.path.join(BASEPATH, test_name)
-        shutil.move(testpath_old, testpath)
+        if os.path.isdir(testpath_old):
+            shutil.move(testpath_old, testpath)
         for path in glob.glob(os.path.join(testpath, "nsd*")):
             resultsfile = os.path.join(path, "res/source_ts.pkl")
             with open(resultsfile, 'rb') as handle:
@@ -614,7 +612,7 @@ def plot_comparison(tests, **kwargs):
     dump_pickled_dict(results, os.path.join(config.out.FOLDER_RES, "res_PSD_COH.pkl"))
 
     figR, axR, figL, axL = plot_pathway_psd_coh(
-        results, inds,
+        results, inds, CNS1TH=CNS1TH, SENSTRIG=SENSTRIG, PONS=PONS,
         tests=TESTS, colors=["g", "r"],
         percentile_min=1, percentile_max=99, n=1,
         plot_mean=True, plot_median=False, mode="semilog",
