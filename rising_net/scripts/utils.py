@@ -377,3 +377,14 @@ def compute_tensorpac(results, pairs, method=2, **kwargs):
                                         data[:, 0, pair[1]].squeeze(),
                                         fs=fs, method=method, **kwargs))
     return {"syncij": pairs, "pac": np.array(xpacs)}
+
+
+def intval(x):
+    if x == 0.0:
+        return 0
+    elif np.abs(x) < 0.1:
+        return int(np.abs(np.log10(x)))
+    elif x < 1.0:
+        return int(10*x)
+    else:
+        return int(x)
