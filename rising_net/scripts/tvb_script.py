@@ -335,19 +335,20 @@ def fic(param, p_orig, weights, trg_inds=None, src_inds=None, FIC=1.0, G=None, d
     # Move them to have a maximum of p_orig:
     # FICindegree = (indegree - indegree_min) / indegree_max
     indegree = weights[trg_inds][:, src_inds].sum(axis=1)
-    FICindegree = (indegree - indegree.min()) / (indegree.max() - indegree.min())
+    indgree_min = indegree.min()
+    indgree_max = indegree.max()
+    FICindegree = np.maximum(0.0, FIC * (indegree - indgree_min) / (indgree_max - indgree_min))
     # p_fic = p * (1 + FIC * FICindegree) = p * (1 + FIC * (indegree - indegree_min) / (indegree_max - indegree_min))
     # assuming p < 0.0, and FIC >= 0.0
-    if G is None:
-        p[trg_inds] = pscalar * (1.0 + FIC * FICindegree)
-    else:
-        p[trg_inds] = pscalar * (1.0 + G * FIC * FICindegree)
+    if G is not None:
+        FICindegree *= G
+    p[trg_inds] = pscalar * (1.0 + FICindegree)
 
     try:
         assert np.all(np.argsort(indegree) == np.argsort(-p[trg_inds]))  # the orderings should reverse
     except Exception as e:
         fig = plt.figure()
-        plt.plot(indegree, p[trg_inds], "-o")
+        plt.plot(indegree, p[trg_inds], "o")
         if G is None:
             plt.xlabel("%g*indegree" % FIC)
         else:
@@ -365,9 +366,10 @@ def fic(param, p_orig, weights, trg_inds=None, src_inds=None, FIC=1.0, G=None, d
         axes[1].set_xlabel("Indegree Scaler values")
         axes[1].set_ylabel("Histogram of region counts")
         if G is None:
-            axes[1].set_title("Indegree scaler = %g*(indegree - min(indegree)) / (max(indegree) - min(indegree))" % FIC)
+            axes[1].set_title("Indegree scaler = %g*(indegree - indegree_min) / (indegree_max - indegree_min)" % FIC)
         else:
-            axes[1].set_title("Indegree scaler = %g*%g*(indegree - min(indegree)) / (max(indegree) - min(indegree))" % (G, FIC))
+            axes[1].set_title("Indegree scaler = %g*%g*(indegree - indegree_min) / (indegree_max - indegree_min)"
+                              % (G, FIC))
         axes[0].hist(p[trg_inds], 30)
         axes[0].set_xlabel("Parameter values")
         axes[0].set_ylabel("Histogram of region counts")
@@ -504,17 +506,18 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
             ficsplit = config.FIC * fv
             fic = G * ficsplit
             if config.VERBOSE:
-                print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" % (fp, split_string, G, config.FIC, fv, fic))
+                print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
+                      (fp, split_string, G, config.FIC, fv, fic))
             # We will modify the w_ie and w_rs parameters a bit based on indegree:
             simulator = apply_fic(simulator, inds, ficsplit, G, fp, plotter)
 
     # Set monitors:
     if config.RAW_PERIOD > config.DEFAULT_DT:
         mon_raw = TemporalAverage(period=config.RAW_PERIOD)  # ms
-        afferent = AfferentCouplingTemporalAverage(period=config.RAW_PERIOD, variables_of_interest=np.array([0, 1]))
+        afferent = AfferentCouplingTemporalAverage(period=config.RAW_PERIOD, variables_of_interest=np.array([0, 1, 2]))
     else:
         mon_raw = Raw()
-        afferent = AfferentCoupling(variables_of_interest=np.array([0, 1]))
+        afferent = AfferentCoupling(variables_of_interest=np.array([0, 1, 2]))
     simulator.monitors = (mon_raw, afferent)
     if config.BOLD_PERIOD:
         bold = Bold(period=config.BOLD_PERIOD,
@@ -755,7 +758,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
             data=results[1][1], time=results[1][0],
             connectivity=simulator.connectivity,
             labels_ordering=["Time", "State Variable", "Region", "Neurons"],
-            labels_dimensions={"State Variable": ["cortical coupling", "subcortical coupling"],
+            labels_dimensions={"State Variable": ["cortical coupling", "subcortical coupling", "thalamic coupling"],
                                "Region": simulator.connectivity.region_labels.tolist()},
             sample_period=simulator.monitors[1].period)
 
@@ -840,12 +843,12 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     else:
         config = assert_config(config, return_plotter=False)
     MAX_VARS_IN_COLS = 2
+    MAX_VARS_IN_COLS_AFF = 3
     MAX_REGIONS_IN_ROWS = 10
     MIN_REGIONS_FOR_RASTER_PLOT = 9
     FIGSIZE = config.figures.DEFAULT_SIZE
 
     # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
-    # dt = source_ts.time[1] - source_ts.time[0]
     # NPERSEG = NPERSEG[np.argmin(np.abs(NPERSEG - (source_ts.shape[0] - transient / dt)/10))]
 
     NPERSEG = 512
@@ -860,6 +863,10 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     bold_ts = results.get("bold_ts", None)
     afferent_ts = results.get("afferent_ts", None)
 
+    TIME_PLOT = 1000.0  # ms
+    dt = source_ts.time[1] - source_ts.time[0]
+    N_TIME_PLOT = int(np.round(TIME_PLOT / dt))
+
     # Plot TVB time series
     if isinstance(source_ts, TimeSeriesXarray):
         source_ts[:, :, :, :].plot_timeseries(plotter_config=plotter.config,
@@ -867,28 +874,28 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                               per_variable=source_ts.shape[1] > MAX_VARS_IN_COLS,
                                               figsize=FIGSIZE)
         # Focus on the m1 and s1 barrel field nodes:
-        source_ts_m1s1brl = source_ts[-10000:, :, inds["m1s1brl"]]
+        source_ts_m1s1brl = source_ts[-N_TIME_PLOT:, :, inds["m1s1brl"]]
         source_ts_m1s1brl.plot_timeseries(plotter_config=plotter.config,
                                           hue="Region" if source_ts_m1s1brl.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                           per_variable=source_ts_m1s1brl.shape[1] > MAX_VARS_IN_COLS,
                                           figsize=FIGSIZE, figname="M1 and S1 barrel field nodes TVB Time Series")
         # Focus on the motor pathway:
         if len(inds.get("motor", [])):
-            source_ts_motor = source_ts[-10000:, :, inds["motor"]]
+            source_ts_motor = source_ts[-N_TIME_PLOT:, :, inds["motor"]]
             source_ts_motor.plot_timeseries(plotter_config=plotter.config,
                                             hue="Region" if source_ts_motor.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                             per_variable=source_ts_motor.shape[1] > MAX_VARS_IN_COLS,
                                             figsize=FIGSIZE, figname="Motor pathway TVB Time Series")
         # Focus on the sensory pathway:
         if len(inds.get("sens", [])):
-            source_ts_sens = source_ts[-10000:, :, inds["sens"]]
+            source_ts_sens = source_ts[-N_TIME_PLOT:, :, inds["sens"]]
             source_ts_sens.plot_timeseries(plotter_config=plotter.config,
                                            hue="Region" if source_ts_sens.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                            per_variable=source_ts_sens.shape[1] > MAX_VARS_IN_COLS,
                                            figsize=FIGSIZE, figname="Sensory pathway TVB Time Series")
         if len(inds.get("cereb", [])):
             # Focus on regions potentially modelled in NEST (ansiform lobule, Cerebellar Nuclei, inferior olive):
-            source_ts_cereb = source_ts[-10000:, :, inds["cereb"]]
+            source_ts_cereb = source_ts[-N_TIME_PLOT:, :, inds["cereb"]]
             source_ts_cereb.plot_timeseries(plotter_config=plotter.config,
                                             hue="Region" if source_ts_cereb.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                             per_variable=source_ts_cereb.shape[1] > MAX_VARS_IN_COLS,
@@ -947,28 +954,28 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
 
         fig, axes = plt.subplots(3, 1, figsize=(12, 10))
         for iT, regs in enumerate(["crtx", "subcrtx_not_thalspec", "thalspec"]):
-            transient_in_points = int((transient + 0.5) / simulator.monitors[0].period)
-            dat = data[transient_in_points:, 0, inds[regs]].squeeze()
-            axes[iT].plot(time[transient_in_points:], dat, alpha=0.25)
+            # transient_in_points = int((transient + 0.5) / simulator.monitors[0].period)
+            dat = data[-N_TIME_PLOT:, 0, inds[regs]].squeeze()
+            axes[iT].plot(time[-N_TIME_PLOT:], dat, alpha=0.25)
             if iT == 0:
-                axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["m1"]].squeeze(),
+                axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["m1"]].squeeze(),
                               'b--', linewidth=3, label='M1')
-                axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["s1brl"]].squeeze(),
+                axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["s1brl"]].squeeze(),
                               'g--', linewidth=3, label='S1 barrel field')
             elif iT == 1:
                 if len(inds.get("facial", [])):
-                    axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["facial"]].squeeze(),
+                    axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["facial"]].squeeze(),
                                   'b--', linewidth=3, label='Facial motor nucleus')
                 if len(inds.get("trigeminal", [])):
-                    axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["trigeminal"]].squeeze(),
+                    axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["trigeminal"]].squeeze(),
                                   'g--', linewidth=3, label='Spinal trigeminal nuclei')
             else:
-                axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["m1thal"]].squeeze(),
+                axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["m1thal"]].squeeze(),
                               'b--', linewidth=3, label='M1 specific thalami')
-                axes[iT].plot(time[transient_in_points:], data[transient_in_points:, 0, inds["s1brlthal"]].squeeze(),
+                axes[iT].plot(time[-N_TIME_PLOT:], data[-N_TIME_PLOT:, 0, inds["s1brlthal"]].squeeze(),
                               'g--', linewidth=3, label='S1 barrel field specific thalami')
                 axes[iT].set_xlabel('Time (ms)')
-            axes[iT].plot(time[transient_in_points:], dat.mean(axis=1), 'k--', linewidth=3, label='Total mean')
+            axes[iT].plot(time[-N_TIME_PLOT:], dat.mean(axis=1), 'k--', linewidth=3, label='Total mean')
             axes[iT].legend()
             axes[iT].set_title("%s range=[%g, %g, %g, %g, %g] " %
                                (regs, dat.min(), np.percentile(dat, 5), dat.mean(), np.percentile(dat, 95), dat.max()))
@@ -982,18 +989,49 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
 
     # Focus on the s1 barrel field nodes:
     if isinstance(afferent_ts, TimeSeriesXarray):
-        afferent_ts_m1s1brl = afferent_ts[-10000:, :, inds["s1brlthal"]]
+        afferent_ts_m1s1brl = afferent_ts[-N_TIME_PLOT:, :, inds["m1s1brl"]]
         afferent_ts_m1s1brl.plot_timeseries(plotter_config=plotter.config,
-                                           hue="Region" if afferent_ts_m1s1brl.shape[2] > MAX_REGIONS_IN_ROWS else None,
-                                           per_variable=afferent_ts_m1s1brl.shape[1] > MAX_VARS_IN_COLS,
-                                           figsize=FIGSIZE, figname="S1 barrel field nodes TVB Time Series")
+                                            hue="Region" if afferent_ts_m1s1brl.shape[
+                                                                2] > MAX_REGIONS_IN_ROWS else None,
+                                            per_variable=afferent_ts_m1s1brl.shape[1] > MAX_VARS_IN_COLS_AFF,
+                                            figsize=FIGSIZE, figname="M1 and S1 barrel field nodes TVB Time Series")
+        afferent_ts_m1s1brlthal = afferent_ts[-N_TIME_PLOT:, :, np.concatenate([inds["m1thal"], inds["s1brlthal"]])]
+        afferent_ts_m1s1brlthal.plot_timeseries(
+            plotter_config=plotter.config,
+            hue="Region" if afferent_ts_m1s1brlthal.shape[2] > MAX_REGIONS_IN_ROWS else None,
+            per_variable=afferent_ts_m1s1brlthal.shape[1] > MAX_VARS_IN_COLS_AFF,
+            figsize=FIGSIZE, figname="M1 and S1 barrel specific thalami field nodes TVB Time Series")
+
+        if len(inds.get("trigeminal", [])):
+            afferent_ts_trig = afferent_ts[-N_TIME_PLOT:, :, inds["trigeminal"]]
+            afferent_ts_trig.plot_timeseries(plotter_config=plotter.config,
+                                              hue="Region" if afferent_ts_trig.shape[2] > MAX_REGIONS_IN_ROWS else None,
+                                              per_variable=afferent_ts_trig.shape[1] > MAX_VARS_IN_COLS_AFF,
+                                              figsize=FIGSIZE, figname="`Trigeminal TVB Afferent Time Series")
+
+            if len(inds.get("ponssens_trigeminal", [])):
+                afferent_ts_senstrig = afferent_ts[-N_TIME_PLOT:, :, inds["ponssens_trigeminal"]]
+                afferent_ts_senstrig.plot_timeseries(
+                    plotter_config=plotter.config,
+                    hue="Region" if afferent_ts_senstrig.shape[2] > MAX_REGIONS_IN_ROWS else None,
+                    per_variable=afferent_ts_senstrig.shape[1] > MAX_VARS_IN_COLS_AFF,
+                    figsize=FIGSIZE, figname="Princ. Sens. Trigeminal TVB Afferent Time Series")
+
        # Focus on regions potentially modelled in NEST (ansiform lobule, interposed nucleus, inferior olive):
         if len(inds.get("ansilob", [])):
-            afferent_ts_cereb = afferent_ts[-10000:, :, inds["ansilob"]]
+            afferent_ts_cereb = afferent_ts[-N_TIME_PLOT:, :, inds["ansilob"]]
             afferent_ts_cereb.plot_timeseries(plotter_config=plotter.config,
                                               hue="Region" if afferent_ts_cereb.shape[2] > MAX_REGIONS_IN_ROWS else None,
-                                              per_variable=afferent_ts_cereb.shape[1] > MAX_VARS_IN_COLS,
+                                              per_variable=afferent_ts_cereb.shape[1] > MAX_VARS_IN_COLS_AFF,
                                               figsize=FIGSIZE, figname="Ansiform Lobule TVB Afferent Time Series")
+
+            if len(inds.get("cereb_nuclei", [])):
+                afferent_ts_cn = afferent_ts[-N_TIME_PLOT:, :, inds["cereb_nuclei"]]
+                afferent_ts_cn.plot_timeseries(
+                    plotter_config=plotter.config,
+                    hue="Region" if afferent_ts_cn.shape[2] > MAX_REGIONS_IN_ROWS else None,
+                    per_variable=afferent_ts_cn.shape[1] > MAX_VARS_IN_COLS_AFF,
+                    figsize=FIGSIZE, figname="Princ. Sens. Trigeminal TVB Afferent Time Series")
 
             # Power Spectra and Coherence of cerebellar input - afferent to ansiform lobule:
             print("Ansiform lobule afferent PSD, with compute_plot_selected_spectra_coherence")
@@ -1019,7 +1057,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         bold_ts.plot_timeseries(plotter_config=plotter.config,
                                 hue="Region" if bold_ts.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                 per_variable=bold_ts.shape[1] > MAX_VARS_IN_COLS,
-                                figsize=FIGSIZE);
+                                figsize=FIGSIZE)
 
     return results
 
