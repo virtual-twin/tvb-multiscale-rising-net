@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import warnings
 import numpy
 import numpy as np
 import matplotlib.pyplot as plt
@@ -543,18 +544,22 @@ def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0, test
                     ind = indhs[hemi]
                 else:
                     ind = indhs[1 - hemi]
-                iR = np.where(results["inds"] == ind)[0].item()
-                for col, test in zip(colors, tests):
-                    percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
-                                 percentile_min=percentile_min, percentile_max=percentile_max, n=n,
-                                 plot_mean=plot_mean, plot_median=plot_median,
-                                 color=col, alpha=alpha, ax=axH[reg], mode=mode,
-                                 **line_kwargs)
-                axH[reg].set_title(results['short_labels'][iR])
-                if mode == "semilog":
-                    axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
-                else:
-                    axH[reg].set_ylabel('PSD', fontsize=fontsize)
+                try:
+                    iR = np.where(results["inds"] == ind)[0].item()
+                    for col, test in zip(colors, tests):
+                        percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
+                                     percentile_min=percentile_min, percentile_max=percentile_max, n=n,
+                                     plot_mean=plot_mean, plot_median=plot_median,
+                                     color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                                     **line_kwargs)
+                    axH[reg].set_title(results['short_labels'][iR])
+                    if mode == "semilog":
+                        axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
+                    else:
+                        axH[reg].set_ylabel('PSD', fontsize=fontsize)
+                except Exception as e:
+                    warnings.warn(str(e))
+                    axH[reg].set_axis_off()
             else:
                 axH[reg].set_axis_off()
 
@@ -578,7 +583,10 @@ def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0, test
                         ind = inds[reg][hemi]
                     else:
                         ind = inds[reg][1 - hemi]
-                    pair.append(np.where(results["inds"] == ind)[0].item())
+                    try:
+                        pair.append(np.where(results["inds"] == ind)[0].item())
+                    except Exception as e:
+                        warnings.warn(str(e))
 
             if len(pair) == 2:
                 try:
