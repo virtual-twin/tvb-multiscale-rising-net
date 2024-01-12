@@ -21,15 +21,6 @@ from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
 
 
-def intval(x):
-    if x == 0.0:
-        return 0
-    elif np.abs(x) < 0.1:
-        return int(np.abs(np.log10(x)))
-    elif x < 1.0:
-        return int(10*x)
-    else:
-        return int(x)
 #
 #
 # def foldername(**kwargs):
@@ -42,7 +33,7 @@ def intval(x):
 def get_config(**kwargs):
 
     # Assuming:
-    # DEFAULT_ARGS = {'G': 6.0, 'STIMULUS': 0.1, 'STIMULUS_BASELINE': 0.0,
+    # DEFAULT_ARGS = {'G': 6.0, 'STIMULUS': 0.1, 'STIMULUS_BASELINE': 1.0,
     #                 'I_e': -0.35, 'I_s': 0.085,
     #                 'w_ie': -3.0, 'w_rs': -2.0,
     #                 'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
@@ -52,8 +43,6 @@ def get_config(**kwargs):
     # config.TRANSIENT_RATIO =0.25
 
     simulation_length = kwargs.pop("simulation_length", 3000.0)
-    pathway_gain = kwargs.pop("pathway_gain", 1.0)
-    pathway_mode = kwargs.pop("pathway_mode", "task")
     STIMULUS = kwargs.get("STIMULUS", 0.5)
     STIMULUS_BASELINE = kwargs.get("STIMULUS_BASELINE", 1.0)
     NOISE = int(kwargs.pop("NOISE", 6))
@@ -81,13 +70,6 @@ def get_config(**kwargs):
 
     if SET_WEIGHTS:
         experiment_name = "_".join([experiment_name, "SetW"])
-
-    if pathway_gain > 1.0:
-        if pathway_mode == "stim":
-            experiment_name = "stimgain"
-        else:
-            experiment_name = "gain"
-        experiment_name += "%d" % int(pathway_gain)
 
     # experiment_name = "_".join([experiment_name,
     #                             "stimbase%d_stim%d_noise%d_G%d" %
@@ -142,10 +124,7 @@ def get_config(**kwargs):
     config.TRIGEMINAL = TRIGEMINAL
     config.M1STIM = M1STIM
     config.HEMISPHERES = HEMISPHERES
-    config.PATHWAY_GAIN = pathway_gain
-    config.PATHWAY_MODE = pathway_mode
     config.SET_WEIGHTS = SET_WEIGHTS
-    # config.SET_DELAYS = SET_DELAYS
     config.STIMULUS_RATE = 8.0  # Hz
     config.VERBOSITY = 2.0
 
@@ -162,7 +141,7 @@ def getflags_from_config(config):
     HEMISPHERES = getattr(config, "HEMISPHERES", -1)
     CNS1TH = getattr(config, "CNS1TH", 1.0)
     SENSTRIG = getattr(config, "SENSTRIG", 1.0)
-    PONS = getattr(config, "PONS", 0.5)
+    PONS = getattr(config, "PONS", 0.0)
     return CEREB, TRIGEMINAL, M1STIM, HEMISPHERES, CNS1TH, SENSTRIG, PONS
 
 
@@ -293,69 +272,6 @@ def simulate_minimal(**kwargs):
     # # connectivity.tract_lengths = np.sqrt(connectivity.tract_lengths * connectivity.tract_lengths.T)
     # # connectivity.configure()
 
-    pathway_gain = config.PATHWAY_GAIN
-    pathway_mode = config.PATHWAY_MODE
-    if pathway_gain > 1.0:
-        from cosim_run_plot import apply_pathway_gain_to_target
-        hemispheres = np.abs(HEMISPHERES)
-        print("\n" + "-"*50)
-        print("Applying pathway gain = %g" % pathway_gain)
-        print("-" * 50 + "\n")
-
-        # A. INPUT SENSORY PATHWAY:
-
-    #     # 3. S1 brl thal <- Trigeminal (stimulus)
-    #     connectivity.weights = \
-    #         apply_pathway_gain_to_target(newinds["trigeminal"][::-1],      # contralaterally or bilaterally
-    #                                      newinds["s1brlthal"],
-    #                                      pathway_gain, connectivity.weights,
-    #                                      hemispheres=hemispheres,
-    #                                      fix_inds=newinds["s1brl"])
-
-
-        # C. INPUT MOTOR PATHWAY:
-
-    #     if TRIGEMINAL:
-    #         # 1.  M1 thal <- trigeminal
-    #         connectivity.weights = \
-    #             apply_pathway_gain_to_target(newinds["trigeminal"][::-1],  # contralaterally or bilaterally
-    #                                         newinds["m1thal"],
-    #                                         pathway_gain, connectivity.weights,
-    #                                         hemispheres=hemispheres,
-    #                                             fix_inds=newinds["m1"])
-
-        if pathway_mode != "stim":
-
-            connectivity.weights = \
-                apply_pathway_gain_to_target(inds["s1brl"],  # bilaterally
-                                             inds["m1"],
-                                             pathway_gain, connectivity.weights,
-                                             hemispheres=0,
-                                             fix_inds=inds["m1thal"])
-
-            connectivity.weights = \
-                apply_pathway_gain_to_target(inds["m1"],  # bilaterally
-                                             inds["s1brl"],
-                                             pathway_gain, connectivity.weights,
-                                             hemispheres=0,
-                                             fix_inds=inds["s1brlthal"])
-
-            connectivity.weights = \
-                apply_pathway_gain_to_target(None,  # bilaterally
-                                             inds["m1"],
-                                             1.0/pathway_gain, connectivity.weights,
-                                             hemispheres=0,
-                                             fix_inds=inds["m1thal"],
-                                             preserve_indegree=False)
-
-            connectivity.weights = \
-                apply_pathway_gain_to_target(None,  # bilaterally
-                                             inds["s1brl"],
-                                             1.0/pathway_gain, connectivity.weights,
-                                             hemispheres=0,
-                                             fix_inds=inds["s1brlthal"],
-                                             preserve_indegree=False)
-
     if config.SET_WEIGHTS:
         # Force connectivity:
         connectivity.weights *= 0.0
@@ -387,7 +303,7 @@ def simulate_minimal(**kwargs):
             # Trigeminal -> SpecThal contralateral only:
             connectivity.weights[inds["s1brlthal"], inds["trigeminal"][::-1]] = 1.0
             if SENSTRIG > 0.0:
-                connectivity.weights[inds["ponssens_trigeminal"], inds["trigeminal"][::-1]] = 2.0
+                connectivity.weights[inds["ponssens_trigeminal"], inds["trigeminal"]] = 2.0
                 connectivity.weights[inds["s1brlthal"], inds["ponssens_trigeminal"][::-1]] = SENSTRIG
             if CEREB > 1:
                 connectivity.weights[inds["ansilob"], inds["trigeminal"]] = 2.0 - SENSTRIG
@@ -659,7 +575,7 @@ if __name__ == '__main__':
     ntests = 0
     for arg in sys.argv[1:]:
         keyval = arg.split("=")
-        if keyval[0] not in ["test_name", "pathway_mode"]:
+        if keyval[0] not in ["test_name"]:
             key = float(keyval[1])
         else:
             key = keyval[1].split(" ")
