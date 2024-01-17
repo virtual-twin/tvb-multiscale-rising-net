@@ -338,23 +338,23 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
                                          indegree_gain=indegree_gain)
         indegree_ratios["ponsmotor"] = indegree_ratio
 
-    # weights, indegree_ratio = apply_pathway_gain_to_target(
-    #     inds["s1brl"], inds["m1"],
-    #     1.0, # pathway_gain,
-    #     weights, hemispheres=0,
-    #     fix_inds=inds["m1thal"].tolist(),
-    #     indegree_gain=pathway_gain  # 5*indegree_gain
-    # )
-    # indegree_ratios["m1"] = indegree_ratio
-    #
-    # weights, indegree_ratio = apply_pathway_gain_to_target(
-    #     inds["m1"], inds["s1brl"],
-    #     1.0,  # pathway_gain,
-    #     weights, hemispheres=0,
-    #     fix_inds=inds["s1brlthal"].tolist(),
-    #     indegree_gain=pathway_gain  # 5*indegree_gain
-    #     )
-    # indegree_ratios["s1brl"] = indegree_ratio
+    weights, indegree_ratio = apply_pathway_gain_to_target(
+        inds["s1brl"], inds["m1"],
+        1.0, # pathway_gain,
+        weights, hemispheres=0,
+        fix_inds=inds["m1thal"].tolist(),
+        indegree_gain=pathway_gain  # 5*indegree_gain
+    )
+    indegree_ratios["m1"] = indegree_ratio
+
+    weights, indegree_ratio = apply_pathway_gain_to_target(
+        inds["m1"], inds["s1brl"],
+        1.0,  # pathway_gain,
+        weights, hemispheres=0,
+        fix_inds=inds["s1brlthal"].tolist(),
+        indegree_gain=pathway_gain  # 5*indegree_gain
+        )
+    indegree_ratios["s1brl"] = indegree_ratio
 
     return\
         weights, indegree_ratios
@@ -450,8 +450,8 @@ def cosim_run_plot(**kwargs):
         print("Indegree ratios:")
         print(indegree_ratios)
         print("-" * 25)
-        # if not np.isclose(config.FIC, 1.0, rtol=1e-03, atol=1e-03):
-        #     simulator = adjust_ficed_params(simulator, indegree_ratios, inds)
+        if not np.isclose(config.FIC, 1.0, rtol=1e-03, atol=1e-03):
+            simulator = adjust_ficed_params(simulator, indegree_ratios, inds)
         simulator.configure()
 
     # Put cereb weights to 0 if CEREB_OFF
@@ -600,6 +600,10 @@ def plot_comparison(tests, **kwargs):
                "theta": THETA, "gamma": GAMMA}
 
     TESTS = tests
+    colors = []
+    for test, col in zip(["cosim", "tvb-only", "cerebOFF"], ["b", "g", "r"]):
+        if test in TESTS:
+            colors.append(col)
     for test_name in TESTS:
 
         results[test_name] = {}
@@ -638,7 +642,7 @@ def plot_comparison(tests, **kwargs):
 
     figR, axR, figL, axL = plot_pathway_psd_coh(
         results, inds, CNS1TH=CNS1TH, SENSTRIG=SENSTRIG, PONS=PONS,
-        tests=TESTS, colors=["g", "r"],
+        tests=TESTS, colors=colors,
         percentile_min=1, percentile_max=99, n=1,
         plot_mean=True, plot_median=False, mode="semilog",
         alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)
@@ -650,7 +654,7 @@ def plot_comparison(tests, **kwargs):
 
     figPSD, axesPSD = psd_percent_plot(results,
                                         inds=None,
-                                        tests=TESTS, colors=["g", "r"],
+                                        tests=TESTS, colors=colors,
                                         percentile_min=1, percentile_max=99, n=1,
                                         plot_mean=False, plot_median=True,
                                         alpha=0.5, figsize=config.figures.DEFAULT_SIZE, fontsize=16)
