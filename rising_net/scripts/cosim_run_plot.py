@@ -610,7 +610,7 @@ def plot_comparison(tests, **kwargs):
 
     TESTS = tests
     colors = []
-    for test, col in zip(["cosim", "tvb-only", "cerebOFF"], ["b", "g", "r"]):
+    for test, col in zip(["cosim", "cosimOFF", "tvb-only", "cerebOFF"], ["b", "m", "g", "r"]):
         if test in TESTS:
             colors.append(col)
     for test_name in TESTS:
@@ -625,6 +625,7 @@ def plot_comparison(tests, **kwargs):
             shutil.move(testpath_old, testpath)
         for path in glob.glob(os.path.join(testpath, "nsd*")):
             resultsfile = os.path.join(path, "res/source_ts.pkl")
+            print(resultsfile)
             with open(resultsfile, 'rb') as handle:
                 source_ts = pickle.load(handle)  # to load results
             Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
