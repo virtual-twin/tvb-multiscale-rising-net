@@ -87,8 +87,12 @@ def get_config(**kwargs):
     if test_name == "cerebOFF":
         config.CEREB_OFF = True
 
+    config.COSIM_OFF = False
+    if test_name == "cosimOFF":
+        config.COSIM_OFF = True
+
     config.COSIMULATION = False
-    if test_name == 'cosim':
+    if test_name.find('cosim') > -1:
         config.COSIMULATION = True
 
     print(config.model_params)
@@ -524,6 +528,11 @@ def cosim_run_plot(**kwargs):
         # Build TVB-NEST interfaces
         nest_network, nest_nodes_inds, neuron_models, neuron_number = build_NEST_network(config)
         simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config)
+        if config.COSIM_OFF:
+            for hemi in ["Right", "Left"]:
+                nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
+                print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
+                print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
         # Simulate TVB-NEST model
         results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
     else:
