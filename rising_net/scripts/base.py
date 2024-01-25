@@ -123,6 +123,7 @@ def configure(**ARGS):
     config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", SIMULATION_LENGTH)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.NEST_PERIPHERY = False
+    config.NEST_BACKGROUND_FREQ = 4.0  # Hz, Set to 0 to remove this stimulus
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
     config.AFFERENT_TS_PATH = os.path.join(config.out.FOLDER_RES, "afferent_ts.pkl")
