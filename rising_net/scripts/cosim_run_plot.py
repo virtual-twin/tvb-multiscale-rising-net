@@ -526,6 +526,8 @@ def cosim_run_plot(**kwargs):
 
     if config.COSIMULATION:
         # Build TVB-NEST interfaces
+        config.NEST_BACKGROUND_FREQ = 0
+        print("config.NEST_BACKGROUND_FREQ = %g" % config.NEST_BACKGROUND_FREQ)
         nest_network, nest_nodes_inds, neuron_models, neuron_number = build_NEST_network(config)
         simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config)
         if config.COSIM_OFF:

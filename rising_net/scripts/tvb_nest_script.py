@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from rising_net.scripts.base import *
-from rising_net.scripts.nest_script import neuron_types_to_region
+from rising_net.scripts.nest_script import nest_parameter_settings
 from rising_net.scripts.tvb_script import *
 
 
@@ -110,6 +110,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
     if config.NEST_PERIPHERY:
         pops = ['parrot_medulla', 'parrot_ponssens'] + pops
         ports = [0, 0] + ports
+    neuron_types_to_region = nest_parameter_settings()[-1]
     for pop, receptor in zip(pops, ports):  #  excluding direct TVB input to "dcn_cell_glut_large"
         regions = neuron_types_to_region[pop]
         pop_regions_inds = []

@@ -929,7 +929,15 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="SPV_PonsSens", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
-        if len(inds.get("ansilob", [])):
+
+        if len(inds.get("cereb", [])):
+            compute_plot_selected_spectra_coherence(source_ts, inds["cereb"],
+                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                    figures_path=config.figures.FOLDER_FIGURES, figname="Cereb",
+                                                    figformat="png",
+                                                    show_flag=plotter.config.SHOW_FLAG,
+                                                    save_flag=plotter.config.SAVE_FLAG)
+        elif len(inds.get("ansilob", [])):
             print("psd input cereb!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             # Power Spectra and Coherence at cerebellar input - ansiform lobule:
             print("inds ansilob", inds["ansilob"])
@@ -938,13 +946,8 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                                     transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob",
                                                     figformat="png",
-                                                    show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
-        if len(inds.get("cereb", [])):
-            compute_plot_selected_spectra_coherence(source_ts, inds["cereb"],
-                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
-                                                    figures_path=config.figures.FOLDER_FIGURES, figname="Cereb",
-                                                    figformat="png",
-                                                    show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
+                                                    show_flag=plotter.config.SHOW_FLAG,
+                                                    save_flag=plotter.config.SAVE_FLAG)
 
         # Better summary figure:
         import matplotlib.pyplot as plt
@@ -994,13 +997,13 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                             hue="Region" if afferent_ts_m1s1brl.shape[
                                                                 2] > MAX_REGIONS_IN_ROWS else None,
                                             per_variable=afferent_ts_m1s1brl.shape[1] > MAX_VARS_IN_COLS_AFF,
-                                            figsize=FIGSIZE, figname="M1 and S1 barrel field nodes TVB Time Series")
+                                            figsize=FIGSIZE, figname="M1 and S1 barrel Afferent TVB Time Series")
         afferent_ts_m1s1brlthal = afferent_ts[-N_TIME_PLOT:, :, np.concatenate([inds["m1thal"], inds["s1brlthal"]])]
         afferent_ts_m1s1brlthal.plot_timeseries(
             plotter_config=plotter.config,
             hue="Region" if afferent_ts_m1s1brlthal.shape[2] > MAX_REGIONS_IN_ROWS else None,
             per_variable=afferent_ts_m1s1brlthal.shape[1] > MAX_VARS_IN_COLS_AFF,
-            figsize=FIGSIZE, figname="M1 and S1 barrel specific thalami field nodes TVB Time Series")
+            figsize=FIGSIZE, figname="M1 and S1 barrel specific thalami Afferent TVB Time Series")
 
         if len(inds.get("trigeminal", [])):
             afferent_ts_trig = afferent_ts[-N_TIME_PLOT:, :, inds["trigeminal"]]
@@ -1031,19 +1034,20 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                     plotter_config=plotter.config,
                     hue="Region" if afferent_ts_cn.shape[2] > MAX_REGIONS_IN_ROWS else None,
                     per_variable=afferent_ts_cn.shape[1] > MAX_VARS_IN_COLS_AFF,
-                    figsize=FIGSIZE, figname="Princ. Sens. Trigeminal TVB Afferent Time Series")
+                    figsize=FIGSIZE, figname="Cerebellar Nuclei TVB Afferent Time Series")
 
             # Power Spectra and Coherence of cerebellar input - afferent to ansiform lobule:
             print("Ansiform lobule afferent PSD, with compute_plot_selected_spectra_coherence")
             Pxx_den_ansilob = []
             f_ansilob = []
-            for iC in range(0, 2):
+            for iC, coupl in enumerate(["cortical", "subcortical"]):
+                print("%s coupling:" % coupl)
                 Pxx_den_ansilob_temp, f_ansilob, CxyR_ansilob, fR_ansilob, CxyL_ansilob, fL_ansilob = \
                     compute_plot_selected_spectra_coherence(
                         afferent_ts[:, iC], inds["ansilob"],
                         transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
-                        figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob_afferent", figformat="png",
-                        show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
+                        figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob %s afferent" % coupl,
+                        figformat="png", show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
                 Pxx_den_ansilob.append(Pxx_den_ansilob_temp)
             results["PSD_ansilob"] = Pxx_den_ansilob
             results["PSD_ansilob_f"] = f_ansilob
