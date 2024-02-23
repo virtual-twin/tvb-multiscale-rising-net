@@ -270,10 +270,10 @@ def build_model(number_of_regions, inds, maps, config):
         if model_params.get("G", WilsonCowanThalamoCortical.G.default)[0].item() > 0.0:
             # Stimulus to M1 and S1 barrel field
             # inds_stim = np.concatenate((inds["motor"][:2], inds["sens"][-2:])
-            if config.NEST_PERIPHERY:
-                inds_stim = np.array(inds["facial"])
-            else:
-                inds_stim = np.concatenate((inds["facial"], inds["trigeminal"]))
+            # if config.NEST_PERIPHERY:
+            #     inds_stim = np.array(inds["facial"])
+            # else:
+            inds_stim = np.concatenate((inds["facial"], inds["trigeminal"]))
         else:
             # Stimulus directly to all specific thalami:
             inds_stim = inds['thalspec']
@@ -848,11 +848,6 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     MIN_REGIONS_FOR_RASTER_PLOT = 9
     FIGSIZE = config.figures.DEFAULT_SIZE
 
-    # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
-    # NPERSEG = NPERSEG[np.argmin(np.abs(NPERSEG - (source_ts.shape[0] - transient / dt)/10))]
-
-    NPERSEG = 512
-
     PSD_target = compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None)
     compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient=transient, write_files=True, plotter=plotter)
 
@@ -863,9 +858,20 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     bold_ts = results.get("bold_ts", None)
     afferent_ts = results.get("afferent_ts", None)
 
+    if isinstance(source_ts, TimeSeriesXarray):
+        dt = source_ts.time[1] - source_ts.time[0]
+        n_time_len = source_ts.shape[0]
+    elif simulator is not None:
+        dt = simulator.integrator.dt
+        n_time_len = simulator.simulation_length
+    else:
+        dt = config.DEFAULT_DT
     TIME_PLOT = 1000.0  # ms
-    dt = source_ts.time[1] - source_ts.time[0]
     N_TIME_PLOT = int(np.round(TIME_PLOT / dt))
+    n_time_len -= int(np.round(transient / dt))
+    NPERSEG = np.array([512, 1024, 2048, 4096])
+    NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
+    # NPERSEGs = 512
 
     # Plot TVB time series
     if isinstance(source_ts, TimeSeriesXarray):
@@ -904,7 +910,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         # Power Spectra and Coherence for M1 - S1 barrel field
         Pxx_den, f, CxyR, fR, CxyL, fL = \
             compute_plot_selected_spectra_coherence(source_ts, inds["m1s1brl"],
-                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="M1_S1brl", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -925,14 +931,15 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         # for Medulla SPV, Sensory PONS
         if len(inds.get("sens", [])):
             compute_plot_selected_spectra_coherence(source_ts, inds["sens"],
-                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="SPV_PonsSens", figformat="png",
-                                                    show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
+                                                    show_flag=plotter.config.SHOW_FLAG,
+                                                    save_flag=plotter.config.SAVE_FLAG)
 
         if len(inds.get("cereb", [])):
             compute_plot_selected_spectra_coherence(source_ts, inds["cereb"],
-                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES, figname="Cereb",
                                                     figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -943,7 +950,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
             print("inds ansilob", inds["ansilob"])
             print("Ansiform lobule source_ts PSD, with compute_plot_selected_spectra_coherence")
             compute_plot_selected_spectra_coherence(source_ts, inds["ansilob"],
-                                                    transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob",
                                                     figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1036,25 +1043,28 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                     per_variable=afferent_ts_cn.shape[1] > MAX_VARS_IN_COLS_AFF,
                     figsize=FIGSIZE, figname="Cerebellar Nuclei TVB Afferent Time Series")
 
-            # Power Spectra and Coherence of cerebellar input - afferent to ansiform lobule:
-            print("Ansiform lobule afferent PSD, with compute_plot_selected_spectra_coherence")
-            Pxx_den_ansilob = []
-            f_ansilob = []
-            for iC, coupl in enumerate(["cortical", "subcortical"]):
-                print("%s coupling:" % coupl)
-                Pxx_den_ansilob_temp, f_ansilob, CxyR_ansilob, fR_ansilob, CxyL_ansilob, fL_ansilob = \
-                    compute_plot_selected_spectra_coherence(
-                        afferent_ts[:, iC], inds["ansilob"],
-                        transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
-                        figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob %s afferent" % coupl,
-                        figformat="png", show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
-                Pxx_den_ansilob.append(Pxx_den_ansilob_temp)
-            results["PSD_ansilob"] = Pxx_den_ansilob
-            results["PSD_ansilob_f"] = f_ansilob
-            # results["CxyR_M1_S1"] = CxyR_ansilob
-            # results["fR"] = fR_ansilob
-            # results["Cxyl_M1_S1"] = CxyL_ansilob
-            # results["fL"] = fL_ansilob
+            try:
+                # Power Spectra and Coherence of cerebellar input - afferent to ansiform lobule:
+                print("Ansiform lobule afferent PSD, with compute_plot_selected_spectra_coherence")
+                Pxx_den_ansilob = []
+                f_ansilob = []
+                for iC, coupl in enumerate(["cortical", "subcortical"]):
+                    print("%s coupling:" % coupl)
+                    Pxx_den_ansilob_temp, f_ansilob, CxyR_ansilob, fR_ansilob, CxyL_ansilob, fL_ansilob = \
+                        compute_plot_selected_spectra_coherence(
+                            afferent_ts[:, iC], inds["ansilob"],
+                            transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                            figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob %s afferent" % coupl,
+                            figformat="png", show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
+                    Pxx_den_ansilob.append(Pxx_den_ansilob_temp)
+                results["PSD_ansilob"] = Pxx_den_ansilob
+                results["PSD_ansilob_f"] = f_ansilob
+                # results["CxyR_M1_S1"] = CxyR_ansilob
+                # results["fR"] = fR_ansilob
+                # results["Cxyl_M1_S1"] = CxyL_ansilob
+                # results["fL"] = fL_ansilob
+            except Exception as e:
+                warnings.warn(str(e))
 
     # bold_ts TVB time series
     if isinstance(bold_ts, TimeSeriesXarray):
