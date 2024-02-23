@@ -193,6 +193,16 @@ def get_ponnsess_mossy_targets(region_mf, neuron_models, start_id_scaffold, targ
     return sorted(list(set(target_mfs_id_nest_principal)))  # PONS Sensory
 
 
+def get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id_scaffold):
+    # translate to NEST ids
+    target_mfs_id_nest = target_mfs_id_scaffold - start_id_scaffold['mossy_fibers'] + \
+                                neuron_models['mossy_fibers'][region_mf][0]
+    target_mfs_id_nest = target_mfs_id_nest.astype(int)
+
+    # Obtain an ordered list of non-duplicates
+    return sorted(list(set(target_mfs_id_nest)))  # Medulla or PONS Sensory
+
+
 def build_NEST_network(config=None):
 
     from tvb_multiscale.core.utils.file_utils import load_pickled_dict
@@ -391,15 +401,14 @@ def build_NEST_network(config=None):
                                          [target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal]):
         if flag:
             region_names = neuron_types_to_region[pop]
-            mossy_fibers_medulla = {}
+            mossy_fibers_targets = {}
             for region, region_mf in zip(region_names,  ['Right Ansiform lobule', 'Left Ansiform lobule']):
                 if config.VERBOSE > 1:
                     print("Connecting! %s - %s -> %s -> %s" % (pop, region, "mossy_fibers", region_mf))
                 # translate to NEST ids
-                mossy_fibers_medulla[region] = \
-                    get_medulla_mossy_targets(region_mf, neuron_models,
-                                              start_id_scaffold, target_mfs_id_scaffold_spinal)  # Medulla
-                nest.Connect(nest_network.brain_regions[region][pop].nodes, mossy_fibers_medulla[region])
+                mossy_fibers_targets[region] = \
+                    get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_neurons)
+                nest.Connect(nest_network.brain_regions[region][pop].nodes, mossy_fibers_targets[region])
 
     # Background noise input device as Poisson process
     if BACKGROUND_FREQ:
