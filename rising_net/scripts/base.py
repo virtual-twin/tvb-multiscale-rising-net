@@ -122,7 +122,8 @@ def configure(**ARGS):
     SIMULATION_LENGTH = 2**10 + 1.0  # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
     config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", SIMULATION_LENGTH)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
-    config.NEST_PERIPHERY = False
+    config.NEST_PERIPHERY = True  # "Input TVB to parrot_medulla", "Input Sinusoidal to mossy_fibers"
+    config.NEST_PERIPHERY_MANY_NEURONS = False
     config.NEST_BACKGROUND_FREQ = 4.0  # Hz, Set to 0 to remove this stimulus
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
@@ -166,9 +167,11 @@ def configure(**ARGS):
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
 
     # TVB - NEST interface parameters:
-    config.MOSSY_MAX_RATE = 122.0  # Hz
+    config.MAX_RATE = 150.0  # Hz
     config.w_TVB_to_NEST = args.get("w_TVB_to_NEST", 0.04)
-  
+    config.SENSPONS_INTERFACE = True
+    config.ANSILOB_INTERFACE = True
+
     # Fitting
     config.FIC = args['FIC']
     config.FIC_PARAMS = FIC_PARAMS
