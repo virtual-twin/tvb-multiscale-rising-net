@@ -123,7 +123,7 @@ def configure(**ARGS):
     config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", SIMULATION_LENGTH)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.NEST_PERIPHERY = True  # "Input TVB to parrot_medulla", "Input Sinusoidal to mossy_fibers"
-    config.NEST_PERIPHERY_MANY_NEURONS = False
+    config.NEST_PERIPHERY_MANY_NEURONS = False  # True takes for ever in cosimulation
     config.NEST_BACKGROUND_FREQ = 4.0  # Hz, Set to 0 to remove this stimulus
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
@@ -167,10 +167,21 @@ def configure(**ARGS):
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
 
     # TVB - NEST interface parameters:
-    config.MAX_RATE = 150.0  # Hz
-    config.w_TVB_to_NEST = args.get("w_TVB_to_NEST", 0.04)
-    config.SENSPONS_INTERFACE = True
+    config.MAX_RATES = {# INPUT AND OUTPUT INTERFACES:
+                        "parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0, "mossy_fibers": 3000.0,
+                        # OUTPUT INTERFACES:
+                        "granule_cell": 400.0, "dcn_cell_glut_large": 600.0}  # Hz
+    config.PONSSENS_INTERFACE = True
     config.ANSILOB_INTERFACE = True
+    config.IO_INTERFACE = False
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST", 0.15)  # Old tuned value = 0.04
+    config.w_TVB_to_NEST = {"parrot_medulla": 35.0}
+    if config.PONSSENS_INTERFACE:
+        config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
+    if config.IO_INTERFACE:
+        config.w_TVB_to_NEST["io_cell"] = config.w_TVB_to_NEST_rest
+    if config.ANSILOB_INTERFACE:
+        config.w_TVB_to_NEST["mossy_fibers"] = config.w_TVB_to_NEST_rest
 
     # Fitting
     config.FIC = args['FIC']
