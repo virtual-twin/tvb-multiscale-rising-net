@@ -14,6 +14,7 @@ from rising_net.scripts.plot_utils import *
 from tvb_multiscale.core.plot.plotter import Plotter
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
+from examples.plot_write_results import plot_write_spiking_network_results
 
 
 def get_config(**kwargs):
@@ -27,15 +28,16 @@ def get_config(**kwargs):
 
     simulation_length = kwargs.pop("simulation_length", 3000.0)
 
-    STIMULUS = kwargs.pop("STIMULUS", 0.4)
+    STIMULUS = kwargs.pop("STIMULUS", 0.2)
     STIMULUS_BASELINE = kwargs.pop("STIMULUS_BASELINE", 1.0)
-    PATHWAY_GAIN = kwargs.pop("PATHWAY_GAIN", 1.0)
+    PATHWAY_GAIN = kwargs.pop("PATHWAY_GAIN", 50.0)
     INDEGREE_GAIN = kwargs.pop("INDEGREE_GAIN", 1.0)
     NOISE = int(kwargs.pop("NOISE", 6))
     CNS1TH = float(kwargs.pop("CNS1TH", 1.0))
     PONS = float(kwargs.pop("PONS", False))
     SENSTRIG = float(kwargs.pop("SENSTRIG", 1.0))
     CEREB = float(kwargs.pop("CEREB", 1.0))
+    w_TVB_to_NEST = float(kwargs.pop("w_TVB_to_NEST", 35.0))
     G = float(kwargs.get("G", 6.0))
 
     seed = int(kwargs.pop("seed", -1))
@@ -47,8 +49,8 @@ def get_config(**kwargs):
 
     test_name = kwargs.pop("test_name", "")
 
-    experiment_name = "noise%d_PATHWAY_GAIN%d_SENSTRIG%d_CEREB%d" % \
-                      (NOISE, intval(PATHWAY_GAIN), intval(SENSTRIG), intval(CEREB))
+    experiment_name = "STIMULUS%d_w_TVB_to_NEST%d_PATHWAY_GAIN%d_SENSTRIG%d" % \
+                      (intval(STIMULUS), intval(w_TVB_to_NEST), intval(PATHWAY_GAIN), intval(SENSTRIG))
 
     if experiment_name[0] == "_":
         experiment_name = experiment_name[1:]
@@ -70,6 +72,8 @@ def get_config(**kwargs):
                                 NOISE=10 ** (-NOISE),
                                 SIMULATION_LENGTH=simulation_length,
                                 **kwargs)
+    config.STIMULUS = STIMULUS
+    config.w_TVB_to_NEST["parrot_medulla"] = w_TVB_to_NEST
     config.RANDOM_SEED_TVB = seed
     config.RANDOM_SEED_NEST = seed
     config.CEREB = CEREB
@@ -225,7 +229,7 @@ def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, hemi
 
 
 def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
-                       hemispheres=-1, PONS=False, SENSTRIG=1.0, CEREB=1.0):  # pathway_mode="task"
+                       hemispheres=-1, PONS=False, SENSTRIG=1.0, CEREB=1.0, NEST_PERIPHERY=False):  # pathway_mode="task"
 
     hemispheres = np.abs(hemispheres)
     print("\n" + "-" * 50)
@@ -247,7 +251,7 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
                                      indegree_gain=indegree_gain)
     indegree_ratios["ponssens_trigeminal"] = indegree_ratio
 
-    if PONS:
+    if PONS and not(NEST_PERIPHERY):
         # 2. S1 brl field -> PosSens
         print("-" * 25 + "\n")
         print("s1brl -> ponssens")
@@ -276,12 +280,15 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
                                      indegree_gain=None)
     indegree_ratios["s1brlthal"] = indegree_ratio
 
+    source = []
     # 5. AnsiLob <- Trigeminal (stimulus)
-    print("-" * 25 + "\n")
-    # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
-    source = np.concatenate([inds["trigeminal"],
-                             inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
-                           ])
+    if not NEST_PERIPHERY:
+        print("-" * 25 + "\n")
+        # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
+        source = np.concatenate([source,
+                                 inds["trigeminal"],
+                                 inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
+                               ])
     if PONS:
         source = np.concatenate([source,
                                  inds["ponssens"][::-1],  # contralaterally or bilaterally
@@ -295,25 +302,27 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
     else:
         print("[trigeminal, ponssens_trigeminal] -> ansilob")
 
-    weights, indegree_ratio = \
-        apply_pathway_gain_to_target(source,
-                                     inds["ansilob"],
-                                     CEREB*pathway_gain, weights,
-                                     hemispheres=hemispheres,
-                                     indegree_gain=indegree_gain)
-    indegree_ratios["ansilob"] = indegree_ratio
+    if len(source):
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(source,
+                                         inds["ansilob"],
+                                         CEREB*pathway_gain, weights,
+                                         hemispheres=hemispheres,
+                                         indegree_gain=indegree_gain)
+        indegree_ratios["ansilob"] = indegree_ratio
 
-    #if pathway_mode != "stim":
-    # 5. Cereb nuclei <- AnsiLob
-    print("-" * 25 + "\n")
-    print("ansilob -> cereb_nuclei")
-    weights, indegree_ratio = \
-        apply_pathway_gain_to_target(inds["ansilob"],  # ipsilaterally or bilaterally
-                                     inds["cereb_nuclei"],
-                                     CEREB*pathway_gain, weights,
-                                     hemispheres=hemispheres,
-                                     indegree_gain=indegree_gain)
-    indegree_ratios["cereb_nuclei"] = indegree_ratio
+    if not NEST_PERIPHERY:
+        #if pathway_mode != "stim":
+        # 5. Cereb nuclei <- AnsiLob
+        print("-" * 25 + "\n")
+        print("ansilob -> cereb_nuclei")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["ansilob"],  # ipsilaterally or bilaterally
+                                         inds["cereb_nuclei"],
+                                         CEREB*pathway_gain, weights,
+                                         hemispheres=hemispheres,
+                                         indegree_gain=indegree_gain)
+        indegree_ratios["cereb_nuclei"] = indegree_ratio
 
     # C. INPUT MOTOR PATHWAY:
 
@@ -360,8 +369,7 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
         )
     indegree_ratios["s1brl"] = indegree_ratio
 
-    return\
-        weights, indegree_ratios
+    return weights, indegree_ratios
 
 
 def adjust_ficed_params(simulator, indegree_ratios, inds):
@@ -420,6 +428,8 @@ def print_weight_to_indegree(src, trg, inds, w, hemispheres=1):
 def cosim_run_plot(**kwargs):
 
     config, plotter = get_config(**kwargs)
+    config.NEST_PERIPHERY = True
+    config.NEST_PERIPHERY_MANY_NEURONS = False
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
@@ -449,7 +459,8 @@ def cosim_run_plot(**kwargs):
             apply_pathway_gain(simulator.connectivity.weights, inds,
                                config.PATHWAY_GAIN, config.INDEGREE_GAIN,
                                hemispheres=config.HEMISPHERES, PONS=config.PONS,
-                               SENSTRIG=config.SENSTRIG, CEREB=config.CEREB)
+                               SENSTRIG=config.SENSTRIG, CEREB=config.CEREB,
+                               NEST_PERIPHERY=config.NEST_PERIPHERY)
         print("-"*25)
         print("Indegree ratios:")
         print(indegree_ratios)
@@ -524,12 +535,17 @@ def cosim_run_plot(**kwargs):
     fig.tight_layout()
     pyplot.savefig(os.path.join(config.figures.FOLDER_FIGURES, "taskSC.png"), format="png")
 
+    print("config.STIMULUS = %g" % config.STIMULUS)
     if config.COSIMULATION:
         # Build TVB-NEST interfaces
-        config.NEST_BACKGROUND_FREQ = 0
+        config.NEST_BACKGROUND_FREQ = 0.0
         print("config.NEST_BACKGROUND_FREQ = %g" % config.NEST_BACKGROUND_FREQ)
-        nest_network, nest_nodes_inds, neuron_models, neuron_number = build_NEST_network(config)
-        simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config)
+        print("Building NEST network!...")
+        nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
+        print("Building TVB <-> NEST interfaces!...")
+        print("config.w_TVB_to_NEST = %s" % str(config.w_TVB_to_NEST))
+        simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
+                                                            neuron_models, start_id_scaffold)
         if config.COSIM_OFF:
             for hemi in ["Right", "Left"]:
                 nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
@@ -551,6 +567,11 @@ def cosim_run_plot(**kwargs):
     results = plot_tvb(transient, inds,
                        results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
 
+    # if config.COSIMULATION:
+    #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+    #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
+    #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+
     results_path = os.path.join(config.out.FOLDER_RES, 'results.pickle')
     with open(results_path, 'wb') as handle:
        pickle.dump(results, handle)
@@ -567,7 +588,7 @@ def cosim_run_plot(**kwargs):
         pickle.dump([CxyR, fR, fL, CxyL], handle)
     print(coherence_path)
 
-    return results, simulator, config, inds
+    return results, simulator, nest_network, config, inds
 
 
 def plot_comparison(tests, **kwargs):
