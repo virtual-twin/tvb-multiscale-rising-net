@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from rising_net.scripts.base import *
-from rising_net.scripts.nest_script import nest_parameter_settings
+from rising_net.scripts.nest_script import nest_parameter_settings, split_mossy_fibers, get_mossy_targets
 from rising_net.scripts.tvb_script import *
 
 
@@ -48,7 +48,8 @@ def print_available_interfaces():
     print_enum(DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal)
 
 
-def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
+def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
+                              neuron_models=None, start_id_scaffold=None):
 
     # Build a TVB-NEST interface with all the appropriate connections between the
     # TVB and NEST modelled regions
@@ -105,17 +106,60 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
     #     proxy_inds = np.arange(simulator.connectivity.number_of_regions).astype('i')
     #     proxy_inds = np.delete(proxy_inds, nest_nodes_inds)
     # This is a user defined TVB -> Spiking Network interface configuration:
-    pops = ["mossy_fibers"]  # , "io_cell"]
-    ports = [0]  # , 1]
     if config.NEST_PERIPHERY:
-        pops = ['parrot_medulla', 'parrot_ponssens'] + pops
-        ports = [0, 0] + ports
+        pops = ["parrot_medulla"]  # , "io_cell"]
+        ports = [0]  # , 1]
+        if config.PONSSENS_INTERFACE:
+            pops.append('parrot_ponssens')
+            ports.append(0)
+        if config.ANSILOB_INTERFACE:
+            pops.append("mossy_fibers")
+            ports.append(0)
+    else:
+        pops = ["mossy_fibers"]
+        ports = [0]
     neuron_types_to_region = nest_parameter_settings()[-1]
+    # Find the non-medulla, non-PONS Sens mossy_fibers target:
+    if "mossy_fibers" in pops:
+        print("Finding the non-Medulla, non-PONS Sensory mossy fibers targets...")
+        target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal = \
+            split_mossy_fibers(start_id_scaffold, f=None, config=config)
+        regions = neuron_types_to_region["mossy_fibers"]
+        mossy_fibers_targets = {}
+        for region in regions:
+            mossy_fibers_inds = nest_network.brain_regions[region]["mossy_fibers"].neurons
+            print("All %d mossy fibers indices for region %s:\n%s" %
+                  (len(mossy_fibers_inds), region, str(mossy_fibers_inds)))
+            medulla_ponssens_mf_targets = []
+            mossy_fibers_inds_copy = np.copy(mossy_fibers_inds)
+            for mossy_targets, target_region in zip([target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal],
+                                                    ["Medulla", "PONS Sensory"]):
+                mossy_targets_ids = get_mossy_targets(region, neuron_models, start_id_scaffold, mossy_targets)
+                mossy_targets_ids = np.unique(mossy_targets_ids)
+                print("mossy %d fibers indices for %s:\n%s" %
+                      (len(mossy_targets_ids), target_region, str(mossy_targets_ids)))
+                medulla_ponssens_mf_targets += mossy_targets_ids.tolist()
+            mossy_fibers_inds_copy = np.delete(mossy_fibers_inds_copy,
+                                               np.where([mfind in medulla_ponssens_mf_targets
+                                                         for mfind in mossy_fibers_inds_copy])[0])
+            print("Final %d non-Medulla, non-PONS Sensory mossy fibers neurons' indices for region %s:\n%s" %
+                  (len(mossy_fibers_inds_copy), region, str(mossy_fibers_inds_copy)))
+            mossy_fibers_targets[region] = np.where([mfind in mossy_fibers_inds_copy
+                                                    for mfind in mossy_fibers_inds])[0]
+            print("Final %d non-Medulla, non-PONS Sensory mossy fibers indices for region %s:\n%s" %
+                  (len(mossy_fibers_targets[region]), region, str(mossy_fibers_targets[region])))
+    if config.IO_INTERFACE:
+        pops.append("io_cell")
+        ports.append(1)
     for pop, receptor in zip(pops, ports):  #  excluding direct TVB input to "dcn_cell_glut_large"
         regions = neuron_types_to_region[pop]
         pop_regions_inds = []
         for region in regions:
-            pop_regions_inds.append(np.where(simulator.connectivity.region_labels == region)[0][0])
+            region_ind = np.where(simulator.connectivity.region_labels == region)[0][0]
+            pop_regions_inds.append(region_ind)
+            if pop == "mossy_fibers":
+                mossy_fibers_targets[region_ind] = np.copy(mossy_fibers_targets[region])
+                del mossy_fibers_targets[region]
         pop_regions_inds = np.array(pop_regions_inds)
         tvb_spikeNet_model_builder.output_interfaces.append(
             # !!! NOTE !!!
@@ -154,12 +198,29 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
              # Effective rate  = scale * (total_weighted_coupling_E_from_tvb - offset)
              # If E is in [0, 1.0], then, with a translation = 0.0, and a scale of 1e4
              # it is as if 100 neurons can fire each with a maximum spike rate of max_rate=100 Hz
-              'transformer_params': {
-                  "scale_factor": np.array([config.w_TVB_to_NEST * simulator.model.G[0].item() * config.MOSSY_MAX_RATE])
+              'transformer_params': { # * config.MAX_RATES[pop]
+                  "scale_factor": np.array([config.w_TVB_to_NEST[pop] * simulator.model.G[0].item()])
                                      },  # "translation_factor": np.array([0.0])
               'spiking_proxy_inds': pop_regions_inds  # Same as "proxy_inds" for this kind of interface
-              }
-             )
+            }
+        )
+        if pop == "mossy_fibers":
+            # Target the non-medulla, non-PONS Sens mossy_fibers neurons:
+            tvb_spikeNet_model_builder.output_interfaces[-1]["neurons_fun"] = \
+                lambda node_ind, neurons_inds: neurons_inds[mossy_fibers_targets[node_ind]]
+
+        if config.NEST_PERIPHERY_MANY_NEURONS:
+            n_neurons = []
+            for region in regions:
+                n_neurons.append(nest_network.brain_regions[region][pop].number_of_nodes)
+            assert n_neurons[0] == n_neurons[1]
+            n_neurons = n_neurons[0]
+            print("-"*25)
+            print("Number of neurons %d" % n_neurons)
+            print("-" * 25)
+            tvb_spikeNet_model_builder.output_interfaces[-1]["proxy_params"] = {"number_of_devices": n_neurons}
+            tvb_spikeNet_model_builder.output_interfaces[-1]["conn_spec"] = \
+                {"allow_autapses": False, 'allow_multapses': False, "rule": "one_to_one"}
     
     # These are user defined Spiking Network -> TVB interfaces configurations:
     pops = ["granule_cell", "dcn_cell_glut_large", "io_cell"]
@@ -167,15 +228,15 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config):
             ['Right Cerebellar Nuclei', 'Left Cerebellar Nuclei'],
             ['Right Inferior olivary complex', 'Left Inferior olivary complex']]
     if config.NEST_PERIPHERY:
-        pops = ["parrot_medulla", "parrot_ponssens"] + pops
-        regs = [['Right Principal sensory nucleus of the trigeminal',
-                 'Left Principal sensory nucleus of the trigeminal'],
-                ['Right Pons Sensory', 'Left Pons Sensory']] + regs
+        pops += ["parrot_medulla", "parrot_ponssens"]
+        regs += [['Right Principal sensory nucleus of the trigeminal',
+                  'Left Principal sensory nucleus of the trigeminal'],
+                 ['Right Pons Sensory', 'Left Pons Sensory']]
     for iP, (pop, regions) in enumerate(zip(pops, regs)):
         pop_regions_inds = []
         numbers_of_neurons = nest_network.brain_regions[regions[0]][pop].number_of_neurons
         # Basic w to convert total rates to mean rates in Hz, and then into the interval [0.0, 1.0]:
-        w_NEST_to_TVB = np.array([1.0]) / numbers_of_neurons / config.MOSSY_MAX_RATE
+        w_NEST_to_TVB = np.array([1.0]) / numbers_of_neurons / config.MAX_RATES[pop]
         for region in regions:
             pop_regions_inds.append(np.where(simulator.connectivity.region_labels == region)[0][0])
         pop_regions_inds = np.array(pop_regions_inds)
@@ -299,9 +360,10 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
     # Build NEST network
-    nest_network, nest_nodes_inds, neuron_models, neuron_number = build_NEST_network(config)
+    nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
     # Build TVB-NEST interfaces
-    simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config)
+    simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
+                                                        neuron_models, start_id_scaffold)
     # Simulate TVB-NEST model
     results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
     results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
