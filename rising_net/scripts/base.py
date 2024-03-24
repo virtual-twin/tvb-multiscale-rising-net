@@ -20,14 +20,27 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 from tvb.simulator.integrators import EulerStochastic
 
 
-DEFAULT_ARGS = {'G': 6.0,
-                "STIMULUS": 0.1,
-                "STIMULUS_BASELINE": 0.0,
-                'I_e': -0.35, 'I_s': 0.085,
-                'w_ie': -3.0, 'w_rs': -2.0,
-                'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
-                "NOISE": 1e-4,
-                'PRIORS_DIST': 'uniform',
+DEFAULT_ARGS = {# TVB model:
+                'I_s': 0.1,
+                'w_rs': -2.0,
+                # TVB network:
+                'G': 6.0,
+                'FIC': 2.0,
+                # Pathway gains:
+                "PATHWAY_GAIN": 1,
+                "TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
+                "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
+                "CNM1_GAIN": 50.0,
+                "M1S1_GAIN": 50.0,
+                "M1FACIAL_GAIN": 1.0,   # 50.0,
+                "FACIALTRIG_GAIN": 1.0,  # 50.0,
+                # TVB <-> NEST Interface:
+                "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
+                "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
+                              "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
+                # WORKFLOW:
+                "TASK": True,
+                "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
 
@@ -41,27 +54,20 @@ def create_plotter(config):
 
 
 def configure(**ARGS):
-    
-    args = deepcopy(DEFAULT_ARGS)
-    args.update(**ARGS)
-
     from tvb_multiscale.tvb_nest.config import Config
 
-    # -----------------------------------------------
+    args = deepcopy(DEFAULT_ARGS)
+    args.update(**ARGS)
+    MODE = args["MODE"]
+    TASK = args["TASK"]
+    BASENAME = MODE + "_REST" if not TASK else MODE
 
     # Flags that affect the result's path:
     # Files:
     BRAIN_CONN_FILE = "Connectivity_wavCntrs_TLwav_SummedSubcortical_Thals.h5"
     MAJOR_STRUCTS_LABELS_FILE = "major_structs_labels_SummedSubcortical_Thals.npy"  # "major_structs_labels_Thals.npy" # "major_structs_labels_SummedSubcortical_Thals.npy"
     VOXEL_COUNT_FILE = "voxel_count_SummedSubcortical_Thals.npy"  # "voxel_count_Thals.npy" # "voxel_count_SummedSubcortical_Thals.npy"
-    INDS_FILE = "inds_SummedSubcortical_Thals.npy"  # "inds_Thals.npy" # "inds_SummedSubcortical_Thals.npy"
-
-    # For connectivity
-    THAL_CRTX_FIX = "wd"  # "wd", "w", "d" or False, in order to fix values of thalamocortical Weights, Delays, or both, to the Griffiths et al values, or not
-
-    # For FIC:
-
-    FIC_PARAMS = ['I_e', "w_ie"]  # {'I_e': 1.0, "w_ie": 3.0}
+    INDS_FILE = "inds_SummedSubcortical_Thals.npy"  # "inds_Thals.npy" # "inds_SummedSubcortical_Thals.npy
 
     # Construct configuration
     work_path = os.getcwd()
@@ -70,31 +76,24 @@ def configure(**ARGS):
     major_structs_labels_filepath = os.path.join(data_path, MAJOR_STRUCTS_LABELS_FILE)
     voxel_count_filepath = os.path.join(data_path, VOXEL_COUNT_FILE)
     inds_filepath = os.path.join(data_path, INDS_FILE)
-    popa_freqs_path = os.path.join(data_path, 'PS_popa2013')
+    popa_freqs_path = os.path.join(data_path, 'popa2013')
     cereb_scaffold_path = os.path.join(data_path, 'balanced_DCN_IO.hdf5')
     outputs_path = os.path.join(work_path, "outputs")
     if len(args['output_folder']):
         outputs_path = os.path.join(outputs_path, args['output_folder'])
     else:
-        outputs_path = os.path.join(outputs_path, "cwc")
+        outputs_path = os.path.join(outputs_path, BASENAME)
+    SEED = args.get("SEED", None)
+    if SEED is not None:
+        SEED = int(SEED)
+        outputs_path = os.path.join(outputs_path, "nsd%d" % SEED)
+    else:
+        SEED = 0
     # # if STIMULUS:
     # #     outputs_path += "_Stim%g" % STIMULUS
     # # outputs_path += '_Is%g' % I_s
-    # # outputs_path += '_Ie%g' % I_e
-    # outputs_path += "_TVBonly"
-    # outputs_path += "_%s" % (BRAIN_CONN_FILE.split("Connectivity_")[-1].split(".h5")[0])
-    # if args['CONN_LOG']:
-    #     outputs_path += "CONN_LOG"
-    # if args['FIC']:
-    #     outputs_path += "_FIC"
-    #     for fp in FIC_PARAMS:
-    #         outputs_path += "_%s" % fp
     # outputs_path += '_G%g' % G
-        # for fp, fv in FIC_PARAMS.items():
-        #     outputs_path += "_%s%g" % (fp, fv)
-    # outputs_path += "_PRIORS%s" % args['PRIORS_DIST']
-    # if THAL_CRTX_FIX:
-    #     outputs_path += "THAL_CRTX_FIX%s" % THAL_CRTX_FIX.upper()
+    # outputs_path += '_FIC%g' % FIC
 
     if args['verbose']:
         print("Outputs' path: %s" % outputs_path)
@@ -110,25 +109,24 @@ def configure(**ARGS):
 
     # ------.----- Simulation options ----------------
 
-    # Integration
-    config.DEFAULT_DT = 0.1
-    config.DEFAULT_NSIG = args.get("NOISE", 1e-4)  # NOISE strength
-    config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42)
-    config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461)
-    config.DEFAULT_STOCHASTIC_INTEGRATOR = EulerStochastic
-    config.DEFAULT_INTEGRATOR = config.DEFAULT_STOCHASTIC_INTEGRATOR
-
     # Simulation...
-    SIMULATION_LENGTH = 2**10 + 1.0  # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
-    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", SIMULATION_LENGTH)
+    config.MODE = MODE
+    config.TASK = TASK
+    config.BASENAME = BASENAME
+    # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
+    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 11 + 1.0)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
-    config.NEST_PERIPHERY = True  # "Input TVB to parrot_medulla", "Input Sinusoidal to mossy_fibers"
-    config.NEST_PERIPHERY_MANY_NEURONS = False  # True takes for ever in cosimulation
-    config.NEST_BACKGROUND_FREQ = 4.0  # Hz, Set to 0 to remove this stimulus
-    config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
     config.AFFERENT_TS_PATH = os.path.join(config.out.FOLDER_RES, "afferent_ts.pkl")
     config.BOLD_TS_PATH = os.path.join(config.out.FOLDER_RES, "bold_ts.pkl")
+
+    # Integration
+    config.DEFAULT_DT = 0.1
+    config.DEFAULT_NSIG = args.get("NOISE", 1e-6)  # NOISE strength
+    config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + SEED
+    config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + SEED
+    config.DEFAULT_STOCHASTIC_INTEGRATOR = EulerStochastic
+    config.DEFAULT_INTEGRATOR = config.DEFAULT_STOCHASTIC_INTEGRATOR
 
     # Connectivity
     config.CONN_SPEED = 3.0
@@ -137,97 +135,100 @@ def configure(**ARGS):
     config.VOXEL_COUNT_FILE = voxel_count_filepath
     config.INDS_FILE = inds_filepath
     config.CEREB_SCAFFOLD_PATH = cereb_scaffold_path
-    config.THAL_CRTX_FIX = THAL_CRTX_FIX
-    config.BRAIN_CONNECTIONS_TO_SCALE = []  # e.g., [["Region 1", ["Region 2", "Region 3"], scaling_factor]]
-    config.CONN_LOG = args['CONN_LOG']
-    config.CONN_SCALE = None  # "region"
+    # Fix Cortex <-> Spec Thal connections according to Griffiths et al model:
+    # config.THAL_CRTX_FIX = args.get("THAL_CRTX_FIX", "wd")
     config.CONN_NORM_PERCENTILE = 99
-    config.CONN_CEIL = False
-
-    # Model parameters
-    config.STIMULUS_RATE = 6.0  # or 8.0?? Hz
-    config.STIMULUS_BASELINE = args['STIMULUS_BASELINE']  # 1.0 or 0.0
-
-    config.model_params = OrderedDict()
-    config.model_params['G'] = args['G']
-    config.model_params['STIMULUS'] = args['STIMULUS']
-    config.model_params['I_e'] = args['I_e']
-    config.model_params['I_s'] = args['I_s']
-    config.model_params['w_ie'] = args['w_ie']
-    config.model_params['w_rs'] = args['w_rs']
-    # config.model_params['tau_e'] = args['tau_e']
-    # config.model_params['tau_i'] = args['tau_i']
-    # config.model_params['tau_s'] = args['tau_s']
-    # config.model_params['tau_r'] = args['tau_r']
-
-    # NEST model parameters:
-    config.NEST_STIMULUS = 15.0  # Hz
-    # Monitors:
+    # Task connectivity:
+    config.TASK_LATERALITY = -1   # -1: contralatterally, 0: bilaterally, 1: ipsilaterall
+    # FIC:
+    config.FIC = args['FIC']  # 1.11 for FIC_SPLIT = 0.31
+    config.FIC_PARAMS = ["I_e", "w_ie"]
+    config.FIC_SPLIT = args.get('FIC_SPLIT', 0.0)  # 0.31 with FIC = 1.11
+    # Pathway gains:
+    config.PATHWAY_GAIN = args["PATHWAY_GAIN"]
+    config.TRIG_GAIN = args["PATHWAY_GAIN"] * args["TRIG_GAIN"]
+    config.MEDULLA_GAIN = args["PATHWAY_GAIN"] * args["MEDULLA_GAIN"]
+    config.CEREB_GAIN = args["PATHWAY_GAIN"] * args["CEREB_GAIN"]
+    config.TRIGS1_GAIN = args["PATHWAY_GAIN"] * args["TRIGS1_GAIN"]
+    config.MEDULLAS1_GAIN = args["PATHWAY_GAIN"] * args["MEDULLAS1_GAIN"]
+    config.CNS1_GAIN = args["PATHWAY_GAIN"] * args["CNS1_GAIN"]
+    config.CNM1_GAIN = args["PATHWAY_GAIN"] * args["CNM1_GAIN"]
+    config.M1S1_GAIN = args["PATHWAY_GAIN"] * args["M1S1_GAIN"]
+    config.M1FACIAL_GAIN = args["PATHWAY_GAIN"] * args["M1FACIAL_GAIN"]
+    config.FACIALTRIG_GAIN = args["PATHWAY_GAIN"] * args["FACIALTRIG_GAIN"]
+    # TVB Monitors:
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
 
+    # TVB model parameters
+    config.model_params = OrderedDict()
+    config.model_params['G'] = args['G']
+    config.model_params['I_s'] = args['I_s']
+    config.model_params['I_e'] = args.get('I_e', -0.35)
+    config.model_params['w_ie'] = args.get('w_ie', -3.0)
+    config.model_params['w_rs'] = args.get('w_rs', -2.0)
+    config.model_params['STIMULUS'] = args.get('STIMULUS', 0.0)  # 0.25
+    config.STIMULUS_RATE = 8.0  # Hz
+    config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
+
+    # NEST model parameters:
+    config.NEST_STIMULUS = 15.0  # Hz
+    config.NEST_PERIPHERY = True  # "Input TVB to parrot_medulla", "Input Sinusoidal to mossy_fibers"
+    config.NEST_PERIPHERY_MANY_NEURONS = False  # True takes for ever in cosimulation
+    config.NEST_BACKGROUND_FREQ = 0.0  # 4.0 Hz, for NEST only simulations
+
     # TVB - NEST interface parameters:
-    config.MAX_RATES = {# INPUT AND OUTPUT INTERFACES:
-                        "parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0, "mossy_fibers": 3000.0,
-                        # OUTPUT INTERFACES:
-                        "granule_cell": 400.0, "dcn_cell_glut_large": 600.0}  # Hz
-    config.PONSSENS_INTERFACE = True
-    config.ANSILOB_INTERFACE = True
-    config.IO_INTERFACE = False
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST", 0.15)  # Old tuned value = 0.04
-    config.w_TVB_to_NEST = {"parrot_medulla": 35.0}
+    config.MAX_RATES = args.get("MAX_RATES",  # Hz
+                                {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
+                                 "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0}
+                                )
+    config.PONSSENS_INTERFACE = True  # Not existing in NEST only model, but part of the task pathway
+    config.ANSILOB_INTERFACE = True   # Not existing in NEST only model, but part of the task pathway
+    config.IO_INTERFACE = False       # Not existing in NEST only model
+    config.w_TVB_to_NEST_rest = args["w_TVB_to_NEST_rest"]  # Old tuned value = 0.04
+    config.w_TVB_to_NEST = {"parrot_medulla": args["w_TVB_to_NEST"]}
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
     if config.IO_INTERFACE:
         config.w_TVB_to_NEST["io_cell"] = config.w_TVB_to_NEST_rest
     if config.ANSILOB_INTERFACE:
         config.w_TVB_to_NEST["mossy_fibers"] = config.w_TVB_to_NEST_rest
+    config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
     # Fitting
-    config.FIC = args['FIC']
-    config.FIC_PARAMS = FIC_PARAMS
-    config.FIC_SPLIT = args['FIC_SPLIT']
+    config.PRIORS_DIST = args.get('PRIORS_DIST', "normal")  # "normal" or "uniform"
+    config.PRIORS_DEF = \
+        {# "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
+         # "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
+         "I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.025},
+         "FIC": {"min": 0.0, "max": 3.0, "loc": 2.0, "sc": 0.25},
+         # "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05}
+         }
     config.SBI_NUM_WORKERS = 1
     config.SBI_METHOD = 'SNPE'
     config.TARGET_PSD_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
-    config.TARGET_FREQS = np.arange(5.0, 48.0, 1.0)
+    config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
+    config.TARGET_FREQS = np.arange(5.0, 48.0, 1.0)  # TODO: Decide about 4 or 5 Hz min frequency!!!
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 10  # 3 - 10
-    config.N_SIMULATIONS = 6000
-    config.N_SIM_BATCHES = 500
+    config.N_SIMULATIONS = 1200
+    config.N_SIM_BATCHES = 30
     config.SPLIT_RUN_SAMPLES = 1
-    config.N_TRAIN_SAMPLES_LIST = [100,  200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000]
-    config.N_TRAIN_SAMPLES_LABEL = "%04d_Train"
-    config.TEST_SAMPLES_RATIO = 0.2
+    config.N_TRAIN_SAMPLES = 1200
+    config.TEST_SAMPLES_RATIO = 0.25
     config.N_SAMPLES_PER_RUN = 1000
     config.BATCH_FILE_FORMAT = "%s_%03d%s"
     config.BATCH_FILE_FORMAT_G = "%s_iG%02d_%03d%s"
-    config.BATCH_PRIORS_SAMPLES_FILE = "bps.pt"  # bps_iG01_iB010.pt
-    config.BATCH_SIM_RES_FILE = "bsr.npy"  # bsr_iG01_iB010.npy
-    config.N_PPT_SIM_BATCHES = 50
-    config.N_PPT_SIMS_PER_BATCH = 12
-    config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # ppt_bsr_iG01_iB010.npy
-    config.Gs = np.array([1.0, 5.0, 6.0, 10.0])
-    # np.array([0.1, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0]) # 15.0, 20.0, 30.0, 50.0, 75.0, 100.0])
-    config.PRIORS_DIST = args['PRIORS_DIST']  # "normal" or "uniform"
-    config.PRIORS_DEF = \
-        {"STIMULUS": {"min": -1.0, "max": 1.0, "loc": 0.0, "sc": 0.25},
-         "I_e": {"min": -1.0, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "I_s": {"min": -0.5, "max": 0.5, "loc": 0.0, "sc": 0.15},
-         "w_ie": {"min": -10.0, "max": 0.0, "loc": -5.0, "sc": 2.5},
-         "w_rs": {"min": -4.0, "max": 0.0, "loc": -2.0, "sc": 0.5},
-         "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
-         "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05}
-        }
-
-    config.PRIORS_PARAMS_NAMES = ['I_s']  # 'STIMULUS', 'w_ie', 'w_rs', 'FIC',
-    if config.FIC == "fit":
-        config.FIC = 1.0
-        config.PRIORS_PARAMS_NAMES.append("FIC")
-        if len(config.FIC_PARAMS) > 1 and config.FIC_SPLIT is not None and config.FIC_SPLIT > 0.0:
-            config.PRIORS_PARAMS_NAMES.append("FIC_SPLIT")
+    config.BATCH_PRIORS_SAMPLES_FILE = "bps.pt"  # e.g., bps_iG01_iB010.pt
+    config.BATCH_SIM_RES_FILE = "bsr.npy"  # e.g., bsr_iG01_iB010.npy
+    config.N_PPT_SIM_BATCHES = 30
+    config.N_PPT_SIMS_PER_BATCH = 40
+    config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
+    config.Gs = np.arange(1.0, 11.0)
+    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
+                                          ['I_s',  "FIC"])  # 'STIMULUS', 'STIMULUS_BASELINE', ..., "FIC_SPLIT"
     # Uniform priors:
     config.prior_min = []
     config.prior_max = []  
@@ -279,13 +280,8 @@ def args_parser(funname, args=DEFAULT_ARGS):
 
     arguments = {'G': ['g', float, 'Global connectivity scaling'],
                  'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
-                 'I_e': ['ie', float, 'Cortical excitatory population baseline current'],
                  'I_s': ['is', float, 'Thalamic relay excitatory population baseline current'],
-                 'w_ie': ['wie', float, 'Inhibitory local cortical coupling weight'],
-                 'w_rs': ['wrs', float, 'Inhibitory local thalamic coupling weight'],
-                 'CONN_LOG': ['cl', bool, 'Boolean flag to logtransform connectivity weights or not'],
                  'FIC': ['fic', FICtype, 'Indegree FIC weight'],
-                 'PRIORS_DIST': ['pd', str, "Priors' distribution ('uniform' (default) or 'normal')"],
                  'output_folder': ['o', str, 'Output folder name'],
                  'verbose': ['v', int,
                              'Integer flag to print output messages (when > 0) or not (when == 0). Default = 1.0'],
