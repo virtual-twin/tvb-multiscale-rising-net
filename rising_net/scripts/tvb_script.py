@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import warnings
+
+import numpy
 from scipy.signal import welch
-from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
 from rising_net.scripts.utils import get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw
@@ -34,7 +36,7 @@ def load_connectome(config):
     return connectome, major_structs_labels, voxel_count, inds
 
 
-def construct_extra_inds_and_maps(connectome, inds):
+def construct_extra_inds_and_maps(connectome, inds, config):
     maps = {}
     region_labels = connectome['region_labels']
     inds["subcrtx"] = np.arange(len(region_labels)).astype('i')
@@ -50,7 +52,16 @@ def construct_extra_inds_and_maps(connectome, inds):
     inds["subcrtx_not_thalspec"] = np.where(maps["is_subcortical_not_thalspec"])[0]
     inds["not_subcrtx_not_thalspec"] = np.where(np.logical_not(maps['is_subcortical_not_thalspec']))[0]
     inds['crtx_and_subcrtx'] = np.sort(np.concatenate([inds['crtx'], inds["subcrtx_not_thalspec"]]))
-    return inds, maps
+    # Indices of cortical and subcortical regions excluding specific thalami
+    inds["non_thalamic"] = np.unique(inds['crtx'].tolist() + inds["subcrtx_not_thalspec"].tolist())
+    # Task related regions' indices:
+    inds['medulla'] = inds['ponssens_trigeminal']
+    config.TASKINDS = np.concatenate([inds["m1"], inds["s1brl"],
+                                      inds["m1thal"], inds["s1brlthal"],
+                                      inds['facial'], inds["trigeminal"], inds['ponssens_trigeminal'],
+                                      inds['ansilob'], inds['cereb_nuclei']])
+    config.TASKINDS = np.sort(config.TASKINDS)
+    return inds, maps, config
 
 
 def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
@@ -123,124 +134,84 @@ def prepare_connectome(config, plotter=None):
     # Load connectome and other structural files
     connectome, major_structs_labels, voxel_count, inds = load_connectome(config)
     # Construct some more indices and maps
-    inds, maps = construct_extra_inds_and_maps(connectome, inds)
-    if config.CONN_LOG:
-        if config.VERBOSE:
-            print("Logtransforming connectivity weights!")
-        # Logprocess connectome
-        connectome = logprocess_weights(connectome, inds, verbose=config.VERBOSE, plotter=plotter)
+    inds, maps, config = construct_extra_inds_and_maps(connectome, inds, config)
+    # if config.CONN_LOG:
+    if config.VERBOSE:
+        print("Logtransforming connectivity weights!")
+    # Logprocess connectome
+    connectome = logprocess_weights(connectome, inds, verbose=config.VERBOSE, plotter=plotter)
     # Prepare connectivity with all possible normalizations
-    return connectome, major_structs_labels, voxel_count, inds, maps
+    return connectome, major_structs_labels, voxel_count, inds, maps, config
 
 
-def scale_connections(connectivity, brain_connections_to_scale):
-    # Selectively scale some connections, if required:
-    for reg1, reg2, sc in brain_connections_to_scale:
-        connectivity.weights[get_regions_indices(reg1, connectivity.region_labels),
-                             get_regions_indices(reg2, connectivity.region_labels)] *= sc
-    return connectivity
-
-
-def build_connectivity(connectome, inds, config,
-                       hemispheres=-1,  # -1: contralatterally, 0: bilaterally, 1: ipsilaterally
-                       cereb_nuclei_to_s1thal=True, trigeminal_to_m1thal=False):
+def build_connectivity(connectome, inds, config):
     from tvb.datatypes.connectivity import Connectivity
 
     connectivity = Connectivity(**connectome)
 
-    # Selectively scale some connections, if required:
-    if config.BRAIN_CONNECTIONS_TO_SCALE:
-        connectivity = scale_connections(connectivity, config.BRAIN_CONNECTIONS_TO_SCALE)
-
     # Normalize connectivity weights
+    # Set all NaN and Inf weights to 0.0, if any:
     connectivity.weights[np.logical_or(np.isnan(connectivity.weights), np.isinf(connectivity.weights))] = 0.0
-    if config.CONN_SCALE:
-        if config.VERBOSE:
-            print("Scaling connectivity weights with %s!" % config.CONN_SCALE)
-        connectivity.weights = connectivity.scaled_weights(mode=config.CONN_SCALE)
     if config.CONN_NORM_PERCENTILE:
         if config.VERBOSE:
             print("Normalizing connectivity weights with %g percentile!" % config.CONN_NORM_PERCENTILE)
         connectivity.weights /= np.percentile(connectivity.weights, config.CONN_NORM_PERCENTILE)
-    if config.CONN_CEIL:
-        if config.VERBOSE:
-            print("Ceiling connectivity to %g!" % config.CONN_CEIL)
-        connectivity.weights[connectivity.weights > config.CONN_CEIL] = config.CONN_CEIL
-
+    # Set maximum tract length so that we have a minimum time delay of one TVB integration time step:
     connectivity.speed = np.array([config.CONN_SPEED])
     connectivity.tract_lengths = np.maximum(connectivity.speed * config.DEFAULT_DT,
                                             connectivity.tract_lengths)
 
     connectivity.configure()
 
-    if "w" in config.THAL_CRTX_FIX:
-        if config.VERBOSE:
-            print("Fixing thalamocortical weights!")
-        # Fix structural connectivity (specific) thalamo-cortical weights to 1,
-        # such that all thalamo-cortical weights are equal to the parameters
-        # w_er, w_es, w_se, w_si
-        connectivity.weights[inds["crtx"], inds["thalspec"]] = 1.0
-        connectivity.weights[inds["thalspec"], inds["crtx"]] = 1.0
+    #if "w" in config.THAL_CRTX_FIX:
+    # Fix the thalamocortical weights to 1.0:
+    if config.VERBOSE:
+        print("Fixing thalamocortical weights!")
+    # Fix structural connectivity (specific) thalamo-cortical weights to 1,
+    # such that all thalamo-cortical weights are equal to the parameters
+    # w_er, w_es, w_se, w_si
+    connectivity.weights[inds["crtx"], inds["thalspec"]] = 1.0
+    connectivity.weights[inds["thalspec"], inds["crtx"]] = 1.0
 
     # Remove connections between specific thalami and the rest of the subcortex:
-    trigeminal_inds = inds["trigeminal"]
-    senstrig_inds = inds["ponssens_trigeminal"]
-    cereb_nuclei_inds = inds["cereb_nuclei"]
-    if hemispheres == -1:
+    # Keep only the following connections:
+    # TRIGEMINAL, MEDULLA -> S1 Brl field Spec thalami
+    # Cereb Nuclei -> M1 & S1 Brl field Spec thalami
+    trigeminal_inds = np.copy(inds["trigeminal"])
+    senstrig_inds = np.copy(inds["ponssens_trigeminal"])
+    cereb_nuclei_inds = np.copy(inds["cereb_nuclei"])
+    if config.TASK_LATERALITY == -1:    # -1: contralatterally, 0: bilaterally, 1: ipsilaterally
         trigeminal_inds = trigeminal_inds[::-1]
         senstrig_inds = senstrig_inds[::-1]
         cereb_nuclei_inds = cereb_nuclei_inds[::-1]
-    if hemispheres == 0:
+    if config.TASK_LATERALITY == 0:
         w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"]][:, trigeminal_inds].copy()
         w_s1brlthal_senstrig = connectivity.weights[inds["s1brlthal"]][:, senstrig_inds].copy()
-        if trigeminal_to_m1thal:
-            w_m1thal_trigeminal = connectivity.weights[inds["m1thal"]][:, trigeminal_inds].copy()
         w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"]][:, inds["cereb_nuclei"]].copy()
-        if cereb_nuclei_to_s1thal:
-            w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"]][:, inds["cereb_nuclei"]].copy()
+        w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"]][:, inds["cereb_nuclei"]].copy()
     else:
         w_s1brlthal_trigeminal = connectivity.weights[inds["s1brlthal"], trigeminal_inds].copy()
         w_s1brlthal_senstrig = connectivity.weights[inds["s1brlthal"], senstrig_inds].copy()
-        if trigeminal_to_m1thal:
-            w_m1thal_trigeminal = connectivity.weights[inds["m1thal"], trigeminal_inds].copy()
         w_m1thal_cerebnuclei = connectivity.weights[inds["m1thal"], inds["cereb_nuclei"]].copy()
-        if cereb_nuclei_to_s1thal:
-            w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"]].copy()
-
+        w_s1brlthal_cerebnuclei = connectivity.weights[inds["s1brlthal"], inds["cereb_nuclei"]].copy()
+    # Zero all Spec Thal <-> Subcortex connections:
     connectivity.weights[inds["subcrtx_not_thalspec"][:, None], inds["thalspec"][None, :]] = 0.0
     connectivity.weights[inds["thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]] = 0.0
-
-    # Retain connections
-    if hemispheres == 0:
+    # Recover the stored connections:
+    if config.TASK_LATERALITY == 0:
         # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
         connectivity.weights[inds["s1brlthal"][:, None], trigeminal_inds[None, :]] = w_s1brlthal_trigeminal
         connectivity.weights[inds["s1brlthal"][:, None], senstrig_inds[None, :]] = w_s1brlthal_senstrig
-        if trigeminal_to_m1thal:
-            connectivity.weights[inds["m1thal"][:, None], trigeminal_inds[None, :]] = w_m1thal_trigeminal
         # from merged Cerebellar Nuclei to M1:
         connectivity.weights[inds["m1thal"][:, None], cereb_nuclei_inds[None, :]] = w_m1thal_cerebnuclei
-        if cereb_nuclei_to_s1thal:
-            connectivity.weights[inds["s1brlthal"][:, None], cereb_nuclei_inds[None, :]] = w_s1brlthal_cerebnuclei
+        connectivity.weights[inds["s1brlthal"][:, None], cereb_nuclei_inds[None, :]] = w_s1brlthal_cerebnuclei
     else:
         # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
         connectivity.weights[inds["s1brlthal"], trigeminal_inds] = w_s1brlthal_trigeminal
         connectivity.weights[inds["s1brlthal"], senstrig_inds] = w_s1brlthal_senstrig
-        if trigeminal_to_m1thal:
-            connectivity.weights[inds["m1thal"], trigeminal_inds] = w_m1thal_trigeminal
         # from merged Cerebellar Nuclei to M1:
         connectivity.weights[inds["m1thal"], cereb_nuclei_inds] = w_m1thal_cerebnuclei
-        if cereb_nuclei_to_s1thal:
-            connectivity.weights[inds["s1brlthal"], cereb_nuclei_inds] = w_s1brlthal_cerebnuclei
-
-    # Homogenize crtx <-> subcrtx connnectivity
-    # connectivity.weights[inds["crtx"][:, None], inds["subcrtx_not_thalspec"][None, :]] *= 0.0 # 0.0 # 0.02
-    # connectivity.weights[inds["subcrtx_not_thalspec"][:, None], inds["crtx"][None, :]] *= 0.0 # 0.0 # 0.02
-
-    # # Disconnect subcortex completely
-    # connectivity.weights[inds["not_subcrtx_not_thalspec"][:, None],
-    #                      inds["subcrtx_not_thalspec"][None, :]] *= 0.0 # 0.0 # 0.02
-    # connectivity.weights[inds["subcrtx_not_thalspec"][:, None],
-    #                     inds["not_subcrtx_not_thalspec"][None, :]] *= 0.0 # 0.0 # 0.02
+        connectivity.weights[inds["s1brlthal"], cereb_nuclei_inds] = w_s1brlthal_cerebnuclei
 
     return connectivity
 
@@ -264,6 +235,13 @@ def build_model(number_of_regions, inds, maps, config):
                     # G normalized by the number of regions as in Griffiths et al paper
                     # Geff = G /(number_of_regions - inds['thalspec'].size)
                     pval = pval / (number_of_regions - inds['thalspec'].size)
+                elif p in ["I_e", "w_ie"]:
+                    pval = pval * np.ones((number_of_regions,))
+                elif p == "w_rs":
+                    pdummy = -2.0 * dummy
+                    pdummy[inds["m1thal"]] = pval
+                    # pdummy[inds["s1brlthal"]] = pval
+                    pval = pdummy
                 model_params[p] = pval
 
     if STIMULUS:
@@ -294,17 +272,17 @@ def build_model(number_of_regions, inds, maps, config):
 
     # Remove Specific thalamic relay -> nonspecific subcortical structures connections!
     w_se = model.w_se * dummy
-    w_se[inds['subcrtx']] = 0.0  #  model.G[0]
+    w_se[inds['subcrtx']] = 0.0
     model.w_se = w_se
     # Remove specific thalamic relay -> inhibitory nonspecific subcortical structures connections
     w_si = model.w_si * dummy
-    w_si[inds['subcrtx']] = 0.0  # * model.G[0]
+    w_si[inds['subcrtx']] = 0.0
     model.w_si = w_si
 
     # Long range connections to specific thalamic relay and reticular structures connections' weights:
     model.G = model.G * dummy
-    model.G[inds["thalspec"]] = 0.0
-    # Retain connections
+    model.G[inds["thalspec"]] = 0.0  # Zero all long range connections' inputs to Specific Thalami
+    # Keep only the connections:
     # from spinal nucleus of the trigeminal to S1 barrel field specific thalamus:
     model.G[inds["s1brlthal"]] = model.G[inds["crtx"][0]]
     # from Cerebellar Nuclei to M1:
@@ -347,15 +325,16 @@ def fic(param, p_orig, weights, trg_inds=None, src_inds=None, FIC=1.0, G=None, d
     try:
         assert np.all(np.argsort(indegree) == np.argsort(-p[trg_inds]))  # the orderings should reverse
     except Exception as e:
-        fig = plt.figure()
-        plt.plot(indegree, p[trg_inds], "o")
-        if G is None:
-            plt.xlabel("%g*indegree" % FIC)
-        else:
-            plt.xlabel("%g*%g*indegree" % (G, FIC))
-        plt.ylabel("%s scaled" % param)
-        plt.title("Testing indegree and parameter anti-correlation")
-        plt.tight_layout()
+        if plotter:
+            fig = plt.figure()
+            plt.plot(indegree, p[trg_inds], "o")
+            if G is None:
+                plt.xlabel("%g*indegree" % FIC)
+            else:
+                plt.xlabel("%g*%g*indegree" % (G, FIC))
+            plt.ylabel("%s scaled" % param)
+            plt.title("Testing indegree and parameter anti-correlation")
+            plt.tight_layout()
         warnings.warn(str(e))
         # raise e
 
@@ -384,30 +363,401 @@ def fic(param, p_orig, weights, trg_inds=None, src_inds=None, FIC=1.0, G=None, d
     return p
 
 
-def apply_fic(simulator, inds, FIC, G=None, param='w_ie', plotter=None):
-    
-    # Indices of cortical and subcortical regions excluding specific thalami
-    inds["non_thalamic"] = np.unique(inds['crtx'].tolist() + inds["subcrtx_not_thalspec"].tolist())
+def apply_fic(simulator, inds, config, plotter=None):
+    n_non_thalamic_regions = (simulator.connectivity.weights.shape[0] - inds['thalspec'].size)
+    G = simulator.model.G[0].item() * n_non_thalamic_regions
+    for fp, fv, split_string in zip(config.FIC_PARAMS,
+                                    [config.FIC_SPLIT, 1.0-config.FIC_SPLIT],
+                                    ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
+        ficsplit = config.FIC * fv
+        if ficsplit > 0:
+            if config.VERBOSE:
+                print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
+                      (fp, split_string, G, config.FIC, fv,  G * ficsplit))
+            # We will modify the w_ie and w_rs parameters a bit based on indegree:
+            setattr(simulator.model, fp,
+                    fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
+                        inds["non_thalamic"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
+                        plotter=plotter))
 
-    # FIC for all non-specific thalamic, cortical and subcortical, w_ie, 
-    # against indegree for all incoming connections excluding the ones from specific thalami
-    setattr(simulator.model, param, 
-            fic(param, getattr(simulator.model, param), simulator.connectivity.weights,
-                inds["non_thalamic"], inds["non_thalamic"], FIC=FIC, G=G, dummy=None, subtitle="", plotter=plotter))
+    # if config.VERBOSE:
+    #     print("Applying FIC for parameter w_ie: G * FIC = %g * %g = %g!" % (G, config.FIC, G * config.FIC))
+    # # We will modify the w_ie and w_rs parameters a bit based on indegree:
+    # setattr(simulator.model, "w_ie",
+    #         fic("w_ie", getattr(simulator.model, "w_ie"), simulator.connectivity.weights,
+    #             inds["non_thalamic"], inds["non_thalamic"], FIC=config.FIC, G=G, dummy=None, subtitle="",
+    #             plotter=plotter))
+    return simulator
 
-    # # FIC for cortical w_ie against indegree for all incoming connections excluding the ones from specific thalami
-    # setattr(simulator.model, param, 
-    #         fic(param, getattr(simulator.model, param), simulator.connectivity.weights,
-    #             inds["crtx"], inds["non_thalamic"], FIC=FIC, dummy=None, subtitle=" for cortex", plotter=plotter))
 
-    # w_to_subcrtx = simulator.connectivity.weights[inds["subcrtx_not_thalspec"]].sum()
-    # if w_to_subcrtx:
-    #     # FIC for subcortical w_ie against indegree for all incoming connections excluding the ones from specific thalami
-    #     setattr(simulator.model, param,
-    #             fic(param, getattr(simulator.model, param), simulator.connectivity.weights,
-    #                 inds["subcrtx_not_thalspec"],
-    #                 src_inds=inds["non_thalamic"],  # after removal of subcrtx <-> specific thalamic
-    #                 FIC=FIC, dummy=None, subtitle=" for subcortex", plotter=plotter))
+def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task_laterality=-1,
+                                 fix_inds=[], indegree_gain=None, verbose=1):
+    # Determine source and fixed regions' indices:
+    FIXflag = False
+    if len(fix_inds):
+        FIXflag = True
+    if src_inds is None:
+        src_inds = np.arange(weights.shape[1]).astype('i')
+        if FIXflag:
+            src_inds = np.delete(src_inds, fix_inds)
+    nsrc = len(src_inds)
+    # Prepare pathway gains depending on the number of source indices:
+    try:
+        pathway_gains = list(pathway_gain)
+    except:
+        pathway_gains = [pathway_gain]
+    ngains = len(pathway_gains)
+    if ngains == 1:
+        if task_laterality == 0:  # assuming the same pathway gain for all source regions was given
+            pathway_gains *= nsrc
+        else:
+            pathway_gains *= int(nsrc * 0.5)
+    elif ngains == nsrc/2:
+        if task_laterality == 0:
+            # assuming one pathway gain per region for both hemispheres was given...
+            # ...double pathway gains for the two hemispheres if we apply gain bilaterally:
+            pathway_gains = [pg for pg in pathway_gains for _ in range(2)]
+    elif ngains != nsrc:
+        raise ValueError("Pathway gains %s of length %d do not match with target regions inds %s of length %d!"
+                         % (str(pathway_gains), len(pathway_gains), str(src_inds), len(src_inds)))
+    pathway_gains = np.array(pathway_gains)
+    if verbose: print("pathway_gains = ", pathway_gains)
+    indegree_ratio = []
+    for iT, trg in enumerate(trg_inds):
+        if verbose: print("trg = ", trg)
+        indegree = weights[trg].sum()                  # initial total indegree
+        if verbose: print("indegree = ", indegree)
+        if indegree_gain is not None:
+            new_indegree = indegree / indegree_gain
+            print("new_indegree to fix = ", new_indegree)
+        if task_laterality > 0:
+            hemi_src_inds = src_inds[slice(np.mod(iT, 2), None, 2)]
+        elif task_laterality < 0:
+            hemi_src_inds = src_inds[slice(np.abs(np.mod(iT, 2)-1), None, 2)]
+        else:
+            hemi_src_inds = src_inds
+        if verbose: print("hemi_src_inds = ", hemi_src_inds)
+        orig = weights[trg, hemi_src_inds]
+        if verbose: print("orig = ", orig)
+        origsum = orig.sum()
+        if verbose: print("origsum = ", origsum)
+        if FIXflag:
+            hemi_fix_inds = fix_inds[slice(np.mod(iT, 2), None, 2)]  # Only ipsilaterally
+            if verbose: print("hemi_fix_inds = ", hemi_fix_inds)
+            fix = weights[trg, hemi_fix_inds]
+            if verbose: print("fix = ", fix)
+            fixsum = fix.sum()
+            if verbose: print("fixsum = ", fixsum)
+        else:
+            fixsum = 0.0
+        pathway_gains_corr = pathway_gains
+        if indegree_gain is not None:
+            maxnewsum = 0.99*new_indegree - fixsum
+            newsum = (weights[trg, hemi_src_inds] * pathway_gains_corr).sum()
+            if newsum > maxnewsum:
+                pathway_gains_corr *= (maxnewsum/newsum)
+        if verbose: print("pathway_gains_corr = ", pathway_gains_corr)
+        weights[trg, hemi_src_inds] *= pathway_gains_corr  # increase pathway
+        if verbose: print("w = \n", weights[trg, hemi_src_inds])
+        newsum = weights[trg, hemi_src_inds].sum()
+        if verbose: print("wsum = \n", newsum)
+        if indegree_gain is not None:
+            nornom = new_indegree - newsum - fixsum
+            if nornom < 0.0:
+                new_indegree = newsum + fixsum + 0.01 * indegree
+                if verbose: print("new_indegree_corr = ", new_indegree)
+                indegree_gain = indegree / new_indegree
+                if verbose: print("indegree_gain_corr = ", indegree_gain)
+                nornom = new_indegree - newsum - fixsum
+            norm = nornom / (indegree - origsum - fixsum)
+            if verbose: print("norm = ", norm)
+            weights[trg] *= norm
+            weights[trg, hemi_src_inds] /= norm
+            if FIXflag:
+                weights[trg, hemi_fix_inds] /= norm  # set fixed connections
+                if verbose: print("wfix = \n", weights[trg, hemi_fix_inds])
+        final_indegree = weights[trg].sum()
+        if verbose: print("final indegree = ", final_indegree)
+        try:
+            assert np.all(final_indegree >= 0.0)
+        except Exception as e:
+            print(weights[trg])
+            raise e
+        indegree_ratio.append(indegree / final_indegree)
+        if indegree_gain is not None:
+            try:
+                assert np.isclose(indegree_ratio[-1], indegree_gain, rtol=1e-03, atol=1e-03)
+            except Exception as e:
+                print(indegree)
+                print(final_indegree)
+                raise e
+    return np.abs(weights), indegree_ratio
+
+
+def apply_pathway_gains(weights, inds, config):
+
+    task_laterality = config.TASK_LATERALITY  # -1: contralatterally, 0: bilaterally, 1: ipsilaterally
+    if config.VERBOSE:
+        print("\n" + "-" * 50)
+        print("Applying pathway gain...")
+        print("-" * 50 + "\n")
+
+    indegree_ratios = {}
+
+    # A. INPUT CEREB PATHWAY:
+
+    # 1. PosSens Trigeminal (Medulla) <- Trigeminal (stimulus)
+
+    if config.TRIG_GAIN > 1.0:
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("trigeminal -> ponssens_trigeminal (Medulla)")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["trigeminal"],
+                                         inds["ponssens_trigeminal"],
+                                         config.TRIG_GAIN, weights,
+                                         task_laterality=-task_laterality,  # ipsilaterally
+                                         indegree_gain=1.0,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["ponssens_trigeminal"] = indegree_ratio
+
+    # 2. AnsiLob <- PosSens Trigeminal (Medulla)
+    if config.MEDULLA_GAIN > 1.0:
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("trigeminal ponssens_trigeminal (Medulla) -> ansilob")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["ponssens_trigeminal"],
+                                         inds["ansilob"],
+                                         config.MEDULLA_GAIN, weights,
+                                         task_laterality=-task_laterality,  # ipsilaterally
+                                         indegree_gain=1.0,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["ansilob"] = indegree_ratio
+
+    if config.CEREB_GAIN > 1.0:
+        # 5. Cereb nuclei <- AnsiLob
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("ansilob -> CerebNuclei")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["ansilob"],
+                                         inds["cereb_nuclei"],
+                                         config.CEREB_GAIN, weights,
+                                         task_laterality=-task_laterality,  # ipsilaterally
+                                         indegree_gain=1.0,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["cereb_nuclei"] = indegree_ratio
+
+    # B. INPUT SENSORY PATHWAY:
+    # 4. S1 brl thal <- [Trigeminal (stimulus), PonsSens Trigeminal, CerebNuclei]
+    sources = []
+    sourcenames = []
+    pathway_gains = []
+    for gain, source, name in zip([config.TRIGS1_GAIN, config.MEDULLAS1_GAIN, config.CNS1_GAIN],
+                                  [inds["trigeminal"], inds["ponssens_trigeminal"], inds["cereb_nuclei"]],
+                                  ["Trigeminal (stimulus)", "PonsSens Trigeminal (Medulla)", "CerebNuclei"]):
+        if gain > 1.0:
+            pathway_gains.append(gain)
+            sources.append(source)
+            sourcenames.append(name)
+    if len(sources):
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("[%s] -> s1brlthal" % (", ".join(sourcenames)))
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(np.concatenate(sources),
+                                         inds["s1brlthal"],
+                                         pathway_gains, weights,  # 30.0
+                                         task_laterality=task_laterality,  # contralaterally
+                                         fix_inds=inds["s1brl"],
+                                         indegree_gain=None,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["s1brlthal"] = indegree_ratio
+
+
+    # C. INPUT MOTOR PATHWAY
+    if config.CNM1_GAIN > 1.0:
+        # 1.  M1 thal <- CerebNuclei
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("CerebNuclei -> m1thal")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["cereb_nuclei"],
+                                         inds["m1thal"],
+                                         config.CNM1_GAIN, weights,  # 30.0
+                                         task_laterality=task_laterality,  # contralaterally
+                                         fix_inds=inds["m1"],
+                                         indegree_gain=None,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["m1thal"] = indegree_ratio
+
+    # C. OUTPUT MOTOR PATHWAY
+    if config.M1FACIAL_GAIN > 1.0:
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("M1 -> facial motor nucleus")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["m1"],
+                                         inds["facial"],
+                                         config.M1FACIAL_GAIN, weights,
+                                         task_laterality=task_laterality,  # contralaterally
+                                         indegree_gain=1.0,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["facial"] = indegree_ratio
+    if config.FACIALTRIG_GAIN > 1.0:
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("facial motor nucleus -> trigeminal")
+        weights, indegree_ratio = \
+            apply_pathway_gain_to_target(inds["facial"],
+                                         inds["trigeminal"],
+                                         config.FACIALTRIG_GAIN, weights,
+                                         task_laterality=-task_laterality,  # ipsilaterally
+                                         indegree_gain=1.0,
+                                         verbose=config.VERBOSE)
+        indegree_ratios["facial"] = indegree_ratio
+
+    # E. M1 <-> S1
+    if config.M1S1_GAIN > 1.0:
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("M1 -> S1")
+        weights, indegree_ratio = apply_pathway_gain_to_target(
+            inds["s1brl"], inds["m1"],
+            1.0,
+            weights, task_laterality=0,
+            fix_inds=inds["m1thal"].tolist(),
+            indegree_gain=config.M1S1_GAIN,
+            verbose=config.VERBOSE
+        )
+        indegree_ratios["m1"] = indegree_ratio
+
+        if config.VERBOSE:
+            print("-" * 25 + "\n")
+            print("S1 -> M1")
+        weights, indegree_ratio = apply_pathway_gain_to_target(
+            inds["m1"], inds["s1brl"],
+            1.0,
+            weights, task_laterality=0,
+            fix_inds=inds["s1brlthal"].tolist(),
+            indegree_gain=config.M1S1_GAIN,
+            verbose=config.VERBOSE
+            )
+        indegree_ratios["s1brl"] = indegree_ratio
+
+    return weights, indegree_ratios
+
+
+def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
+
+    def adjust_fic(weights, indegree_ratios, inds, fie, fwie, I_e, w_ie):  #  ...,
+        for ind, indegree_ratio in zip(inds, indegree_ratios):
+            if verbose: print("region ind = %d" % ind)
+            new_indegree = weights[ind].sum()
+            if verbose: print("new_indegree = %g" % new_indegree)
+            if verbose: print("indegree_ratio = %g" % indegree_ratio)
+            indegree = new_indegree * indegree_ratio
+            if fie is not None:
+                if verbose: print("indegree = %g" % indegree)
+                if verbose: print("I_e[%d]_old = %g" % (ind, I_e[ind]))
+                I_e[ind] = fie(I_e[ind], indegree, new_indegree)
+                if verbose: print("I_e[%d]_adj = %g" % (ind, I_e[ind]))
+            if fwie is not None:
+                if verbose: print("indegree = %g" % indegree)
+                if verbose: print("w_ie[%d]_old = %g" % (ind, w_ie[ind]))
+                w_ie[ind] = fwie(w_ie[ind], indegree, new_indegree)
+                if verbose: print("w_ie[%d]_adj = %g" % (ind, w_ie[ind]))
+        return I_e, w_ie
+
+    if verbose:
+        print("-" * 25)
+        print("-" * 25)
+        print("Adjusting FICed parameters for (non thalamic) regions with modified indegree...")
+    # Necessary functions for adjustment of FICed paremeters
+    if FIC_SPLIT > 0.0:
+        indmax_Ie = inds["crtx_and_subcrtx"][[np.argmax(simulator.model.I_e[inds["crtx_and_subcrtx"]])]][0].item()
+        iemax = simulator.model.I_e[indmax_Ie]
+
+        if verbose:  print("Ie[%d]_max = %g" % (indmax_Ie, iemax))
+        fie = lambda ie, indegree, new_indegree: np.minimum(iemax,
+                                                            iemax + (new_indegree - indegree_min) * np.minimum(0.0, (
+                                                                        ie - iemax) / (indegree - indegree_min)))
+        indegree_min = simulator.connectivity.weights[indmax_Ie].sum()
+    else:
+        fie = None
+    if FIC_SPLIT < 1.0:
+        indmax_wie = inds["crtx_and_subcrtx"][[np.argmax(simulator.model.w_ie[inds["crtx_and_subcrtx"]])]][0].item()
+        wiemax = simulator.model.w_ie[indmax_wie]
+        if verbose: print("w_ie[%d]_max = %g" % (indmax_wie, wiemax))
+        #  i.e., ymax  + (     x       -     x0     ) *            (yold - ymax)  / (   xold  -    xmin)
+        fwie = lambda wie, indegree, new_indegree: np.minimum(wiemax,
+                                                              wiemax + (new_indegree - indegree_min) * np.minimum(0.0, (
+                                                                          wie - wiemax) / (indegree - indegree_min)))
+        indegree_min = simulator.connectivity.weights[indmax_wie].sum()
+    else:
+        fwie = None
+    if FIC_SPLIT > 0.0 and FIC_SPLIT < 1.0:
+        assert indmax_Ie == indmax_wie
+    if verbose: print("indegree_min = %g" % indegree_min)
+    for reg, indratios in indegree_ratios.items():
+        if "thal" not in reg and np.any(np.logical_not(np.isclose(indratios, 1.0, rtol=1e-03, atol=1e-03))):
+            if verbose: print("...adjusting regions %s..." % reg)
+            simulator.model.I_e, simulator.model.w_ie = \
+                adjust_fic(simulator.connectivity.weights, indratios, inds[reg],
+                           fie, fwie, simulator.model.I_e, simulator.model.w_ie)
+    return simulator
+
+
+def print_weight_to_indegree(src, trg, inds, w, task_laterality=1):
+    print("\n" + "-"*25)
+    print("%s -> %s" % (src, trg))
+    print(w[inds[trg]][:, inds[src]])
+    print("%:")
+    print(w[inds[trg]][:, inds[src]] / w[inds[trg]].sum() * 200 / (2 - np.abs(task_laterality)))
+
+
+def apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter=None):
+
+    simulator.connectivity.weights, indegree_ratios = apply_pathway_gains(simulator.connectivity.weights, inds, config)
+
+    if config.VERBOSE:
+        print("-" * 25)
+        print("Indegree ratios:")
+        print(indegree_ratios)
+        print("-" * 25)
+    if config.FIC > 0.0:
+        simulator = adjust_ficed_params(simulator, indegree_ratios, inds, config.FIC_SPLIT, config.VERBOSE)
+
+    if config.VERBOSE:
+        print("\n" + "-" * 50)
+        print("Pathway connections to indegree %:")
+
+        for conns in [
+            ["s1brl", "m1"], ["m1", "s1brl"],
+            ["s1brlthal", "s1brl"], ["s1brl", "s1brlthal"],
+            ["m1thal", "m1"], ["m1", "m1thal"],
+            ["trigeminal", "ponssens_trigeminal"],
+            ["ponssens_trigeminal", "ansilob"],
+            ["ansilob", "cereb_nuclei"],
+            ["trigeminal", "s1brlthal"], ["ponssens_trigeminal", "s1brlthal"], ["cereb_nuclei", "s1brlthal"],
+            ["cereb_nuclei", "m1thal"],
+            ["m1", "facial"], ["facial", "trigeminal"]
+        ]:
+            print_weight_to_indegree(conns[0], conns[1], inds, simulator.connectivity.weights,
+                                     task_laterality=config.TASK_LATERALITY)
+
+    if plotter:
+        # Plot task network:
+        from rising_net.scripts.plot_utils import shorten_region_name, matrix_plot
+        config.TASK_SHORT_REG_LABELS = [shorten_region_name(reg, exclude=["of", "the", "to"])
+                                        for reg in simulator.connectivity.region_labels[config.TASKINDS]]
+        fig, ax = plt.subplots()
+        ax = matrix_plot(simulator.connectivity.weights[config.TASKINDS][:, config.TASKINDS].copy(),
+                         labels=config.TASK_SHORT_REG_LABELS,
+                         label="SC", ax=ax, colorbar=True, fontsize=10)
+        fig.tight_layout()
+        plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, "taskSC.png"), format="png")
 
     return simulator
 
@@ -425,47 +775,25 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     dummy = np.ones((simulator.connectivity.number_of_regions,))
 
     # Variability to thalamocortical connections:
-    if config.THAL_CRTX_FIX:
+    # if config.THAL_CRTX_FIX:
+    #     if "d" in config.THAL_CRTX_FIX:
+    if config.VERBOSE:
+        print("Fixing thalamocortical delays!")
+    # Fix structural connectivity (specific) thalamo-cortical tracts length to a value,
+    # such that all thalamo-cortical delays are equal to the parameter tau_ct,
+    # given connectivity's speed.
+    ct_lengths = simulator.connectivity.speed * \
+                 simulator.model.tau_ct * dummy[inds["crtx"]]
+    simulator.connectivity.tract_lengths[inds["crtx"], inds["thalspec"]] = ct_lengths
+    simulator.connectivity.tract_lengths[inds["thalspec"], inds["crtx"]] = ct_lengths
+    simulator.connectivity.configure()
+    # if not config.THAL_CRTX_FIX or "d" not in config.THAL_CRTX_FIX:
+    #     tau_ct = simulator.model.tau_ct * dummy
+    #     tau_ct[inds['crtx']] = simulator.connectivity.delays[inds["thalspec"], inds["crtx"]]
+    #     tau_ct[inds['thalspec']] = simulator.connectivity.delays[inds["crtx"], inds["thalspec"]]
+    #     simulator.model.tau_ct = tau_ct
 
-        if "d" in config.THAL_CRTX_FIX:
-            if config.VERBOSE:
-                print("Fixing thalamocortical delays!")
-            # Fix structural connectivity (specific) thalamo-cortical tracts length to a value,
-            # such that all thalamo-cortical delays are equal to the parameter tau_ct,
-            # given connectivity's speed.
-            ct_lengths = simulator.connectivity.speed * \
-                         simulator.model.tau_ct * dummy[inds["crtx"]]
-            simulator.connectivity.tract_lengths[inds["crtx"], inds["thalspec"]] = ct_lengths
-            simulator.connectivity.tract_lengths[inds["thalspec"], inds["crtx"]] = ct_lengths
-
-        simulator.connectivity.configure()
-
-    if not config.THAL_CRTX_FIX or "d" not in config.THAL_CRTX_FIX:
-        tau_ct = simulator.model.tau_ct * dummy
-        tau_ct[inds['crtx']] = simulator.connectivity.delays[inds["thalspec"], inds["crtx"]]
-        tau_ct[inds['thalspec']] = simulator.connectivity.delays[inds["crtx"], inds["thalspec"]]
-        simulator.model.tau_ct = tau_ct
-
-    # h_sub2 = np.array(simulator.connectivity.weights[inds["not_subcrtx_not_thalspec"][:, None],
-    #                                                  inds["subcrtx_not_thalspec"][None, :]].flatten().tolist() +
-    #                   simulator.connectivity.weights[inds["subcrtx_not_thalspec"][:, None],
-    #                                                  inds["not_subcrtx_not_thalspec"][None, :]].flatten().tolist())
-    # h_sub2, bins = np.histogram(h_sub2[h_sub2>0].flatten(), range=(0.0, 1.25), bins=100)
-    # wp = simulator.connectivity.weights > 0
-    # h2, bins = np.histogram(simulator.connectivity.weights[wp].flatten(), range=(0.0, 1.25), bins=100)
-
-    # if plotter is not None:
-        # x = bins[:-1] + np.diff(bins)/2
-        # plt.figure(figsize=(10, 5))
-        # plt.plot(x, h1, 'b', label='All connections before downscaling')
-        # plt.plot(x, h2, 'b--', label='All connections after downscaling')
-        # plt.plot(x, h_sub1, 'r', label='Subcortical connections before downscaling')
-        # plt.plot(x, h_sub2, 'r--', label='Subcortical connections after downscaling')
-        # plt.title("Histogram of logtransformed connectome weights\nwith downscaling connections")
-        # plt.legend()
-        # plt.ylim([0.0, h1.max()])
-        # plt.tight_layout()
-
+    # Set the sigmoidal coupling function:
     simulator.coupling = SigmoidalPreThalamoCortical(
         is_thalamic=maps['is_thalamic'],
         is_subcortical=maps['is_subcortical'],
@@ -486,30 +814,70 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     simulator.initial_conditions = np.zeros((1000, simulator.model.nvar, connectivity.number_of_regions, 1))
     n_crtx_subcrtx = len(inds['crtx_and_subcrtx'])
     simulator.initial_conditions[:, [[0]], inds['crtx_and_subcrtx']] =\
-        simulator.model.I_e.mean().item() + 0.1 * np.random.normal(size=(1000, 1, n_crtx_subcrtx, 1))
+        simulator.model.I_e.mean().item()*(1.0 + np.random.normal(size=(1000, 1, n_crtx_subcrtx, 1)))
     simulator.initial_conditions[:, [[1]], inds['crtx_and_subcrtx']] = \
-        simulator.model.I_i.mean().item() + 0.1 * np.random.normal(size=(1000, 1, n_crtx_subcrtx, 1))
+        simulator.model.I_i.mean().item()*(1.0 + np.random.normal(size=(1000, 1, n_crtx_subcrtx, 1)))
     n_thalspec = len(inds['thalspec'])
     simulator.initial_conditions[:, [[0]], inds['thalspec']] = \
-        simulator.model.I_s.mean().item() + 0.1 * np.random.normal(size=(1000, 1, n_thalspec, 1))
+        simulator.model.I_s.mean().item() * (1.0 + np.random.normal(size=(1000, 1, n_thalspec, 1)))
     simulator.initial_conditions[:, [[1]], inds['thalspec']] = \
-        simulator.model.I_r.mean().item() + 0.1 * np.random.normal(size=(1000, 1, n_thalspec, 1))
+        simulator.model.I_r.mean().item() * (1.0 + np.random.normal(size=(1000, 1, n_thalspec, 1)))
 
+    # Apply FIC if required:
     if config.FIC and simulator.model.G[0].item():
-        n_non_thalamic_regions = (simulator.connectivity.weights.shape[0] - inds['thalspec'].size)
-        G = simulator.model.G[0].item() * n_non_thalamic_regions
-        if config.FIC_SPLIT is not None:
-            FICsplit = [config.FIC_SPLIT, 1.0 - config.FIC_SPLIT]
-        else:
-            FICsplit = [1.0] * len(config.FIC_PARAMS)
-        for fp, fv, split_string in zip(config.FIC_PARAMS, FICsplit, ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
-            ficsplit = config.FIC * fv
-            fic = G * ficsplit
-            if config.VERBOSE:
-                print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
-                      (fp, split_string, G, config.FIC, fv, fic))
-            # We will modify the w_ie and w_rs parameters a bit based on indegree:
-            simulator = apply_fic(simulator, inds, ficsplit, G, fp, plotter)
+        simulator = apply_fic(simulator, inds, config, plotter)
+
+    # Apply pathway gain and adjust FIC for changed indegrees:
+    if config.PATHWAY_GAIN:
+        simulator = apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter)
+
+    # Modify the parameters of the TASK network:
+    #if config.TASK and "TVB" in config.MODE:
+        # # -------ΝΟ STIM----------------------------------
+        # simulator.model.I_e[inds["facial"]] = -0.35
+        # simulator.model.I_e[inds["trigeminal"]] = -0.35
+        # simulator.model.I_e[inds["medulla"]] = -0.1
+        # simulator.model.I_e[inds["ansilob"]] = -0.35
+        # simulator.model.I_e[inds["cereb_nuclei"]] = -0.35
+        # simulator.model.w_ie[inds["facial"]] = -3.0
+        # simulator.model.w_ie[inds["trigeminal"]] = -2.0
+        # simulator.model.w_ie[inds["medulla"]] = -6.0
+        # simulator.model.w_ie[inds["ansilob"]] = -3.0
+        # simulator.model.w_ie[inds["cereb_nuclei"]] = -3.0
+    #     # -------STIM----------------------------------
+    #     # THETA:
+    #     # simulator.model.I_e[inds["trigeminal"]] = -1.0  # for THETA
+    #     # simulator.model.I_e[inds["medulla"]] = -0.35   # for THETA
+    #     # simulator.model.I_e[inds["ansilob"]] = -1.0  # for THETA
+    #     # simulator.model.I_e[inds["cereb_nuclei"]] = -1.0  # for THETA
+    #     # GAMMA:
+    #     # simulator.model.I_e[inds["trigeminal"]] = -0.35  # -0.4
+    #     # simulator.model.I_e[inds["medulla"]] = -0.35
+    #     # simulator.model.I_e[inds["ansilob"]] = -0.35
+    #     # simulator.model.I_e[inds["cereb_nuclei"]] = -0.35
+    #     # THETA:
+    #     # simulator.model.w_ie[inds["trigeminal"]] = -1.0
+    #     # simulator.model.w_ie[inds["medulla"]] = -3.0
+    #     # simulator.model.w_ie[inds["ansilob"]] = -2.0
+    #     # simulator.model.w_ie[inds["cereb_nuclei"]] = -2.0
+    #     # GAMMA:
+    #     # simulator.model.w_ie[inds["trigeminal"]] /= 2.0  # 2.5
+    #     simulator.model.w_ie[inds["medulla"]] = -3.0
+    #     simulator.model.w_ie[inds["ansilob"]] = -3.0
+    #     simulator.model.w_ie[inds["cereb_nuclei"]] /= 2.0
+    if config.VERBOSE:
+        print("Facial I_e: %g" % simulator.model.I_e[inds["facial"]].mean())
+        print("Trigeminal I_e: %g" % simulator.model.I_e[inds["trigeminal"]].mean())
+        print("Medulla I_e: %g" % simulator.model.I_e[inds["medulla"]].mean())
+        print("Ansilob I_e: %g" % simulator.model.I_e[inds["ansilob"]].mean())
+        print("CerebNuclei I_e: %g" % simulator.model.I_e[inds["cereb_nuclei"]].mean())
+        print("Facial w_ie: %g" % simulator.model.w_ie[inds["facial"]].mean())
+        print("Trigeminal w_ie: %g" % simulator.model.w_ie[inds["trigeminal"]].mean())
+        print("Medulla w_ie: %g" % simulator.model.w_ie[inds["medulla"]].mean())
+        print("Ansilob w_ie: %g" % simulator.model.w_ie[inds["ansilob"]].mean())
+        print("CerebNuclei w_ie: %g" % simulator.model.w_ie[inds["cereb_nuclei"]].mean())
+        print("M1 spec thal w_rs: %g" % simulator.model.w_rs[inds["m1thal"]].mean())
+        print("S1 brl spec thal w_rs: %g" % simulator.model.w_rs[inds["s1brlthal"]].mean())
 
     # Set monitors:
     if config.RAW_PERIOD > config.DEFAULT_DT:
@@ -539,9 +907,9 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # Dumping the serialized TVB cosimulator to a file will be necessary for parallel cosimulation.
     dump_pickled_dict(sim_serial, sim_serial_filepath)
 
-    if plotter:
-        # Plot TVB connectome:
-        plotter.plot_tvb_connectivity(simulator.connectivity);
+    # if plotter:
+    #     # Plot TVB connectome:
+    #     plotter.plot_tvb_connectivity(simulator.connectivity);
 
     return simulator
 
@@ -641,7 +1009,8 @@ def compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None):
     return PSD_target
 
 
-def compute_data_PSDs_1D(raw_results, PSD_target, inds, transient=None, write_files=True, plotter=None):
+def compute_data_PSDs_1D(raw_results, PSD_target, inds,
+                         transient=None, write_files=True, psd_data_path='./', plotter=None):
 
     # Select regions' data, compute PSDs, average them across region,
     # interpolate them to the target frequencies, and normalize them to sum up to 1.0:
@@ -649,7 +1018,8 @@ def compute_data_PSDs_1D(raw_results, PSD_target, inds, transient=None, write_fi
     Pxx_den = compute_data_PSDs_from_raw(raw_results, ftarg, inds['crtx'],
                                          transient=transient, average_region_ps=True)
     Pxx_den = Pxx_den.flatten()
-
+    if write_files:
+        np.save(psd_data_path, Pxx_den)
     if plotter:
         fig, axes = plt.subplots(2, 1, figsize=(10, 10))
         axes[0].plot(ftarg, PSD_target['PSD_target'], "k", label='Target')
@@ -668,19 +1038,19 @@ def compute_data_PSDs_1D(raw_results, PSD_target, inds, transient=None, write_fi
             plt.show()
         else:
             plt.close(fig)
-    # if write_files:
-    #     np.save
     return Pxx_den
 
 
-def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds, transient=None, write_files=True, plotter=None):
+def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
+                              transient=None, write_files=True, psd_data_path='./', plotter=None):
 
     # Select regions' data, compute PSDs, interpolate them to the target frequencies, 
     # and normalize them to sum up to 1.0:
     ftarg = PSD_target['f']
     Pxx_den = compute_data_PSDs_from_raw(raw_results, ftarg, inds['m1s1brl'],
                                          transient=transient, average_region_ps=False)
-
+    if write_files:
+        np.save(psd_data_path, Pxx_den)
     if plotter:
         fig, axes = plt.subplots(2, 1, figsize=(10, 10))
         axes[0].plot(ftarg, PSD_target['PSD_M1_target'], "b", label='M1 target')
@@ -848,11 +1218,24 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     MIN_REGIONS_FOR_RASTER_PLOT = 9
     FIGSIZE = config.figures.DEFAULT_SIZE
 
-    PSD_target = compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None)
-    compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient=transient, write_files=True, plotter=plotter)
+    # This is the PSD target we are trying to fit...
+    if config.model_params['G']:
+        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+        PSD_target = compute_target_PSDs_m1s1brl(config, write_files=write_files, plotter=plotter)
+        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+        PSD = compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient,
+                                        write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+    else:
+        # ...for a disconnected brain, average PS of all regions:
+        PSD_target = compute_target_PSDs_1D(config, write_files=write_files, plotter=plotter)
+        # ...for a disconnected brain, average PS of all regions:
+        PSD = compute_data_PSDs_1D(results[0], PSD_target, inds, transient,
+                                   write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
 
     if isinstance(results, (list, tuple)):
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
+    results["PSD_target"] = PSD_target
+    results["PSD"] = PSD
 
     source_ts = results.get("source_ts", None)
     bold_ts = results.get("bold_ts", None)
@@ -863,10 +1246,10 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         n_time_len = source_ts.shape[0]
     elif simulator is not None:
         dt = simulator.integrator.dt
-        n_time_len = simulator.simulation_length
+        n_time_len = int(simulator.simulation_length / dt)
     else:
         dt = config.DEFAULT_DT
-    TIME_PLOT = 1000.0  # ms
+    TIME_PLOT = np.minimum(1000.0,  np.maximum(0.0, n_time_len * dt - 100.0))  # ms
     N_TIME_PLOT = int(np.round(TIME_PLOT / dt))
     n_time_len -= int(np.round(transient / dt))
     NPERSEG = np.array([512, 1024, 2048, 4096])
@@ -927,6 +1310,16 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
             with open('coherence_MF_cerebON_2sec.pickle', 'wb') as handle:
                 pickle.dump([CxyR, fR, fL, CxyL], handle)
 
+        # Power Spectra and Coherence along the motor pathway:
+        if len(inds.get("motor", [])):
+            compute_plot_selected_spectra_coherence(source_ts, inds["motor"],
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    figures_path=config.figures.FOLDER_FIGURES,
+                                                    figname="Motor", figformat="png",
+                                                    show_flag=plotter.config.SHOW_FLAG,
+                                                    save_flag=plotter.config.SAVE_FLAG)
+
+
         # Power Spectra and Coherence along the sensory pathway:
         # for Medulla SPV, Sensory PONS
         if len(inds.get("sens", [])):
@@ -957,7 +1350,6 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                                     save_flag=plotter.config.SAVE_FLAG)
 
         # Better summary figure:
-        import matplotlib.pyplot as plt
 
         data = source_ts.data
         time = source_ts.time
@@ -1011,6 +1403,13 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
             hue="Region" if afferent_ts_m1s1brlthal.shape[2] > MAX_REGIONS_IN_ROWS else None,
             per_variable=afferent_ts_m1s1brlthal.shape[1] > MAX_VARS_IN_COLS_AFF,
             figsize=FIGSIZE, figname="M1 and S1 barrel specific thalami Afferent TVB Time Series")
+
+        if len(inds.get("facial", [])):
+            afferent_ts_facial = afferent_ts[-N_TIME_PLOT:, :, inds["facial"]]
+            afferent_ts_facial.plot_timeseries(plotter_config=plotter.config,
+                                              hue="Region" if afferent_ts_facial.shape[2] > MAX_REGIONS_IN_ROWS else None,
+                                              per_variable=afferent_ts_facial.shape[1] > MAX_VARS_IN_COLS_AFF,
+                                              figsize=FIGSIZE, figname="`Facial motor nucleus TVB Afferent Time Series")
 
         if len(inds.get("trigeminal", [])):
             afferent_ts_trig = afferent_ts[-N_TIME_PLOT:, :, inds["trigeminal"]]
@@ -1076,29 +1475,28 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     return results
 
 
-def ansilob_affrerent_coupling_psd_rmse(ref_mossy_firing, afferent_ts, ftarg=None, transient=None):
-    if ftarg is None:
-        # TODO: confirm that we like this ftarg!
-        ftarg = np.arange(2.0, 51.0, 1.0)
-    # Adding the time vector to ref_mossy_firing - for a sim duration of 10s and 2.5-ms time bins
-    # TODO: Confirm that dt = 5.0 ms!
-    Pxx_den_ref = compute_data_PSDs(ref_mossy_firing, 5.0, ftarg,
-                                    transient=None, average_region_ps=False)
-    # First sum up the (non)isocortical afferent couplings!
-    #                                       iscortical                        non-isocortical
-    total_afferent_ts_ansilob = afferent_ts[1][:, 0, inds["ansilob"]] + afferent_ts[1][:, 1, inds["ansilob"]]
-    Pxx_den_ansilob = compute_data_PSDs(total_afferent_ts_ansilob.squeeze(),
-                                        np.mean(np.diff(afferent_ts[0])), ftarg,
-                                        transient=transient, average_region_ps=False)
-    MSE = np.square(np.subtract(Pxx_den_ansilob, Pxx_den_ref)).mean()
-    RMSE = math.sqrt(MSE)
-    print("RMSEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE with pathway gain = ", pathway_gain,
-          " is ", RMSE)
-    return RMSE
+# def ansilob_affrerent_coupling_psd_rmse(ref_mossy_firing, afferent_ts, ftarg=None, transient=None):
+#     if ftarg is None:
+#         # TODO: confirm that we like this ftarg!
+#         ftarg = np.arange(2.0, 51.0, 1.0)
+#     # Adding the time vector to ref_mossy_firing - for a sim duration of 10s and 2.5-ms time bins
+#     # TODO: Confirm that dt = 5.0 ms!
+#     Pxx_den_ref = compute_data_PSDs(ref_mossy_firing, 5.0, ftarg,
+#                                     transient=None, average_region_ps=False)
+#     # First sum up the (non)isocortical afferent couplings!
+#     #                                       iscortical                        non-isocortical
+#     total_afferent_ts_ansilob = afferent_ts[1][:, 0, inds["ansilob"]] + afferent_ts[1][:, 1, inds["ansilob"]]
+#     Pxx_den_ansilob = compute_data_PSDs(total_afferent_ts_ansilob.squeeze(),
+#                                         np.mean(np.diff(afferent_ts[0])), ftarg,
+#                                         transient=transient, average_region_ps=False)
+#     MSE = np.square(np.subtract(Pxx_den_ansilob, Pxx_den_ref)).mean()
+#     RMSE = math.sqrt(MSE)
+#     print("RMSEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE with pathway gain = ", pathway_gain,
+#           " is ", RMSE)
+#     return RMSE
 
 
-def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True,
-                 switch_off_cereb=False, **config_args):
+def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True, **config_args):
     tic = time.time()
     # Get configuration
     plot_flag = config_args.get('plot_flag', DEFAULT_ARGS.get('plot_flag'))
@@ -1109,59 +1507,62 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
               "Running TVB workflow for plot_flag=%s, write_files=%s,\nand model_params=\n%s...\n" 
               % (str(plot_flag), str(write_files), str(config.model_params)))
     # Load and prepare connectome and connectivity with all possible normalizations:
-    connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
+    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
-
-    if switch_off_cereb:
-        ## switch cereb OFF
-        reg1='Left Cerebellar Cortex'
-        reg2='Left Cerebellar Nuclei'
-        reg3='Left Ansiform lobule'
-        reg4='Left Interposed nucleus'
-        reg5='Right Cerebellar Cortex'
-        reg6='Right Cerebellar Nuclei'
-        reg7='Right Ansiform lobule'
-        reg8='Right Interposed nucleus'
-        # find the indices in region labels of these strings
-        iR1 = np.where([reg1 in reg for reg in connectivity.region_labels])[0]
-        iR2 = np.where([reg2 in reg for reg in connectivity.region_labels])[0]
-        iR3 = np.where([reg3 in reg for reg in connectivity.region_labels])[0]
-        iR4 = np.where([reg4 in reg for reg in connectivity.region_labels])[0]
-        iR5 = np.where([reg5 in reg for reg in connectivity.region_labels])[0]
-        iR6 = np.where([reg6 in reg for reg in connectivity.region_labels])[0]
-        iR7 = np.where([reg7 in reg for reg in connectivity.region_labels])[0]
-        iR8 = np.where([reg8 in reg for reg in connectivity.region_labels])[0]
-        for i in [iR1, iR2, iR3, iR4, iR5, iR6, iR7, iR8]:
-           connectivity.weights[i, :]=0
-           connectivity.weights[:, i]=0
-        ######## end of cereb switch off
 
     # Prepare model
     model = build_model(connectivity.number_of_regions, inds, maps, config)
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
+
+    if "CEREBOFF" in config.MODE:
+        inds_off = np.sort(inds['cereb_crtx'].tolist() +
+                           inds['cereb_nuclei'].tolist() +
+                           inds['ansilob'].tolist())
+        simulator.connectivity.weights[inds_off, :] = 0
+        simulator.connectivity.weights[:, inds_off] = 0
+        if config.VERBOSE:
+            print("\n")
+            print("-"*25)
+            print("-"*25)
+            print("Setting to 0.0 connections in and out of cerebellum\n"
+                  "['Left/Right Cerebellar Cortex'\n"
+                  "'Left/Right Cerebellar Nuclei'\n"
+                  "'Left Ansiform lobule']!!!:\n"
+                  "IN: %s\n"
+                  "OUT: %s" % (str(simulator.connectivity.weights[inds_off, :]),
+                               str(simulator.connectivity.weights[:, inds_off])))
+        simulator.connectivity.configure()
+        simulator.configure()
+
     # Run simulation and get results
     results, transient = simulate(simulator, config)
-    results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
-    if PSD_target is None:
-        # This is the PSD target we are trying to fit...
+
+    if plotter is not None:
+        results = plot_tvb(transient, inds, results, simulator=simulator, plotter=plotter,
+                           config=config, write_files=write_files)
+    else:
+        if PSD_target is None:
+            # This is the PSD target we are trying to fit...
+            if config.model_params['G']:
+                # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+                PSD_target = compute_target_PSDs_m1s1brl(config, write_files=write_files, plotter=plotter)
+            else:
+                # ...for a disconnected brain, average PS of all regions:
+                PSD_target = compute_target_PSDs_1D(config, write_files=write_files, plotter=plotter)
+            # This is the PSD computed from our simulation results...
         if config.model_params['G']:
             # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-            PSD_target = compute_target_PSDs_m1s1brl(config, write_files=True, plotter=plotter)
+            PSD = compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient,
+                                            write_files=write_files, psd_data_path=config.PSD_DATA_PATH,
+                                            plotter=plotter)
         else:
             # ...for a disconnected brain, average PS of all regions:
-            PSD_target = compute_target_PSDs_1D(config, write_files=True, plotter=plotter)
-    # This is the PSD computed from our simulation results...
-    if config.model_params['G']:
-        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-        PSD = compute_data_PSDs_m1s1brl(results["source_ts"], PSD_target, inds, transient, plotter=plotter)
-    else:
-        # ...for a disconnected brain, average PS of all regions:
-        PSD = compute_data_PSDs_1D(results["source_ts"], PSD_target, inds, transient, plotter=plotter)
-    results.update({"PSD": PSD, "transient": transient, "simulator": simulator, "config": config})
-    if plotter is not None:
-        results.update(plot_tvb(transient, inds, results, simulator=simulator, plotter=plotter,
-                                config=config, write_files=write_files))
+            PSD = compute_data_PSDs_1D(results[0], PSD_target, inds, transient,
+                                       write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+        results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
+        results.update({"PSD": PSD, "PSD_target": PSD_target})
+    results.update({"transient": transient, "simulator": simulator, "inds": inds, "config": config})
     if config.VERBOSE:
         print("\nFinished TVB workflow in %g sec!\n" % (time.time() - tic))
     return results
