@@ -70,7 +70,7 @@ def configure(**ARGS):
     major_structs_labels_filepath = os.path.join(data_path, MAJOR_STRUCTS_LABELS_FILE)
     voxel_count_filepath = os.path.join(data_path, VOXEL_COUNT_FILE)
     inds_filepath = os.path.join(data_path, INDS_FILE)
-    popa_freqs_path = os.path.join(data_path, 'PS_popa2013')
+    popa_freqs_path = os.path.join(data_path, 'popa2013')
     cereb_scaffold_path = os.path.join(data_path, 'balanced_DCN_IO.hdf5')
     outputs_path = os.path.join(work_path, "outputs")
     if len(args['output_folder']):
