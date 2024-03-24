@@ -683,7 +683,6 @@ def simulate_nest_network(nest_network, config, neuron_models={}, neuron_number=
 
 def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_args):
     tic = time.time()
-    plot_flag = config_args.get('plot_flag', DEFAULT_ARGS.get('plot_flag'))
     config, plotter = assert_config(config, return_plotter=True, **config_args)
     config.model_params.update(model_params)
     if config.VERBOSE:
@@ -693,7 +692,7 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
     with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
         dill.dump(config, file, recurse=1)
     # Load and prepare connectome and connectivity with all possible normalizations:
-    connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
+    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
     # Prepare model
     model = build_model(connectivity.number_of_regions, inds, maps, config)
@@ -701,6 +700,31 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
     # Build the NEST network
     nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
+
+    if "CEREBOFF" in config.MODE:
+        inds_off = np.sort(inds['cereb_crtx'].tolist() +
+                           inds['cereb_nuclei'].tolist() +
+                           inds['ansilob'].tolist())
+        simulator.connectivity.weights[inds_off, :] = 0
+        simulator.connectivity.weights[:, inds_off] = 0
+        if config.VERBOSE:
+            print("\n")
+            print("-"*25)
+            print("-"*25)
+            print("Setting to 0.0 connections in and out of cerebellum\n"
+                  "['Left/Right Cerebellar Cortex'\n"
+                  "'Left/Right Cerebellar Nuclei'\n"
+                  "'Left Ansiform lobule']!!!:\n"
+                  "IN: %s\n"
+                  "OUT: %s" % (str(simulator.connectivity.weights[inds_off, :]),
+                               str(simulator.connectivity.weights[:, inds_off])))
+        simulator.connectivity.configure()
+        simulator.configure()
+        for hemi in ["Right", "Left"]:
+            nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
+            print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
+            print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+
     # Simulate the NEST network
     nest_network = simulate_nest_network(nest_network, config, neuron_models, neuron_number)
     # Plot results
