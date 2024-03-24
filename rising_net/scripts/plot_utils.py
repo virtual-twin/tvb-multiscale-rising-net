@@ -382,134 +382,71 @@ def coherence_networks_plot(results,
     return fig, axes
 
 
-def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0):
+def prepare_plot_pathway(tests=["TVB", "TVB_CEREBOFF"]):
 
     """
          0000 1111 2222 3333 4444 5555
-    0000 S1          S1M1          M1
-    1111 S1Th S1PS	       M1PM M1Th
-    2222 S1Th STS1  PS   PM       M1Th
-    3333 TrS1 StS1 PSAL PMAL
-    4444  St  StAL   AL
-    5555 TrSt TrAL  ALCN     CNM1t
-    6666  Tr         CN      CNS1t
+    0000     S1       S1M1      M1
+    1111    S1Th 	       M1Th
+    2222    S1Th           M1Th
+    3333 TRS1 MDS1       AL     M1FC
+    4444  MD    MDAL      ALCN     FC
+    5555    TRMD        CN     CNM1
+    6666      TR      CNS1     FCTR
     """
-    if SENSTRIG + PONS > 0.0:
+    mosaic = np.tile(["."], (7, 6)).astype('O')
 
-        mosaic = np.tile(["."], (7, 6)).astype('O')
+    REGIONS = ["s1brl", "m1",
+               "s1brlthal", "m1thal",
+               "facial"
+               "medulla",
+               "ansilob", "cereb_nuclei",
+               "trigeminal"]
 
-        REGIONS = ["s1brl", "m1",
-                   "s1brlthal", "m1thal",
-                   "ponssens", "ponsmotor",
-                   "ponssens_trigeminal",
-                   "ansilob", "cereb_nuclei",
-                   "trigeminal"]
+    # PSD plots:
+    subplotsPSD = [[0, [0, 1]], [0, [4, 5]],  # S1, M1
+                   [2, [0, 1]], [2, [3, 4]],   # S1Th, M1Th
+                   [4,  5],                   # Facial
+                   [4, 0],                    # Medulla
+                   [3, 3], [5, 3],            # Ansilob, CerebNuclei
+                   [6, 1]]                    # Trigeminal
 
-        # PSD plots:
-        subplotsPSD = [[0, 0], [0, 5],            # S1, M1
-                       [2, 0], [2, 5],            # S1Th, M1Th
-                       [2, 2], [2, 3],            # PonsSens, PonsMotor
-                       [4, 0],                    # PonssensTrigeminal
-                       [4, [2, 3]], [6, [2, 3]],  # Ansilob, CerebNuclei
-                       [6, 0]]                    # Trigeminal
+    ipsiPSD = [True, True,
+               True, True,
+               False,
+               False,
+               False, False,
+               False]
 
-        ipsiPSD = [True, True,
-                   True, True,
-                   True, True,
-                   False,
-                   False, False,
-                   False]
+    REGPAIRS = [["s1brl", "m1"],
+                ["s1brl", "s1brlthal"], ["m1", "m1thal"],
+                ["m1", "facial"],
+                ["trigeminal", "s1brlthal"], ["ponssens_trigeminal", "s1brlthal"],
+                ["trigeminal", "ponssens_trigeminal"],
+                ["ponssens_trigeminal", "ansilob"],
+                ["ansilob", "cereb_nuclei"],
+                ["cereb_nuclei", "m1thal"], ["cereb_nuclei", "s1brlthal"],
+                ["facial", "trigeminal"]]
 
-        REGPAIRS = [["s1brl", "m1"],
-                    ["s1brl", "s1brlthal"], ["m1", "m1thal"],
-                    ["s1brl", "ponssens"], ["m1", "ponsmotor"],
-                    ["ponssens", "ansilob"], ["ponsmotor", "ansilob"],
-                    ["trigeminal", "s1brlthal"], ["ponssens_trigeminal", "s1brlthal"],
-                    ["ponssens_trigeminal", "ansilob"],
-                    ["trigeminal", "ponssens_trigeminal"],
-                    ["trigeminal", "ansilob"],
-                    ["ansilob", "cereb_nuclei"],
-                    ["cereb_nuclei", "m1thal"], ["cereb_nuclei", "s1brlthal"]]
+    subplotsCOH = [[0, [2, 3]],               # S1 <-> M1
+                   [1, [0, 1]], [1, [3, 4]],  # Crtx <-> Thal
+                   [3, [4, 5]],                # M1 -> Facial
+                   [3, 0], [3, 1],            # [Trigeminal, Medulla] -> S1 thal
+                   [5, [0, 1]],               # Trigeminal -> Medulla
+                   [4, [1, 2]],               # Medulla -> Ansilob
+                   [4, [3, 4]],               # Ansilob -> CerebNuclei
+                   [5, [4, 5]], [6, [2, 3]],  # CerebNuclei -> [M1thal, S1thal]
+                   [6, [4, 5]]]               # Facial -> Trigeminal
 
-        subplotsCOH = [[0, [2, 3]],               # S1 <-> M1
-                       [1, 0], [1, 5],            # Crtx <-> Thal
-                       [1, 1], [1, 4],            # Crtx -> Pons
-                       [3, 2], [3, 3],            # Pons -> Ansilob
-                       [3, 0], [3, 1],            # [Trig, SensTrig] -> S1 thal
-                       [4, 1],                    # SensTrig -> Ansilob
-                       [5, 0],                    # Trig -> SensTrig
-                       [5, 1],                    # Trig -> Ansilob
-                       [5, [2, 3]],               # Ansilob -> CerebNuclei
-                       [5, [4, 5]], [6, [4, 5]]]  # CerebNuclei -> [M1thal, S1thal]
-
-        ipsiCOH = [[True, True],                  # S1 <-> M1
-                   [True, True],  [True, True],   # Crtx <-> Thal
-                   [True, True],  [True, True],   # Crtx -> Pons
-                   [True, False], [True, False],  # Pons -> Ansilob
-                   [False, True], [False, True],  # [Trig, SensTrig] -> S1 thal
-                   [False, False],                # SensTrig -> Ansilob
-                   [False, False],                # Trig -> SensTrig
-                   [False, False],                # Trig -> Ansilob
-                   [False, False],                # Ansilob -> CerebNuclei
-                   [False, True], [False, True]]  # CerebNuclei -> [M1thal, S1thal]
-    else:
-        CEREB = False
-        for test in tests:
-            if test.find("cereb") > -1:
-                CEREB = True
-
-        REGIONS = ["s1brl", "m1",
-                   "s1brlthal", "m1thal"]
-        # PSD plots:
-        subplotsPSD = [[0, 0], [0, 2],  # S1, M1
-
-                       [2, 0], [2, 2]]  # S1Th, M1Th
-        ipsiPSD = [True, True,
-                   True, True]
-
-        REGPAIRS = [["s1brl", "m1"],
-                    ["s1brl", "s1brlthal"], ["m1", "m1thal"],
-                    ["trigeminal", "s1brlthal"]]
-
-        subplotsCOH = [[0, 1],  # S1M1
-                       [1, 0], [1, 2],  # S1S1th, M1M1Th
-
-                       [3, 0]]  # TRS1Th
-        ipsiCOH = [[True, True],
-                   [True, True], [True, True],
-                   [False, True]]
-        if CEREB:
-            nRows = 6
-            REGIONS += ["ansilob", "cereb_nuclei", "trigeminal"]
-            ipsiPSD += [False, False, False]
-            # PSD plots:
-            subplotsPSD += [[4, 1], [3, 1],  # AL, CN
-                            [5, 0]]  # TR
-
-            REGPAIRS += [["ansilob", "cereb_nuclei"], ["cereb_nuclei", "m1thal"], ["trigeminal", "ansilob"]]
-            # COH plots:
-            subplotsCOH += [[4, 2], [3, 2],  # ALCN, CNM1Th
-
-                            [5, 1]]  # TRAL
-            ipsiCOH += [[False, False], [False, True],
-                        [False, False]]
-
-            if CNS1TH > 0.0:
-                REGPAIRS += [["cereb_nuclei", "s1brlthal"]]
-                subplotsCOH += [[5, 2]]
-                ipsiCOH += [[False, True]]
-        else:
-            nRows = 4
-            # PSD plots:
-            REGIONS += ["trigeminal"]
-            subplotsPSD += [[3, 1]]  # TR
-            ipsiPSD += [False]
-
-            REGPAIRS += [["trigeminal", "m1thal"]]
-            subplotsCOH += [[3, 2]]
-            ipsiCOH += [[False, True]]
-
-        mosaic = np.tile(["."], (nRows, 3)).astype('O')
+    ipsiCOH = [[True, True],                  # S1 <-> M1
+               [True, True],  [True, True],   # Crtx <-> Thal
+               [True, False],                 # M1 -> Facial
+               [False, True], [False, True],  # [Trigeminal, Medulla] -> S1 thal
+               [False, False],                # Trigeminal -> Medulla
+               [False, False],                # Medulla -> Ansilob
+               [False, False],                # Ansilob -> CerebNuclei
+               [False, True], [False, True],  # CerebNuclei -> [M1thal, S1thal]
+               [False, False]]                # Facial -> Trigeminal
 
     # PSD plots:
     for ax, reg in zip(subplotsPSD, REGIONS):
@@ -521,13 +458,12 @@ def prepare_plot_pathway(tests=["cerebON", "cerebOFF"], CNS1TH=1.0, PONS=0.5, SE
     return mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH
 
 
-def plot_pathway_psd_coh(results, inds, CNS1TH=1.0, PONS=0.5, SENSTRIG=1.0, tests=["cerebON", "cerebOFF"], colors=["g", "r"],
+def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["g", "r"],
                          percentile_min=1, percentile_max=99, n=1,
                          plot_mean=False, plot_median=True, mode="semilog",
                          alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
 
-    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = \
-        prepare_plot_pathway(tests, CNS1TH, PONS, SENSTRIG)
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests)
 
     figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
     figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
