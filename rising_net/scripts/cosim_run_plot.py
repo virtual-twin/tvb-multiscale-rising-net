@@ -98,6 +98,9 @@ def get_config(**kwargs):
     config.COSIMULATION = False
     if test_name.find('cosim') > -1:
         config.COSIMULATION = True
+        config.NEST_PERIPHERY = True
+    else:
+        config.NEST_PERIPHERY = False
 
     print(config.model_params)
     print(config)
@@ -281,30 +284,31 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
     indegree_ratios["s1brlthal"] = indegree_ratio
 
     source = []
-    # 5. AnsiLob <- Trigeminal (stimulus)
+    # 5. AnsiLob <- ...
     if not NEST_PERIPHERY:
         print("-" * 25 + "\n")
-        # 2. (S1 brl &) PosSens (Trigeminal) + (M1 &) MotorPons -> AnsiLob
-        source = np.concatenate([source,
-                                 inds["trigeminal"],
-                                 inds["ponssens_trigeminal"],  # ipsilaterally or bilaterally
-                               ])
-    if PONS:
-        source = np.concatenate([source,
-                                 inds["ponssens"][::-1],  # contralaterally or bilaterally
-                                 # including B. FEEDBACK SENSORY PATHWAY
-                                 # inds["s1brl"][::-1], # TODO: Think about this connection as well!
-                                 # including # D. FEEDBACK MOTOR PATHWAY
-                                 inds["ponsmotor"][::-1],  # contralaterally or bilaterally
-                                 # inds["m1"][::-1], # TODO: Think about this connection as well!
-                                 ])
-        print("[trigeminal, ponssens_trigeminal, ponssens, ponsmotor] -> ansilob")
-    else:
-        print("[trigeminal, ponssens_trigeminal] -> ansilob")
-
-    if len(source):
+    #     # 2. PosSens Trigeminal  -> AnsiLob
+    #     source = np.concatenate([source,
+    #                              # inds["trigeminal"],
+    #                              inds["ponssens_trigeminal"]  # ipsilaterally or bilaterally
+    #                            ])
+    # if PONS:
+    #     source = np.concatenate([source,
+    #                              inds["ponssens"][::-1],  # contralaterally or bilaterally
+    #                              # including B. FEEDBACK SENSORY PATHWAY
+    #                              # inds["s1brl"][::-1], # TODO: Think about this connection as well!
+    #                              # including # D. FEEDBACK MOTOR PATHWAY
+    #                              inds["ponsmotor"][::-1],  # contralaterally or bilaterally
+    #                              # inds["m1"][::-1], # TODO: Think about this connection as well!
+    #                              ])
+    #     print("[ponssens_trigeminal, ponssens, ponsmotor] -> ansilob")  # trigeminal,
+    # else:
+        print("[ponssens_trigeminal] -> ansilob")  # trigeminal,
+    #
+    # if len(source):
+    #     # 2. PosSens Trigeminal  -> AnsiLob
         weights, indegree_ratio = \
-            apply_pathway_gain_to_target(source,
+            apply_pathway_gain_to_target(inds["ponssens_trigeminal"],
                                          inds["ansilob"],
                                          CEREB*pathway_gain, weights,
                                          hemispheres=hemispheres,
@@ -353,7 +357,7 @@ def apply_pathway_gain(weights, inds, pathway_gain, indegree_gain,
 
     weights, indegree_ratio = apply_pathway_gain_to_target(
         inds["s1brl"], inds["m1"],
-        1.0, # pathway_gain,
+        1.0,  # pathway_gain,
         weights, hemispheres=0,
         fix_inds=inds["m1thal"].tolist(),
         indegree_gain=pathway_gain  # 5*indegree_gain
@@ -428,7 +432,7 @@ def print_weight_to_indegree(src, trg, inds, w, hemispheres=1):
 def cosim_run_plot(**kwargs):
 
     config, plotter = get_config(**kwargs)
-    config.NEST_PERIPHERY = True
+    # config.NEST_PERIPHERY = True
     config.NEST_PERIPHERY_MANY_NEURONS = False
 
     # Load and prepare connectome and connectivity with all possible normalizations:
@@ -536,6 +540,7 @@ def cosim_run_plot(**kwargs):
     pyplot.savefig(os.path.join(config.figures.FOLDER_FIGURES, "taskSC.png"), format="png")
 
     print("config.STIMULUS = %g" % config.STIMULUS)
+    nest_network = None
     if config.COSIMULATION:
         # Build TVB-NEST interfaces
         config.NEST_BACKGROUND_FREQ = 0.0
