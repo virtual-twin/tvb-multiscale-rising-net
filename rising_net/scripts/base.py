@@ -21,15 +21,16 @@ from tvb.simulator.integrators import EulerStochastic
 
 
 DEFAULT_ARGS = {# TVB model:
-                'I_s': 0.1,
-                'w_rs': -2.0,
+                'I_s': 0.085,
+                "STIMULUS": 0.25,
                 # TVB network:
                 'G': 6.0,
-                'FIC': 2.0,
+                'FIC': 1.11,  # 2.0,
+                'FIC_SPLIT': 0.31,  # 2.0,
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
                 "TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
-                "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
+                "TRIGS1_GAIN": 15.0, "MEDULLAS1_GAIN": 15.0, "CNS1_GAIN": 20.0,
                 "CNM1_GAIN": 50.0,
                 "M1S1_GAIN": 50.0,
                 "M1FACIAL_GAIN": 1.0,   # 50.0,
@@ -167,7 +168,7 @@ def configure(**ARGS):
     config.model_params['I_e'] = args.get('I_e', -0.35)
     config.model_params['w_ie'] = args.get('w_ie', -3.0)
     config.model_params['w_rs'] = args.get('w_rs', -2.0)
-    config.model_params['STIMULUS'] = args.get('STIMULUS', 0.0)  # 0.25
+    config.model_params['STIMULUS'] = args.get('STIMULUS', 0.25)  # 0.25
     config.STIMULUS_RATE = 8.0  # Hz
     config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
 

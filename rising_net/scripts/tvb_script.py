@@ -160,7 +160,6 @@ def build_connectivity(connectome, inds, config):
     connectivity.speed = np.array([config.CONN_SPEED])
     connectivity.tract_lengths = np.maximum(connectivity.speed * config.DEFAULT_DT,
                                             connectivity.tract_lengths)
-
     connectivity.configure()
 
     #if "w" in config.THAL_CRTX_FIX:
@@ -235,13 +234,13 @@ def build_model(number_of_regions, inds, maps, config):
                     # G normalized by the number of regions as in Griffiths et al paper
                     # Geff = G /(number_of_regions - inds['thalspec'].size)
                     pval = pval / (number_of_regions - inds['thalspec'].size)
-                elif p in ["I_e", "w_ie"]:
-                    pval = pval * np.ones((number_of_regions,))
-                elif p == "w_rs":
-                    pdummy = -2.0 * dummy
-                    pdummy[inds["m1thal"]] = pval
-                    # pdummy[inds["s1brlthal"]] = pval
-                    pval = pdummy
+                # elif p in ["I_e", "w_ie"]:
+                #     pval = pval * np.ones((number_of_regions,))
+                # elif p == "w_rs":
+                #     pdummy = -2.0 * dummy
+                #     pdummy[inds["m1thal"]] = pval
+                #     # pdummy[inds["s1brlthal"]] = pval
+                #     pval = pdummy
                 model_params[p] = pval
 
     if STIMULUS:
@@ -379,14 +378,6 @@ def apply_fic(simulator, inds, config, plotter=None):
                     fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
                         inds["non_thalamic"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
                         plotter=plotter))
-
-    # if config.VERBOSE:
-    #     print("Applying FIC for parameter w_ie: G * FIC = %g * %g = %g!" % (G, config.FIC, G * config.FIC))
-    # # We will modify the w_ie and w_rs parameters a bit based on indegree:
-    # setattr(simulator.model, "w_ie",
-    #         fic("w_ie", getattr(simulator.model, "w_ie"), simulator.connectivity.weights,
-    #             inds["non_thalamic"], inds["non_thalamic"], FIC=config.FIC, G=G, dummy=None, subtitle="",
-    #             plotter=plotter))
     return simulator
 
 
@@ -709,7 +700,7 @@ def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
     return simulator
 
 
-def print_weight_to_indegree(src, trg, inds, w, task_laterality=1):
+def print_weight_to_indegree(src, trg, inds, w, task_laterality=-1):
     print("\n" + "-"*25)
     print("%s -> %s" % (src, trg))
     print(w[inds[trg]][:, inds[src]])
@@ -865,19 +856,19 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     #     simulator.model.w_ie[inds["medulla"]] = -3.0
     #     simulator.model.w_ie[inds["ansilob"]] = -3.0
     #     simulator.model.w_ie[inds["cereb_nuclei"]] /= 2.0
-    if config.VERBOSE:
-        print("Facial I_e: %g" % simulator.model.I_e[inds["facial"]].mean())
-        print("Trigeminal I_e: %g" % simulator.model.I_e[inds["trigeminal"]].mean())
-        print("Medulla I_e: %g" % simulator.model.I_e[inds["medulla"]].mean())
-        print("Ansilob I_e: %g" % simulator.model.I_e[inds["ansilob"]].mean())
-        print("CerebNuclei I_e: %g" % simulator.model.I_e[inds["cereb_nuclei"]].mean())
-        print("Facial w_ie: %g" % simulator.model.w_ie[inds["facial"]].mean())
-        print("Trigeminal w_ie: %g" % simulator.model.w_ie[inds["trigeminal"]].mean())
-        print("Medulla w_ie: %g" % simulator.model.w_ie[inds["medulla"]].mean())
-        print("Ansilob w_ie: %g" % simulator.model.w_ie[inds["ansilob"]].mean())
-        print("CerebNuclei w_ie: %g" % simulator.model.w_ie[inds["cereb_nuclei"]].mean())
-        print("M1 spec thal w_rs: %g" % simulator.model.w_rs[inds["m1thal"]].mean())
-        print("S1 brl spec thal w_rs: %g" % simulator.model.w_rs[inds["s1brlthal"]].mean())
+    # if config.VERBOSE:
+    #     print("Facial I_e: %g" % simulator.model.I_e[inds["facial"]].mean())
+    #     print("Trigeminal I_e: %g" % simulator.model.I_e[inds["trigeminal"]].mean())
+    #     print("Medulla I_e: %g" % simulator.model.I_e[inds["medulla"]].mean())
+    #     print("Ansilob I_e: %g" % simulator.model.I_e[inds["ansilob"]].mean())
+    #     print("CerebNuclei I_e: %g" % simulator.model.I_e[inds["cereb_nuclei"]].mean())
+    #     print("Facial w_ie: %g" % simulator.model.w_ie[inds["facial"]].mean())
+    #     print("Trigeminal w_ie: %g" % simulator.model.w_ie[inds["trigeminal"]].mean())
+    #     print("Medulla w_ie: %g" % simulator.model.w_ie[inds["medulla"]].mean())
+    #     print("Ansilob w_ie: %g" % simulator.model.w_ie[inds["ansilob"]].mean())
+    #     print("CerebNuclei w_ie: %g" % simulator.model.w_ie[inds["cereb_nuclei"]].mean())
+    #     print("M1 spec thal w_rs: %g" % simulator.model.w_rs[inds["m1thal"]].mean())
+    #     print("S1 brl spec thal w_rs: %g" % simulator.model.w_rs[inds["s1brlthal"]].mean())
 
     # Set monitors:
     if config.RAW_PERIOD > config.DEFAULT_DT:
