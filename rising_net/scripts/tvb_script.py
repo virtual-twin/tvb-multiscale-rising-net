@@ -183,9 +183,9 @@ def build_connectivity(connectome, inds, config,
         connectivity.weights[inds["thalspec"], inds["crtx"]] = 1.0
 
     # Remove connections between specific thalami and the rest of the subcortex:
-    trigeminal_inds = inds["trigeminal"]
-    senstrig_inds = inds["ponssens_trigeminal"]
-    cereb_nuclei_inds = inds["cereb_nuclei"]
+    trigeminal_inds = np.copy(inds["trigeminal"])
+    senstrig_inds = np.copy(inds["ponssens_trigeminal"])
+    cereb_nuclei_inds = np.copy(inds["cereb_nuclei"])
     if hemispheres == -1:
         trigeminal_inds = trigeminal_inds[::-1]
         senstrig_inds = senstrig_inds[::-1]
