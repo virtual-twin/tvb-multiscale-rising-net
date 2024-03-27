@@ -361,11 +361,8 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
     # Build NEST network
     nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
-    # Build TVB-NEST interfaces
-    simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
-                                                        neuron_models, start_id_scaffold)
 
-    if "CEREBOFF" in config.MODE:
+    if "OFF" in config.MODE:
         inds_off = np.sort(inds['cereb_crtx'].tolist() +
                            inds['cereb_nuclei'].tolist() +
                            inds['ansilob'].tolist())
@@ -388,6 +385,10 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
             nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
             print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
             print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+
+    # Build TVB-NEST interfaces
+    simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
+                                                        neuron_models, start_id_scaffold)
 
     # Simulate TVB-NEST model
     results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
