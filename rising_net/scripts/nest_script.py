@@ -701,7 +701,7 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
     # Build the NEST network
     nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
 
-    if "CEREBOFF" in config.MODE:
+    if "OFF" in config.MODE:
         inds_off = np.sort(inds['cereb_crtx'].tolist() +
                            inds['cereb_nuclei'].tolist() +
                            inds['ansilob'].tolist())
