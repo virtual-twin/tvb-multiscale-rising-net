@@ -12,6 +12,8 @@ from matplotlib import pyplot as plt
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesX
 from tvb.contrib.scripts.utils.data_structures_utils import is_integer, is_float, ensure_list
 
+from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
+
 
 def print_lbl(lbl, siz, prnt=""):
     prnt += lbl
@@ -388,3 +390,68 @@ def intval(x):
         return int(10*x)
     else:
         return int(x)
+
+
+def dump_pickled_time_series(time_series, filepath):
+    dump_pickled_dict({"data": time_series.data[:, :, :, 0],
+                       "dimensions_labels": np.array(time_series.labels_ordering),
+                       "Time": time_series.time, "time_unit": time_series.time_unit,
+                       "sample_period": time_series.sample_period,
+                       "State Variable": np.array(time_series.variables_labels),
+                       "Region": np.array(time_series.space_labels)},
+                      filepath)
+    return filepath
+
+
+def load_pickled_time_series(filepath, connectivity=None):
+    from tvb_multiscale.core.utils.file_utils import load_pickled_dict
+    from tvb.datatypes.connectivity import Connectivity
+
+    tsdict = load_pickled_dict(filepath)
+
+    data = tsdict.get("time_series", tsdict.get("data", None))
+    if data is None:
+        raise ValueError("Time Series data in %s is None!" % filepath)
+    while data.ndim < 4:
+        data = np.expand_dims(data, axis=-1)
+
+    dimensions = list(tsdict.get("dimensions_labels",
+                                 tsdict.get("dimensions",
+                                            tsdict.get("labels_ordering", []))))
+    DEFAULT_DIMENSIONS = ["Time", "State Variable", "Region", "Mode"]
+    for ii in range(data.ndim):
+        if len(dimensions) < ii+1:
+            dimensions.append(DEFAULT_DIMENSIONS[ii])
+
+    # Legacy:
+    labels_dimensions = tsdict.get("labels_dimensions", dict())
+    for label, key in zip(dimensions[:3],
+                          ["time", "state_variables", "region_labels"]):
+        if label not in labels_dimensions:
+            val = tsdict.get(label, tsdict.get(key, None))
+            if val is not None:
+                labels_dimensions[label] = val
+
+    time = tsdict.get("Time", tsdict.get("time", labels_dimensions.get("Time", None)))
+    if time is not None:
+        sample_period = tsdict.get("sample_period", np.mean(np.diff(time)))
+    else:
+        sample_period = None
+
+    if isinstance(connectivity, Connectivity):
+        from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
+        labels_dimensions["Region"] = connectivity.region_labels
+        return TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
+            data=data, time=time,
+            connectivity=simulator.connectivity,
+            labels_ordering=dimensions,
+            labels_dimensions=labels_dimensions,
+            sample_period=sample_period)
+    else:
+        from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesXarray
+        labels_dimensions["Region"] = tsdict.get("region_labels", None)
+        return TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
+                                data=data,  time=time,
+                                labels_ordering=dimensions,
+                                labels_dimensions=labels_dimensions,
+                                sample_period=sample_period)
