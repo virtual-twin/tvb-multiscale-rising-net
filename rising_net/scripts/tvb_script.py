@@ -7,7 +7,8 @@ from scipy.signal import welch
 import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
-from rising_net.scripts.utils import get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw
+from rising_net.scripts.utils import \
+    get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw, dump_pickled_time_series
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -36,21 +37,64 @@ def load_connectome(config):
     return connectome, major_structs_labels, voxel_count, inds
 
 
+def insert_whiskers_to_connectome(connectome, major_structs_labels, voxel_count, inds, config):
+
+    def insert_along_axis(arr, vals, N, axis=0):
+        new_arr = np.insert(arr, int(N / 2), vals[0], axis=axis)
+        return np.insert(new_arr, 212 + 1, vals[1], axis=axis)
+
+    def insert_2D(arr, vals, N):
+        new_arr = insert_along_axis(arr, vals, N, axis=0)
+        return insert_along_axis(new_arr, vals, N, axis=1)
+
+    connectome = dict(connectome)
+    N = connectome["region_labels"].shape[0]
+
+    connectome["region_labels"] = insert_along_axis(connectome["region_labels"],
+                                                    ['Right Whiskers', 'Left Whiskers'],
+                                                    N, axis=0)
+    #     whiskers_cntrs = (connectome["centres"][inds["facial"]] - connectome["centres"][inds["trigeminal"]])/2
+    #     connectome["centres"] = insert_along_axis(connectome["centres"],
+    #                                               [whiskers_cntrs[0], whiskers_cntrs[1]],
+    #                                               N, axis=0)
+
+    connectome["weights"] = insert_2D(connectome["weights"], [0, 0], N)
+    connectome["tract_lengths"] = insert_2D(connectome["tract_lengths"], [0, 0], N)
+
+    major_structs_labels = insert_along_axis(major_structs_labels,
+                                             ['Right Whiskers', 'Left Whiskers'],
+                                             N, axis=0)
+
+    voxel_count = insert_along_axis(voxel_count, [0, 0], N, axis=0)
+
+    for key, val in inds.items():
+        val[val >= 106] = val[val >= 106] + 1
+
+    inds["whiskers"] = np.array([int(N / 2), int(N + 1)])
+
+    connectome["weights"][inds["whiskers"], inds["facial"]] = config.WHISKERS
+
+    return connectome, major_structs_labels, voxel_count, inds
+
+
 def construct_extra_inds_and_maps(connectome, inds, config):
+    whiskinds = list(inds.get("whiskers", []))
     maps = {}
     region_labels = connectome['region_labels']
     inds["subcrtx"] = np.arange(len(region_labels)).astype('i')
-    inds["subcrtx"] = np.delete(inds["subcrtx"], inds["crtx"])
+    inds["subcrtx"] = np.delete(inds["subcrtx"], inds["crtx"].tolist() + whiskinds)
     maps["is_subcortical"] = np.array([False] * region_labels.shape[0]).astype("bool")
     maps["is_subcortical"][inds["subcrtx"]] = True
     maps["is_cortical"] = np.array([False] * region_labels.shape[0]).astype("bool")
     maps["is_cortical"][inds["crtx"]] = True
     maps["is_thalamic"] = np.array([False] * region_labels.shape[0]).astype("bool")
     maps["is_thalamic"][inds["thalspec"]] = True
-    maps["not_thalamic"] = np.logical_not(maps["is_thalamic"])
+    maps["is_whiskers"] = np.array([False] * region_labels.shape[0]).astype("bool")
+    if len(whiskinds):
+        maps["is_whiskers"][whiskinds] = True
+    maps["not_thalamic"] = np.logical_not(np.logical_or(maps["is_thalamic"], maps["is_whiskers"]))
     maps["is_subcortical_not_thalspec"] = np.logical_and(maps["is_subcortical"], np.logical_not(maps["is_thalamic"]))
     inds["subcrtx_not_thalspec"] = np.where(maps["is_subcortical_not_thalspec"])[0]
-    inds["not_subcrtx_not_thalspec"] = np.where(np.logical_not(maps['is_subcortical_not_thalspec']))[0]
     inds['crtx_and_subcrtx'] = np.sort(np.concatenate([inds['crtx'], inds["subcrtx_not_thalspec"]]))
     # Indices of cortical and subcortical regions excluding specific thalami
     inds["non_thalamic"] = np.unique(inds['crtx'].tolist() + inds["subcrtx_not_thalspec"].tolist())
@@ -60,6 +104,8 @@ def construct_extra_inds_and_maps(connectome, inds, config):
                                       inds["m1thal"], inds["s1brlthal"],
                                       inds['facial'], inds["trigeminal"], inds['ponssens_trigeminal'],
                                       inds['ansilob'], inds['cereb_nuclei']])
+    if len(whiskinds):
+        config.TASKINDS = np.concatenate([config.TASKINDS, inds["whiskers"]])
     config.TASKINDS = np.sort(config.TASKINDS)
     return inds, maps, config
 
@@ -70,8 +116,8 @@ def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
     h, bins = np.histogram(h, range=(1.0, 31), bins=100)
 
     w_within_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]]
-    w_from_sub = w[inds["not_subcrtx_not_thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]]
-    w_to_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["not_subcrtx_not_thalspec"][None, :]]
+    w_from_sub = w[inds["crtx"][:, None], inds["subcrtx_not_thalspec"][None, :]]
+    w_to_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["crtx"][None, :]]
     h_sub = np.array(w_within_sub.flatten().tolist() +
                      w_from_sub.flatten().tolist() +
                      w_to_sub.flatten().tolist())
@@ -80,8 +126,7 @@ def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
     h_sub, bins_sub = np.histogram(h_sub, range=(1.0, 31), bins=100)
     assert np.all(bins == bins_sub)
 
-    h_crtx = np.array(w[inds["not_subcrtx_not_thalspec"][:, None],
-                        inds["not_subcrtx_not_thalspec"][None, :]].flatten().tolist())
+    h_crtx = np.array(w[inds["crtx"][:, None], inds["crtx"][None, :]].flatten().tolist())
     h_crtx = h_crtx[h_crtx > 0]
     # print('number of h_crtx > 0: %d' % h_crtx.size)
     h_crtx, bins_crtx = np.histogram(h_crtx, range=(1.0, 31), bins=100)
@@ -133,7 +178,10 @@ def logprocess_weights(connectome, inds, verbose=1, plotter=None):
 def prepare_connectome(config, plotter=None):
     # Load connectome and other structural files
     connectome, major_structs_labels, voxel_count, inds = load_connectome(config)
-    # Construct some more indices and maps
+    if config.WHISKERS:
+        connectome, major_structs_labels, voxel_count, inds = \
+            insert_whiskers_to_connectome(connectome, major_structs_labels, voxel_count, inds, config)
+        # Construct some more indices and maps
     inds, maps, config = construct_extra_inds_and_maps(connectome, inds, config)
     # if config.CONN_LOG:
     if config.VERBOSE:
@@ -160,7 +208,15 @@ def build_connectivity(connectome, inds, config):
     connectivity.speed = np.array([config.CONN_SPEED])
     connectivity.tract_lengths = np.maximum(connectivity.speed * config.DEFAULT_DT,
                                             connectivity.tract_lengths)
+    if config.WHISKERS:
+        connectivity.weights[inds["whiskers"], inds["facial"]] = 1.0
+        connectivity.weights[inds["trigeminal"], inds["whiskers"]] = config.WHISKERS
     connectivity.configure()
+    if config.WHISKERS * config.VERBOSE:
+        print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["whiskers"], inds["facial"]]))
+        print("Facial -> Whiskers delays!:\n%s" % str(connectivity.delays[inds["whiskers"], inds["facial"]]))
+        print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["trigeminal"], inds["whiskers"]]))
+        print("Facial -> Whiskers delays!:\n%s" % str(connectivity.delays[inds["trigeminal"], inds["whiskers"]]))
 
     #if "w" in config.THAL_CRTX_FIX:
     # Fix the thalamocortical weights to 1.0:
@@ -218,7 +274,7 @@ def build_connectivity(connectome, inds, config):
 def build_model(number_of_regions, inds, maps, config):
     from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
 
-    dummy = np.ones((number_of_regions,))
+    dummy = np.ones((number_of_regions,1))
 
     if config.VERBOSE:
         print("Configuring model with parameters:\n%s" % str(config.model_params))
@@ -264,9 +320,19 @@ def build_model(number_of_regions, inds, maps, config):
         f_st[inds_stim] = config.STIMULUS_RATE  # Hz
         model_params.update({"A_st": A_st, "B_st": B_st, "f_st": f_st})
 
+    if config.WHISKERS:
+        model_params["tau_e"] = WilsonCowanThalamoCortical.tau_e.default * dummy
+        model_params["tau_i"] = WilsonCowanThalamoCortical.tau_i.default * dummy
+        model_params["tau_e"][inds["subcrtx_not_thalspec"]] = 4.0
+        model_params["tau_i"][inds["subcrtx_not_thalspec"]] = 4.0
+
     model = WilsonCowanThalamoCortical(is_cortical=maps['is_cortical'][:, np.newaxis],
                                        is_thalamic=maps['is_thalamic'][:, np.newaxis],
+                                       is_whiskers=maps["is_whiskers"][:, np.newaxis],
                                        **model_params)
+
+
+
     model.dt = config.DEFAULT_DT
 
     # Remove Specific thalamic relay -> nonspecific subcortical structures connections!
@@ -778,6 +844,7 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     simulator.connectivity.tract_lengths[inds["crtx"], inds["thalspec"]] = ct_lengths
     simulator.connectivity.tract_lengths[inds["thalspec"], inds["crtx"]] = ct_lengths
     simulator.connectivity.configure()
+
     # if not config.THAL_CRTX_FIX or "d" not in config.THAL_CRTX_FIX:
     #     tau_ct = simulator.model.tau_ct * dummy
     #     tau_ct[inds['crtx']] = simulator.connectivity.delays[inds["thalspec"], inds["crtx"]]
@@ -787,7 +854,7 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # Set the sigmoidal coupling function:
     simulator.coupling = SigmoidalPreThalamoCortical(
         is_thalamic=maps['is_thalamic'],
-        is_subcortical=maps['is_subcortical'],
+        is_subcortical=np.logical_or(maps['is_subcortical'], maps['is_whiskers']),
         sigma=np.array([1.0]),
         midpoint=simulator.model.sigma,
         cmin=np.array([0.0]),
@@ -813,6 +880,8 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
         simulator.model.I_s.mean().item() * (1.0 + np.random.normal(size=(1000, 1, n_thalspec, 1)))
     simulator.initial_conditions[:, [[1]], inds['thalspec']] = \
         simulator.model.I_r.mean().item() * (1.0 + np.random.normal(size=(1000, 1, n_thalspec, 1)))
+    if config.WHISKERS:
+        simulator.initial_conditions[:, :, inds['whiskers']] = 0.0
 
     # Apply FIC if required:
     if config.FIC and simulator.model.G[0].item():
@@ -1072,17 +1141,6 @@ def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
     return Pxx_den.flatten()
 
 
-def dump_pickled_time_series(time_series, filepath):
-    dump_pickled_dict({"time_series": time_series.data[:, :, :, 0],
-                       "dimensions_labels": np.array(time_series.labels_ordering)[:-1],
-                       "time": time_series.time, "time_unit": time_series.time_unit,
-                       "sample_period": time_series.sample_period,
-                       "state_variables": np.array(time_series.variables_labels),
-                       "region_labels": np.array(time_series.space_labels)},
-                      filepath)
-    return filepath
-
-
 def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
     config = assert_config(config, return_plotter=False)
@@ -1259,6 +1317,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                           hue="Region" if source_ts_m1s1brl.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                           per_variable=source_ts_m1s1brl.shape[1] > MAX_VARS_IN_COLS,
                                           figsize=FIGSIZE, figname="M1 and S1 barrel field nodes TVB Time Series")
+
         # Focus on the motor pathway:
         if len(inds.get("motor", [])):
             source_ts_motor = source_ts[-N_TIME_PLOT:, :, inds["motor"]]
@@ -1266,6 +1325,14 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                             hue="Region" if source_ts_motor.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                             per_variable=source_ts_motor.shape[1] > MAX_VARS_IN_COLS,
                                             figsize=FIGSIZE, figname="Motor pathway TVB Time Series")
+        if config.WHISKERS:
+            # Focus on the m1 and s1 barrel field nodes:
+            source_ts_w = source_ts[-N_TIME_PLOT:, 0, inds["whiskers"]]
+            source_ts_w.plot_timeseries(plotter_config=plotter.config,
+                                        hue="Region" if source_ts_w.shape[
+                                                            2] > MAX_REGIONS_IN_ROWS else None,
+                                        per_variable=source_ts_w.shape[1] > MAX_VARS_IN_COLS,
+                                        figsize=FIGSIZE, figname="Whiskers' TVB Time Series")
         # Focus on the sensory pathway:
         if len(inds.get("sens", [])):
             source_ts_sens = source_ts[-N_TIME_PLOT:, :, inds["sens"]]
@@ -1310,6 +1377,13 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                                     show_flag=plotter.config.SHOW_FLAG,
                                                     save_flag=plotter.config.SAVE_FLAG)
 
+        if config.WHISKERS:
+            compute_plot_selected_spectra_coherence(source_ts, inds["whiskers"],
+                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    figures_path=config.figures.FOLDER_FIGURES,
+                                                    figname="Whiskers", figformat="png",
+                                                    show_flag=plotter.config.SHOW_FLAG,
+                                                    save_flag=plotter.config.SAVE_FLAG)
 
         # Power Spectra and Coherence along the sensory pathway:
         # for Medulla SPV, Sensory PONS
@@ -1401,6 +1475,14 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                                               hue="Region" if afferent_ts_facial.shape[2] > MAX_REGIONS_IN_ROWS else None,
                                               per_variable=afferent_ts_facial.shape[1] > MAX_VARS_IN_COLS_AFF,
                                               figsize=FIGSIZE, figname="`Facial motor nucleus TVB Afferent Time Series")
+
+        if config.WHISKERS:
+            afferent_ts_w = afferent_ts[-N_TIME_PLOT:, :, inds["whiskers"]]
+            afferent_ts_w.plot_timeseries(plotter_config=plotter.config,
+                                          hue="Region" if afferent_ts_w.shape[
+                                                                   2] > MAX_REGIONS_IN_ROWS else None,
+                                          per_variable=afferent_ts_w.shape[1] > MAX_VARS_IN_COLS_AFF,
+                                          figsize=FIGSIZE, figname="`Whiskers TVB Afferent Time Series")
 
         if len(inds.get("trigeminal", [])):
             afferent_ts_trig = afferent_ts[-N_TIME_PLOT:, :, inds["trigeminal"]]
@@ -1506,7 +1588,7 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
 
-    if "CEREBOFF" in config.MODE:
+    if "OFF" in config.MODE:
         inds_off = np.sort(inds['cereb_crtx'].tolist() +
                            inds['cereb_nuclei'].tolist() +
                            inds['ansilob'].tolist())
