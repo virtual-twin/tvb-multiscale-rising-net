@@ -7,7 +7,8 @@ from scipy.signal import welch
 import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
-from rising_net.scripts.utils import get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw
+from rising_net.scripts.utils import \
+    get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw, dump_pickled_time_series
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -50,7 +51,6 @@ def construct_extra_inds_and_maps(connectome, inds, config):
     maps["not_thalamic"] = np.logical_not(maps["is_thalamic"])
     maps["is_subcortical_not_thalspec"] = np.logical_and(maps["is_subcortical"], np.logical_not(maps["is_thalamic"]))
     inds["subcrtx_not_thalspec"] = np.where(maps["is_subcortical_not_thalspec"])[0]
-    inds["not_subcrtx_not_thalspec"] = np.where(np.logical_not(maps['is_subcortical_not_thalspec']))[0]
     inds['crtx_and_subcrtx'] = np.sort(np.concatenate([inds['crtx'], inds["subcrtx_not_thalspec"]]))
     # Indices of cortical and subcortical regions excluding specific thalami
     inds["non_thalamic"] = np.unique(inds['crtx'].tolist() + inds["subcrtx_not_thalspec"].tolist())
@@ -70,8 +70,8 @@ def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
     h, bins = np.histogram(h, range=(1.0, 31), bins=100)
 
     w_within_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]]
-    w_from_sub = w[inds["not_subcrtx_not_thalspec"][:, None], inds["subcrtx_not_thalspec"][None, :]]
-    w_to_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["not_subcrtx_not_thalspec"][None, :]]
+    w_from_sub = w[inds["crtx"][:, None], inds["subcrtx_not_thalspec"][None, :]]
+    w_to_sub = w[inds["subcrtx_not_thalspec"][:, None], inds["crtx"][None, :]]
     h_sub = np.array(w_within_sub.flatten().tolist() +
                      w_from_sub.flatten().tolist() +
                      w_to_sub.flatten().tolist())
@@ -80,8 +80,7 @@ def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
     h_sub, bins_sub = np.histogram(h_sub, range=(1.0, 31), bins=100)
     assert np.all(bins == bins_sub)
 
-    h_crtx = np.array(w[inds["not_subcrtx_not_thalspec"][:, None],
-                        inds["not_subcrtx_not_thalspec"][None, :]].flatten().tolist())
+    h_crtx = np.array(w[inds["crtx"][:, None], inds["crtx"][None, :]].flatten().tolist())
     h_crtx = h_crtx[h_crtx > 0]
     # print('number of h_crtx > 0: %d' % h_crtx.size)
     h_crtx, bins_crtx = np.histogram(h_crtx, range=(1.0, 31), bins=100)
@@ -218,7 +217,7 @@ def build_connectivity(connectome, inds, config):
 def build_model(number_of_regions, inds, maps, config):
     from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
 
-    dummy = np.ones((number_of_regions,))
+    dummy = np.ones((number_of_regions,1))
 
     if config.VERBOSE:
         print("Configuring model with parameters:\n%s" % str(config.model_params))
@@ -1072,17 +1071,6 @@ def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
     return Pxx_den.flatten()
 
 
-def dump_pickled_time_series(time_series, filepath):
-    dump_pickled_dict({"time_series": time_series.data[:, :, :, 0],
-                       "dimensions_labels": np.array(time_series.labels_ordering)[:-1],
-                       "time": time_series.time, "time_unit": time_series.time_unit,
-                       "sample_period": time_series.sample_period,
-                       "state_variables": np.array(time_series.variables_labels),
-                       "region_labels": np.array(time_series.space_labels)},
-                      filepath)
-    return filepath
-
-
 def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
     config = assert_config(config, return_plotter=False)
@@ -1506,7 +1494,7 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
     # Prepare simulator
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
 
-    if "CEREBOFF" in config.MODE:
+    if "OFF" in config.MODE:
         inds_off = np.sort(inds['cereb_crtx'].tolist() +
                            inds['cereb_nuclei'].tolist() +
                            inds['ansilob'].tolist())
