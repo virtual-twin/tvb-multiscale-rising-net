@@ -382,7 +382,7 @@ def coherence_networks_plot(results,
     return fig, axes
 
 
-def prepare_plot_pathway(tests=["TVB", "TVB_CEREBOFF"]):
+def prepare_plot_pathway():
 
     """
          0000 1111 2222 3333 4444 5555
@@ -398,7 +398,7 @@ def prepare_plot_pathway(tests=["TVB", "TVB_CEREBOFF"]):
 
     REGIONS = ["s1brl", "m1",
                "s1brlthal", "m1thal",
-               "facial"
+               "facial",
                "medulla",
                "ansilob", "cereb_nuclei",
                "trigeminal"]
@@ -463,7 +463,7 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                          plot_mean=False, plot_median=True, mode="semilog",
                          alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
 
-    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway(tests)
+    mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway()
 
     figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
     figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
