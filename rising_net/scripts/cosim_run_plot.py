@@ -162,7 +162,7 @@ def plot_comparison(tests, **kwargs):
     # Task related regions' abreviated labels:
     SHORT_LABELS = [shorten_region_name(reg, exclude=["of", "the", "to"]) for reg in REGION_LABELS]
 
-    THETA = [5.0, 10.0]  # Hz
+    THETA = [6.0, 12.0]  # Hz
     GAMMA = [25.0, 45.0]  # Hz
 
     # results dictionary:
@@ -187,7 +187,7 @@ def plot_comparison(tests, **kwargs):
                 source_ts = pickle.load(handle)  # to load results
             Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
                                         source_ts["data"], config.TASKINDS,
-                                        transient=source_ts["data"].shape[0]-2**15, # 2**15 final length
+                                        transient=source_ts["data"].shape[0]-2**15,  # 2**15 final length
                                         sample_period=source_ts["sample_period"],
                                         nperseg=512, fmin=0.0, fmax=50.0)
             Ps.append(Pxx_den)
