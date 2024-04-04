@@ -1142,6 +1142,29 @@ class WilsonCowanThalamoCortical(Model):
         return derivative
 
 
+class WilsonCowanThalamoCorticalExcSubcrtx(WilsonCowanThalamoCortical):
+
+    def _configure_params(self):
+        super(WilsonCowanThalamoCorticalExcSubcrtx, self)._configure_params()
+        self._is_subcrtx = np.logical_not(
+            np.logical_or(
+                np.logical_or(self.is_thalamic, self.is_cortical),
+                self.is_whiskers))
+        self._n_subcrtx = np.sum(self._is_subcrtx)
+
+    def update_derived_parameters(self):
+        self._configure_params()
+        for p in ["w_ee", "w_ie", "w_se", "w_ei", "w_ii", "w_si", "I_i"]:
+            pval = getattr(self, p)
+            if pval.size == 1:
+                 pval = pval * self._dummy
+            elif pval.ndim == 1:
+                pval = np.expand_dims(pval, 1)
+            pval[self._is_subcrtx] = 0.0
+            setattr(self, p, pval)
+        super(WilsonCowanThalamoCorticalExcSubcrtx, self).update_derived_parameters()
+
+
 class WilsonCowanThalamoCorticalFIC(WilsonCowanThalamoCortical):
     r"""
     **References**:
