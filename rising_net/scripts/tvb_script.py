@@ -272,9 +272,14 @@ def build_connectivity(connectome, inds, config):
 
 
 def build_model(number_of_regions, inds, maps, config):
-    from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
 
-    dummy = np.ones((number_of_regions,1))
+    if config.EXCSUBCRTX:
+        from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import \
+            WilsonCowanThalamoCorticalExcSubcrtx as WilsonCowanThalamoCortical
+    else:
+        from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import WilsonCowanThalamoCortical
+
+    dummy = np.ones((number_of_regions, ))
 
     if config.VERBOSE:
         print("Configuring model with parameters:\n%s" % str(config.model_params))
@@ -290,6 +295,9 @@ def build_model(number_of_regions, inds, maps, config):
                     # G normalized by the number of regions as in Griffiths et al paper
                     # Geff = G /(number_of_regions - inds['thalspec'].size)
                     pval = pval / (number_of_regions - inds['thalspec'].size)
+                # elif p in ["I_e"]:
+                #     pval = pval * np.ones((number_of_regions,))
+                #     pval[inds["subcrtx_not_thalspec"]] = -1.0
                 # elif p in ["I_e", "w_ie"]:
                 #     pval = pval * np.ones((number_of_regions,))
                 # elif p == "w_rs":
@@ -431,19 +439,51 @@ def fic(param, p_orig, weights, trg_inds=None, src_inds=None, FIC=1.0, G=None, d
 def apply_fic(simulator, inds, config, plotter=None):
     n_non_thalamic_regions = (simulator.connectivity.weights.shape[0] - inds['thalspec'].size)
     G = simulator.model.G[0].item() * n_non_thalamic_regions
-    for fp, fv, split_string in zip(config.FIC_PARAMS,
-                                    [config.FIC_SPLIT, 1.0-config.FIC_SPLIT],
-                                    ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
-        ficsplit = config.FIC * fv
-        if ficsplit > 0:
-            if config.VERBOSE:
-                print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
-                      (fp, split_string, G, config.FIC, fv,  G * ficsplit))
-            # We will modify the w_ie and w_rs parameters a bit based on indegree:
-            setattr(simulator.model, fp,
-                    fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
-                        inds["non_thalamic"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
-                        plotter=plotter))
+
+    if config.EXCSUBCRTX:
+        for fp, fv, split_string in zip(config.FIC_PARAMS,
+                                        [config.FIC_SPLIT, 1.0-config.FIC_SPLIT],
+                                        ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
+            ficsplit = config.FIC * fv
+            if ficsplit > 0:
+                if config.VERBOSE:
+                    print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
+                          (fp, split_string, G, config.FIC, fv,  G * ficsplit))
+                # We will modify the w_ie parameters a bit based on indegree:
+                setattr(simulator.model, fp,
+                        fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
+                            inds["crtx"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
+                            plotter=plotter))
+
+        for fp, fv, ficsign, split_string in zip(["I_e", "w_ee"], [1.0, -1.0],
+                                        [0.5, 0.0],  # config.FIC_SPLIT, 1.0-config.FIC_SPLIT
+                                        ["FIC", ""]  # ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]
+                                        ):
+            ficsplit = ficsign * config.FIC * fv
+            if ficsplit != 0:
+                if config.VERBOSE:
+                    print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
+                          (fp, split_string, G, ficsign*config.FIC, fv,  G * ficsplit))
+                # We will modify the w_ee and w_rs parameters a bit based on indegree:
+                setattr(simulator.model, fp,
+                        fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
+                            inds["subcrtx_not_thalspec"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
+                            plotter=plotter))
+
+    else:
+        for fp, fv, split_string in zip(config.FIC_PARAMS,
+                                        [config.FIC_SPLIT, 1.0-config.FIC_SPLIT],
+                                        ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
+            ficsplit = config.FIC * fv
+            if ficsplit > 0:
+                if config.VERBOSE:
+                    print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
+                          (fp, split_string, G, config.FIC, fv,  G * ficsplit))
+                # We will modify the w_ie parameters a bit based on indegree:
+                setattr(simulator.model, fp,
+                        fic(fp, getattr(simulator.model, fp), simulator.connectivity.weights,
+                            inds["non_thalamic"], inds["non_thalamic"], FIC=ficsplit, G=G, dummy=None, subtitle="",
+                            plotter=plotter))
     return simulator
 
 
