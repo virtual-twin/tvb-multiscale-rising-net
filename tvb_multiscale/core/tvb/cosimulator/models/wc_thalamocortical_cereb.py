@@ -682,6 +682,18 @@ class WilsonCowanThalamoCortical(Model):
         domain=Range(lo=0.1, hi=100.0, step=0.1),
         doc="""Whiskers' node time constant [ms]""")
 
+    I_w = NArray(
+        label=r":math:`\I_w`",
+        default=np.array([0.0]),  # 1.0, 3.0
+        domain=Range(lo=-1.0, hi=1.0, step=0.1),
+        doc="""Whiskers' node baseline""")
+
+    G_w = NArray(
+        label=r":math:`\G_w`",
+        default=np.array([1.0]),  # 1.0, 3.0
+        domain=Range(lo=0.0, hi=10.0, step=0.1),
+        doc="""Whiskers' node input gain""")
+
     beta = NArray(
         label=":math:`\beta`",
         default=np.array([20.0]),
@@ -782,6 +794,8 @@ class WilsonCowanThalamoCortical(Model):
     _tau_i = None
     _tau_r = None
     _tau_w = None
+    _I_w = None
+    _G_w = None
 
     _G_e = None
     _G_th = None
@@ -865,8 +879,12 @@ class WilsonCowanThalamoCortical(Model):
         if self._n_whiskers:
             self._tau_w = self._get_whiskers(self.tau_w)
             self._tau_e[self.is_whiskers] = self._tau_w[:, 0]
+            self._I_w = self._get_whiskers(self.I_w)[:, 0]
+            self._G_w = self._get_whiskers(self.G_w)[:, 0]
         else:
             self._tau_w = np.array([0.0])
+            self._I_w = np.array([0.0])
+            self._G_w = np.array([0.0])
 
         self._G_e = self._get_nonthalamic(self.G)
         self._G_th = self._get_thalamic(self.G)
@@ -1006,7 +1024,7 @@ class WilsonCowanThalamoCortical(Model):
         """Cortical excitatory population dynamics:
            1. long-range delayed subcortical (exc) -> exc
         """
-        return c_sb
+        return self._G_w * c_sb + self._I_w
 
     def update_state_variables_before_integration(self, state_variables, coupling,
                                                   local_coupling=0.0, stimulus=0.0, time=0.0):
