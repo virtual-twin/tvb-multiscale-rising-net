@@ -877,10 +877,10 @@ class WilsonCowanThalamoCortical(Model):
         self._tau_i = self._get_nonthalamic(self.tau_i)
         self._tau_r = self._get_thalamic(self.tau_r)
         if self._n_whiskers:
+            self._I_w = self._get_whiskers(self.I_w)
+            self._G_w = self._get_whiskers(self.G_w)
             self._tau_w = self._get_whiskers(self.tau_w)
             self._tau_e[self.is_whiskers] = self._tau_w[:, 0]
-            self._I_w = self._get_whiskers(self.I_w)[:, 0]
-            self._G_w = self._get_whiskers(self.G_w)[:, 0]
         else:
             self._tau_w = np.array([0.0])
             self._I_w = np.array([0.0])
