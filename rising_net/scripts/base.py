@@ -22,16 +22,20 @@ from tvb.simulator.integrators import EulerStochastic
 
 DEFAULT_ARGS = {# TVB model:
                 'I_s': 0.1,  # 0.085,
-                "STIMULUS": 0.25,
+                'I_e': -0.35,
+                "STIMULUS": 0.0,
+                "STIMULUS_BASELINE": 1.0,
                 "WHISKERS": 0,
                 "tau_w": 10.0,
+                "I_w": 0.0,
+                "G_w": 1.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
-                'FIC_SPLIT': 0.31,  # 2.0,
+                'FIC_SPLIT': 0.31,  # 0.0,
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
-                "TRIG_GAIN": 100.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
+                "TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
                 "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
                 "CNM1_GAIN": 50.0,
                 "M1S1_GAIN": 10.0,
@@ -42,7 +46,8 @@ DEFAULT_ARGS = {# TVB model:
                 "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
-                "TASK": True,
+                "NOISE": 1e-6,
+                "SIMULATION_LENGTH": 2 ** 10 + 1.0,
                 "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
@@ -61,9 +66,19 @@ def configure(**ARGS):
 
     args = deepcopy(DEFAULT_ARGS)
     args.update(**ARGS)
+    STIMULUS = args.get("STIMULUS", 0)
+    WHISKERS = args.get("WHISKERS", 0)
+    PATHWAY_GAIN = args.get("PATHWAY_GAIN", 0)
+    TASK = PATHWAY_GAIN * (STIMULUS + WHISKERS)
     MODE = args["MODE"]
-    TASK = args["TASK"]
-    BASENAME = MODE + "_REST" if not TASK else MODE
+    BASENAME = MODE
+    if TASK:
+        if WHISKERS > 0:
+            BASENAME += "_WHISKERS"
+        elif STIMULUS > 0:
+            BASENAME += "_STIMULUS"
+    else:
+        BASENAME += "_REST"
 
     # Flags that affect the result's path:
     # Files:
@@ -92,11 +107,6 @@ def configure(**ARGS):
         outputs_path = os.path.join(outputs_path, "nsd%d" % SEED)
     else:
         SEED = 0
-    # # if STIMULUS:
-    # #     outputs_path += "_Stim%g" % STIMULUS
-    # # outputs_path += '_Is%g' % I_s
-    # outputs_path += '_G%g' % G
-    # outputs_path += '_FIC%g' % FIC
 
     if args['verbose']:
         print("Outputs' path: %s" % outputs_path)
@@ -117,7 +127,7 @@ def configure(**ARGS):
     config.TASK = TASK
     config.BASENAME = BASENAME
     # Testing: 10: 1025, 11: 2049.0, Fitting: 12: 4097.0, BOLD: 16: 65537
-    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 11 + 1.0)
+    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 10 + 1.0)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
     config.AFFERENT_TS_PATH = os.path.join(config.out.FOLDER_RES, "afferent_ts.pkl")
@@ -132,7 +142,7 @@ def configure(**ARGS):
     config.DEFAULT_INTEGRATOR = config.DEFAULT_STOCHASTIC_INTEGRATOR
 
     # Connectivity
-    config.WHISKERS = args.get("WHISKERS", 0)
+    config.WHISKERS = WHISKERS
     config.CONN_SPEED = 3.0
     config.BRAIN_CONN_FILE = tvb_conn_filepath
     config.MAJOR_STRUCTS_LABELS_FILE = major_structs_labels_filepath
@@ -166,13 +176,17 @@ def configure(**ARGS):
 
     # TVB model parameters
     config.model_params = OrderedDict()
-    config.model_params['G'] = args['G']
-    config.model_params['I_s'] = args['I_s']
+    config.model_params['G'] = args.get('G', 6.0)
+    config.model_params['I_s'] = args.get('I_s', 0.1)
     config.model_params['I_e'] = args.get('I_e', -0.35)
     config.model_params['w_ie'] = args.get('w_ie', -3.0)
     config.model_params['w_rs'] = args.get('w_rs', -2.0)
-    config.model_params['tau_w'] = args.get('tau_w', 10.0)
-    config.model_params['STIMULUS'] = args.get('STIMULUS', 0.25)  # 0.25
+    if WHISKERS > 0:
+        config.model_params['tau_w'] = args.get('tau_w', 10.0)
+        config.model_params['I_w'] = args.get('I_w', 0.0)
+        config.model_params['G_w'] = args.get('G_w', 1.0)
+    elif STIMULUS > 0:
+        config.model_params['STIMULUS'] = STIMULUS  # 0.25
     config.STIMULUS_RATE = 8.0  # Hz
     config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
 
@@ -203,11 +217,16 @@ def configure(**ARGS):
     # Fitting
     config.PRIORS_DIST = args.get('PRIORS_DIST', "normal")  # "normal" or "uniform"
     config.PRIORS_DEF = \
-        {# "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
-         # "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
-         "I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.025},
-         "FIC": {"min": 0.0, "max": 3.0, "loc": 2.0, "sc": 0.25},
-         # "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05}
+        {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.05},
+         "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
+         "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
+         "tau_w": {"min": 1.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
+         "I_w": {"min": -0.25, "max": 0.25, "loc": 0.0, "sc": 0.05},
+         "G_w": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
+         "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
+         "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
+         "GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0}
          }
     config.SBI_NUM_WORKERS = 1
     config.SBI_METHOD = 'SNPE'
@@ -232,8 +251,7 @@ def configure(**ARGS):
     config.N_PPT_SIMS_PER_BATCH = 40
     config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(1.0, 11.0)
-    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
-                                          ['I_s',  "FIC"])  # 'STIMULUS', 'STIMULUS_BASELINE', ..., "FIC_SPLIT"
+    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", [])
     # Uniform priors:
     config.prior_min = []
     config.prior_max = []  
