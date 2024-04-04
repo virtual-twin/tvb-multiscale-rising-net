@@ -25,10 +25,9 @@ DEFAULT_ARGS = {# TVB model:
                 'I_e': -0.35,
                 "STIMULUS": 0.0,
                 "STIMULUS_BASELINE": 1.0,
-                "WHISKERS": 0,
                 "tau_w": 10.0,
                 "I_w": 0.0,
-                "G_w": 1.0,
+                "G_w": 0.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
@@ -67,7 +66,11 @@ def configure(**ARGS):
     args = deepcopy(DEFAULT_ARGS)
     args.update(**ARGS)
     STIMULUS = args.get("STIMULUS", 0)
-    WHISKERS = args.get("WHISKERS", 0)
+    G_w = args.get("G_w", 0)
+    if G_w > 0.0:
+        WHISKERS = 1
+    else:
+        WHISKERS = 0
     PATHWAY_GAIN = args.get("PATHWAY_GAIN", 0)
     TASK = PATHWAY_GAIN * (STIMULUS + WHISKERS)
     MODE = args["MODE"]
@@ -184,7 +187,7 @@ def configure(**ARGS):
     if WHISKERS > 0:
         config.model_params['tau_w'] = args.get('tau_w', 10.0)
         config.model_params['I_w'] = args.get('I_w', 0.0)
-        config.model_params['G_w'] = args.get('G_w', 1.0)
+        config.model_params['G_w'] = G_w
     elif STIMULUS > 0:
         config.model_params['STIMULUS'] = STIMULUS  # 0.25
     config.STIMULUS_RATE = 8.0  # Hz
@@ -301,10 +304,19 @@ def args_parser(funname, args=DEFAULT_ARGS):
             return FIC
         return float(FIC)
 
-    arguments = {'G': ['g', float, 'Global connectivity scaling'],
-                 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
-                 'I_s': ['is', float, 'Thalamic relay excitatory population baseline current'],
+    arguments = {'I_s': ['is', float, 'Thalamic relay excitatory population baseline current'],
+                 'I_e': ['ie', float, 'Cortical excitatory population baseline current'],
+                 'G': ['g', float, 'Global connectivity scaling'],
                  'FIC': ['fic', FICtype, 'Indegree FIC weight'],
+                 'FIC_SPLIT': ['ficsplt', float, 'FIC splitting parameter'],
+                 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
+                 'STIMULUS_BASELINE': ['sb', float, 'Whisking stimulus baseline'],
+                 'G_w': ['gw', float, "Whiskers' gain"],
+                 'tau_w': ['tw', float, "Whiskers' time constant"],
+                 'I_w': ['iw', float, "Whiskers'  baseline"],
+                 'SIMULATION_LENGTH': ['sl', float, "Simulation length"],
+                 "NOISE": ['ns', float, "Noise amplitude"],
+                 "SEED": ['sd', int, "Noise seed additive"],
                  'output_folder': ['o', str, 'Output folder name'],
                  'verbose': ['v', int,
                              'Integer flag to print output messages (when > 0) or not (when == 0). Default = 1.0'],
