@@ -42,7 +42,7 @@ DEFAULT_ARGS = {# TVB model:
                 "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
-                "TASK": True,
+                "TASK": True, "EXCSUBCRTX": False,
                 "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
@@ -165,6 +165,7 @@ def configure(**ARGS):
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
 
     # TVB model parameters
+    config.EXCSUBCRTX = args.get("EXCSUBCRTX", False)
     config.model_params = OrderedDict()
     config.model_params['G'] = args['G']
     config.model_params['I_s'] = args['I_s']
