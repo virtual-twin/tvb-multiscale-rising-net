@@ -290,13 +290,6 @@ def build_model(number_of_regions, inds, maps, config):
                     # G normalized by the number of regions as in Griffiths et al paper
                     # Geff = G /(number_of_regions - inds['thalspec'].size)
                     pval = pval / (number_of_regions - inds['thalspec'].size)
-                # elif p in ["I_e", "w_ie"]:
-                #     pval = pval * np.ones((number_of_regions,))
-                # elif p == "w_rs":
-                #     pdummy = -2.0 * dummy
-                #     pdummy[inds["m1thal"]] = pval
-                #     # pdummy[inds["s1brlthal"]] = pval
-                #     pval = pdummy
                 model_params[p] = pval
 
     if STIMULUS:
@@ -319,12 +312,6 @@ def build_model(number_of_regions, inds, maps, config):
         B_st[inds_stim] = config.STIMULUS_BASELINE
         f_st[inds_stim] = config.STIMULUS_RATE  # Hz
         model_params.update({"A_st": A_st, "B_st": B_st, "f_st": f_st})
-
-    if config.WHISKERS:
-        model_params["tau_e"] = WilsonCowanThalamoCortical.tau_e.default * dummy
-        model_params["tau_i"] = WilsonCowanThalamoCortical.tau_i.default * dummy
-        model_params["tau_e"][inds["subcrtx_not_thalspec"]] = 4.0
-        model_params["tau_i"][inds["subcrtx_not_thalspec"]] = 4.0
 
     model = WilsonCowanThalamoCortical(is_cortical=maps['is_cortical'][:, np.newaxis],
                                        is_thalamic=maps['is_thalamic'][:, np.newaxis],
@@ -891,54 +878,6 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     if config.PATHWAY_GAIN:
         simulator = apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter)
 
-    # Modify the parameters of the TASK network:
-    #if config.TASK and "TVB" in config.MODE:
-        # # -------ΝΟ STIM----------------------------------
-        # simulator.model.I_e[inds["facial"]] = -0.35
-        # simulator.model.I_e[inds["trigeminal"]] = -0.35
-        # simulator.model.I_e[inds["medulla"]] = -0.1
-        # simulator.model.I_e[inds["ansilob"]] = -0.35
-        # simulator.model.I_e[inds["cereb_nuclei"]] = -0.35
-        # simulator.model.w_ie[inds["facial"]] = -3.0
-        # simulator.model.w_ie[inds["trigeminal"]] = -2.0
-        # simulator.model.w_ie[inds["medulla"]] = -6.0
-        # simulator.model.w_ie[inds["ansilob"]] = -3.0
-        # simulator.model.w_ie[inds["cereb_nuclei"]] = -3.0
-    #     # -------STIM----------------------------------
-    #     # THETA:
-    #     # simulator.model.I_e[inds["trigeminal"]] = -1.0  # for THETA
-    #     # simulator.model.I_e[inds["medulla"]] = -0.35   # for THETA
-    #     # simulator.model.I_e[inds["ansilob"]] = -1.0  # for THETA
-    #     # simulator.model.I_e[inds["cereb_nuclei"]] = -1.0  # for THETA
-    #     # GAMMA:
-    #     # simulator.model.I_e[inds["trigeminal"]] = -0.35  # -0.4
-    #     # simulator.model.I_e[inds["medulla"]] = -0.35
-    #     # simulator.model.I_e[inds["ansilob"]] = -0.35
-    #     # simulator.model.I_e[inds["cereb_nuclei"]] = -0.35
-    #     # THETA:
-    #     # simulator.model.w_ie[inds["trigeminal"]] = -1.0
-    #     # simulator.model.w_ie[inds["medulla"]] = -3.0
-    #     # simulator.model.w_ie[inds["ansilob"]] = -2.0
-    #     # simulator.model.w_ie[inds["cereb_nuclei"]] = -2.0
-    #     # GAMMA:
-    #     # simulator.model.w_ie[inds["trigeminal"]] /= 2.0  # 2.5
-    #     simulator.model.w_ie[inds["medulla"]] = -3.0
-    #     simulator.model.w_ie[inds["ansilob"]] = -3.0
-    #     simulator.model.w_ie[inds["cereb_nuclei"]] /= 2.0
-    # if config.VERBOSE:
-    #     print("Facial I_e: %g" % simulator.model.I_e[inds["facial"]].mean())
-    #     print("Trigeminal I_e: %g" % simulator.model.I_e[inds["trigeminal"]].mean())
-    #     print("Medulla I_e: %g" % simulator.model.I_e[inds["medulla"]].mean())
-    #     print("Ansilob I_e: %g" % simulator.model.I_e[inds["ansilob"]].mean())
-    #     print("CerebNuclei I_e: %g" % simulator.model.I_e[inds["cereb_nuclei"]].mean())
-    #     print("Facial w_ie: %g" % simulator.model.w_ie[inds["facial"]].mean())
-    #     print("Trigeminal w_ie: %g" % simulator.model.w_ie[inds["trigeminal"]].mean())
-    #     print("Medulla w_ie: %g" % simulator.model.w_ie[inds["medulla"]].mean())
-    #     print("Ansilob w_ie: %g" % simulator.model.w_ie[inds["ansilob"]].mean())
-    #     print("CerebNuclei w_ie: %g" % simulator.model.w_ie[inds["cereb_nuclei"]].mean())
-    #     print("M1 spec thal w_rs: %g" % simulator.model.w_rs[inds["m1thal"]].mean())
-    #     print("S1 brl spec thal w_rs: %g" % simulator.model.w_rs[inds["s1brlthal"]].mean())
-
     # Set monitors:
     if config.RAW_PERIOD > config.DEFAULT_DT:
         mon_raw = TemporalAverage(period=config.RAW_PERIOD)  # ms
@@ -1189,11 +1128,6 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                 print("Pickle-dumping source_ts to %s!" % config.SOURCE_TS_PATH)
             dump_pickled_time_series(source_ts, config.SOURCE_TS_PATH)
             dump_pickled_time_series(afferent_ts, config.AFFERENT_TS_PATH)
-            # import pickle
-            # with open(config.SOURCE_TS_PATH, 'wb') as handle:
-            #     pickle.dump(source_ts, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            # with open(config.AFFERENT_TS_PATH, 'wb') as handle:
-            #     pickle.dump(afferent_ts, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # Write to file
         if writer:
