@@ -557,7 +557,7 @@ class WilsonCowanThalamoCortical(Model):
     is_cortical = NArray(
         label=":math:`is_cortical`",
         dtype=bool,
-        default=np.array([False]),
+        default=np.array([True]),
         required=False,
         doc="""Boolean flag vector for cortical regions""")
 
@@ -566,6 +566,13 @@ class WilsonCowanThalamoCortical(Model):
         dtype=bool,
         default=np.array([False]),
         doc="""Boolean flag vector for specific thalamic regions""")
+
+    is_whiskers = NArray(
+        label=":math:`is_whiskers`",
+        dtype=bool,
+        default=np.array([False]),
+        required=False,
+        doc="""Boolean flag vector for whiskers' nodes""")
 
     G = NArray(
         label=":math:`G`",
@@ -669,6 +676,24 @@ class WilsonCowanThalamoCortical(Model):
         domain=Range(lo=0.1, hi=10.0, step=0.1),
         doc="""Thalamic relay nucleus time constant (1/a_s in paper) [ms]""")
 
+    tau_w = NArray(
+        label=r":math:`\tau_w`",
+        default=np.array([10.0]),  # 1.0, 3.0
+        domain=Range(lo=0.1, hi=100.0, step=0.1),
+        doc="""Whiskers' node time constant [ms]""")
+
+    I_w = NArray(
+        label=r":math:`\I_w`",
+        default=np.array([0.0]),  # 1.0, 3.0
+        domain=Range(lo=-1.0, hi=1.0, step=0.1),
+        doc="""Whiskers' node baseline""")
+
+    G_w = NArray(
+        label=r":math:`\G_w`",
+        default=np.array([1.0]),  # 1.0, 3.0
+        domain=Range(lo=0.0, hi=10.0, step=0.1),
+        doc="""Whiskers' node input gain""")
+
     beta = NArray(
         label=":math:`\beta`",
         default=np.array([20.0]),
@@ -762,11 +787,15 @@ class WilsonCowanThalamoCortical(Model):
     dt = 0.1
     _n_regions = 1
     _n_thalamic = 0
+    _n_whiskers = 0
     _not_thalamic = None
 
     _tau_e = None
     _tau_i = None
     _tau_r = None
+    _tau_w = None
+    _I_w = None
+    _G_w = None
 
     _G_e = None
     _G_th = None
@@ -812,7 +841,8 @@ class WilsonCowanThalamoCortical(Model):
     def _configure_params(self):
         self._n_regions = self.is_thalamic.shape[0]
         self._n_thalamic = np.sum(self.is_thalamic)
-        self._not_thalamic = np.logical_not(self.is_thalamic)
+        self._n_whiskers = np.sum(self.is_whiskers)
+        self._not_thalamic = np.logical_not(np.logical_or(self.is_thalamic, self.is_whiskers))
         self._dummy = np.ones((self._n_regions, 1))
 
     def configure(self):
@@ -831,6 +861,9 @@ class WilsonCowanThalamoCortical(Model):
     def _get_nonthalamic(self, param):
         return self._assert_size(param)[self._not_thalamic[:, 0]]
 
+    def _get_whiskers(self, param):
+        return self._assert_size(param)[self.is_whiskers[:, 0]]
+
     def update_derived_parameters(self):
 
         self._configure_params()
@@ -843,6 +876,15 @@ class WilsonCowanThalamoCortical(Model):
         self._tau_e = np.where(self.is_thalamic, self.tau_s, self.tau_e)
         self._tau_i = self._get_nonthalamic(self.tau_i)
         self._tau_r = self._get_thalamic(self.tau_r)
+        if self._n_whiskers:
+            self._tau_w = self._get_whiskers(self.tau_w)
+            self._tau_e[self.is_whiskers] = self._tau_w[:, 0]
+            self._I_w = self._get_whiskers(self.I_w)[:, 0]
+            self._G_w = self._get_whiskers(self.G_w)[:, 0]
+        else:
+            self._tau_w = np.array([0.0])
+            self._I_w = np.array([0.0])
+            self._G_w = np.array([0.0])
 
         self._G_e = self._get_nonthalamic(self.G)
         self._G_th = self._get_thalamic(self.G)
@@ -978,6 +1020,12 @@ class WilsonCowanThalamoCortical(Model):
                self._w_er * c_cx + \
                self._I_r
 
+    def _f_W(self, c_sb):
+        """Cortical excitatory population dynamics:
+           1. long-range delayed subcortical (exc) -> exc
+        """
+        return self._G_w * c_sb + self._I_w
+
     def update_state_variables_before_integration(self, state_variables, coupling,
                                                   local_coupling=0.0, stimulus=0.0, time=0.0):
         # This is executed only once for each time step
@@ -1034,8 +1082,13 @@ class WilsonCowanThalamoCortical(Model):
                 self._f_Sin(coupling[0, self.is_thalamic[:, 0]],  # c_cx, long-range coupling, Cortical exc
                             coupling[1, self.is_thalamic[:, 0]])  # c_sb, long-range coupling, Subcortical exc
 
+        if self._n_whiskers:
+            state_variables[2, self.is_whiskers[:, 0]] = 0.0
+
         # Store this temporarily to avoid double computation:
         self._Ein = state_variables[2, :].copy()
+        if self._n_whiskers:
+            self._Ein[self.is_whiskers[:, 0]] = self._f_W(coupling[1, self.is_whiskers[:, 0]])
 
         # Add the stimulus:
         if self._stim is not None:
@@ -1078,6 +1131,9 @@ class WilsonCowanThalamoCortical(Model):
                         c_cx[self.is_thalamic[:, 0]],      # c_cx, long-range coupling, Cortical exc
                         c_sb[self.is_thalamic[:, 0]])      # c_sb, long-range coupling, Subcortical exc
 
+            if self._n_whiskers:
+                self._Ein[self.is_whiskers[:, 0]] = self._f_W(c_sb[self.is_whiskers[:, 0]])
+
         derivative[1, self._not_thalamic[:, 0]] = (
             - I[self._not_thalamic[:, 0]] +
             + self._f_Iin(c_th[self._not_thalamic[:, 0]])    # c_th, long-range coupling, Thalamic relay (exc)
@@ -1087,6 +1143,9 @@ class WilsonCowanThalamoCortical(Model):
                 - I[self.is_thalamic[:, 0]]
                 + self._f_Rin(c_cx[self.is_thalamic[:, 0]])  # c_cx, long-range coupling, Cortical exc
                 ) / self._tau_r
+
+        if self._n_whiskers:
+            derivative[1, self.is_whiskers[:, 0]] = 0.0
 
         if self._stim is not None:
             self._Ein[self._stim_inds] = self._Ein[self._stim_inds] + self._stim

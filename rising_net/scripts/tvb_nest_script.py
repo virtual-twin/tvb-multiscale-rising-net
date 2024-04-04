@@ -353,7 +353,7 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
               % (str(plot_flag), str(write_files), str(config.model_params)))
     # config.SIMULATION_LENGTH = 100.0
     # Load and prepare connectome and connectivity with all possible normalizations:
-    connectome, major_structs_labels, voxel_count, inds, maps = prepare_connectome(config, plotter=plotter)
+    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
     # Prepare model
     model = build_model(connectivity.number_of_regions, inds, maps, config)
@@ -361,38 +361,69 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
     simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
     # Build NEST network
     nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
+
+    if "OFF" in config.MODE:
+        inds_off = np.sort(inds['cereb_crtx'].tolist() +
+                           inds['cereb_nuclei'].tolist() +
+                           inds['ansilob'].tolist())
+        simulator.connectivity.weights[inds_off, :] = 0
+        simulator.connectivity.weights[:, inds_off] = 0
+        if config.VERBOSE:
+            print("\n")
+            print("-"*25)
+            print("-"*25)
+            print("Setting to 0.0 connections in and out of cerebellum\n"
+                  "['Left/Right Cerebellar Cortex'\n"
+                  "'Left/Right Cerebellar Nuclei'\n"
+                  "'Left Ansiform lobule']!!!:\n"
+                  "IN: %s\n"
+                  "OUT: %s" % (str(simulator.connectivity.weights[inds_off, :]),
+                               str(simulator.connectivity.weights[:, inds_off])))
+        simulator.connectivity.configure()
+        simulator.configure()
+        for hemi in ["Right", "Left"]:
+            nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
+            print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
+            print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+
     # Build TVB-NEST interfaces
     simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                                                         neuron_models, start_id_scaffold)
+
     # Simulate TVB-NEST model
     results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
-    results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
-    if PSD_target is None:
-        # This is the PSD target we are trying to fit...
-        if config.model_params['G']:
-            # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-            PSD_target = compute_target_PSDs_m1s1brl(config, write_files=True, plotter=plotter)
-        else:
-            # ...for a disconnected brain, average PS of all regions:
-            PSD_target = compute_target_PSDs_1D(config, write_files=True, plotter=plotter)
-    # This is the PSD computed from our simulation results...
-    if config.model_params['G']:
-        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-        PSD = compute_data_PSDs_m1s1brl(results["source_ts"], PSD_target, inds, transient, plotter=plotter)
-    else:
-        # ...for a disconnected brain, average PS of all regions:
-        PSD = compute_data_PSDs_1D(results["source_ts"], PSD_target, inds, transient, plotter=plotter)
-    results.update({"PSD": PSD, "transient": transient,
-                    "simulator": simulator, "nest_network": nest_network, "config": config})
+
     if plotter is not None:
         from examples.plot_write_results import plot_write_spiking_network_results
-        results.update(plot_tvb(transient, inds, results,
-                                simulator=simulator, plotter=plotter, config=config, write_files=write_files))
+        results = plot_tvb(transient, inds, results,
+                           simulator=simulator, plotter=plotter, config=config, write_files=write_files)
         plot_write_spiking_network_results(nest_network, connectivity=connectivity,
                                            time=results["source_ts"][0], transient=transient,
                                            monitor_period=simulator.monitors[0].period,
                                            plot_per_neuron=False, plotter=plotter, writer=None, config=config)
         plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
+    else:
+        if PSD_target is None:
+            # This is the PSD target we are trying to fit...
+            if config.model_params['G']:
+                # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+                PSD_target = compute_target_PSDs_m1s1brl(config, write_files=write_files, plotter=plotter)
+            else:
+                # ...for a disconnected brain, average PS of all regions:
+                PSD_target = compute_target_PSDs_1D(config, write_files=write_files, plotter=plotter)
+            # This is the PSD computed from our simulation results...
+        if config.model_params['G']:
+            # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+            PSD = compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient,
+                                            write_files=write_files, psd_data_path=config.PSD_DATA_PATH,
+                                            plotter=plotter)
+        else:
+            # ...for a disconnected brain, average PS of all regions:
+            PSD = compute_data_PSDs_1D(results[0], PSD_target, inds, transient,
+                                       write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+        results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
+        results.update({"PSD": PSD, "PSD_target": PSD_target})
+    results.update({"transient": transient, "simulator": simulator, "nest_network": nest_network, "config": config})
     if config.VERBOSE:
         print("\nFinished TVB-NEST workflow in %g sec!\n" % (time.time() - tic))
     return results
