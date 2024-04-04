@@ -27,7 +27,7 @@ DEFAULT_ARGS = {# TVB model:
                 "STIMULUS_BASELINE": 1.0,
                 "tau_w": 10.0,
                 "I_w": 0.0,
-                "G_w": 0.0,
+                "G_w": 10.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
@@ -226,7 +226,7 @@ def configure(**ARGS):
          "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "tau_w": {"min": 1.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
          "I_w": {"min": -0.25, "max": 0.25, "loc": 0.0, "sc": 0.05},
-         "G_w": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
+         "G_w": {"min": 0.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
          "GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0}

@@ -210,7 +210,7 @@ def build_connectivity(connectome, inds, config):
                                             connectivity.tract_lengths)
     if config.WHISKERS:
         connectivity.weights[inds["whiskers"], inds["facial"]] = 1.0
-        connectivity.weights[inds["trigeminal"], inds["whiskers"]] = config.WHISKERS
+        connectivity.weights[inds["trigeminal"], inds["whiskers"]] = 1.0
     connectivity.configure()
     if config.WHISKERS * config.VERBOSE:
         print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["whiskers"], inds["facial"]]))
