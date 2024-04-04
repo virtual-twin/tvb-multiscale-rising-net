@@ -27,7 +27,7 @@ DEFAULT_ARGS = {# TVB model:
                 "STIMULUS_BASELINE": 1.0,
                 "tau_w": 10.0,
                 "I_w": 0.0,
-                "G_w": 10.0,
+                "G_w": 1.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
@@ -40,6 +40,7 @@ DEFAULT_ARGS = {# TVB model:
                 "M1S1_GAIN": 10.0,
                 "M1FACIAL_GAIN": 50.0,   # 50.0,
                 "FACIALTRIG_GAIN": 1.0,  # 50.0,
+                "WHISKERS_GAIN": 10.0,
                 # TVB <-> NEST Interface:
                 "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
                 "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
@@ -173,6 +174,7 @@ def configure(**ARGS):
     config.M1S1_GAIN = args["PATHWAY_GAIN"] * args["M1S1_GAIN"]
     config.M1FACIAL_GAIN = args["PATHWAY_GAIN"] * args["M1FACIAL_GAIN"]
     config.FACIALTRIG_GAIN = args["PATHWAY_GAIN"] * args["FACIALTRIG_GAIN"]
+    config.WHISKERS_GAIN = args["PATHWAY_GAIN"] * args["WHISKERS_GAIN"]
     # TVB Monitors:
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
@@ -226,7 +228,7 @@ def configure(**ARGS):
          "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "tau_w": {"min": 1.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
          "I_w": {"min": -0.25, "max": 0.25, "loc": 0.0, "sc": 0.05},
-         "G_w": {"min": 0.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
+         "G_w": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
          "GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0}
