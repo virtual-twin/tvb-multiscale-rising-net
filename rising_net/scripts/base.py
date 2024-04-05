@@ -66,23 +66,27 @@ def configure(**ARGS):
 
     args = deepcopy(DEFAULT_ARGS)
     args.update(**ARGS)
+
     STIMULUS = args.get("STIMULUS", 0)
     G_w = args.get("G_w", 0)
-    if G_w > 0.0:
+    WHISKERS_GAIN = args.get("WHISKERS_GAIN", 10.0)
+    if G_w * WHISKERS_GAIN > 0.0:
         WHISKERS = 1
     else:
         WHISKERS = 0
+        WHISKERS_GAIN = 0
+        G_w = 0
     PATHWAY_GAIN = args.get("PATHWAY_GAIN", 0)
     TASK = PATHWAY_GAIN * (STIMULUS + WHISKERS)
     MODE = args["MODE"]
     BASENAME = MODE
-    if TASK:
-        if WHISKERS > 0:
-            BASENAME += "_WHISKERS"
-        elif STIMULUS > 0:
-            BASENAME += "_STIMULUS"
-    else:
-        BASENAME += "_REST"
+    # if TASK:
+    #     if WHISKERS > 0:
+    #         BASENAME = os.path.join(BASENAME, "WHISKERS")
+    #     elif STIMULUS > 0:
+    #         BASENAME = os.path.join(BASENAME, "STIMULUS")
+    # else:
+    #     BASENAME = os.path.join(BASENAME, "REST")
 
     # Flags that affect the result's path:
     # Files:
@@ -174,7 +178,7 @@ def configure(**ARGS):
     config.M1S1_GAIN = args["PATHWAY_GAIN"] * args["M1S1_GAIN"]
     config.M1FACIAL_GAIN = args["PATHWAY_GAIN"] * args["M1FACIAL_GAIN"]
     config.FACIALTRIG_GAIN = args["PATHWAY_GAIN"] * args["FACIALTRIG_GAIN"]
-    config.WHISKERS_GAIN = args["PATHWAY_GAIN"] * args["WHISKERS_GAIN"]
+    config.WHISKERS_GAIN = args["PATHWAY_GAIN"] * WHISKERS_GAIN
     # TVB Monitors:
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
