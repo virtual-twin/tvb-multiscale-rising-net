@@ -146,6 +146,7 @@ def plot_comparison(tests, **kwargs):
     TESTSFOLDER = "-".join(TESTS)
 
     # CONFIGURATION:
+    kwargs.pop("output_folder", "")
     config, plotter = get_config(output_folder=TESTSFOLDER, **kwargs)
 
     # CONNECTIVITY:
@@ -180,6 +181,9 @@ def plot_comparison(tests, **kwargs):
         testpath = os.path.join(TESTSPATH, test_name)
         if os.path.isdir(testpath_old):
             shutil.move(testpath_old, testpath)
+        paths = glob.glob(os.path.join(testpath, "nsd*"))
+        if len(paths) == 0:
+            raise FileNotFoundError("No simulation files found at path %s" % testpath)
         for path in glob.glob(os.path.join(testpath, "nsd*")):
             resultsfile = os.path.join(path, "res/source_ts.pkl")
             print(resultsfile)
