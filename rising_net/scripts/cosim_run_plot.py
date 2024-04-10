@@ -44,7 +44,7 @@ def get_config(**kwargs):
 
     # Get configuration
     config, plotter = configure(verbose=0, **kwargs)
-    config.VERBOSE = 2.0
+    # config.VERBOSE = 2
 
     print(config.model_params)
     print(config)
