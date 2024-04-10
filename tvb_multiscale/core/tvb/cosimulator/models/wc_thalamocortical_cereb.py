@@ -690,7 +690,7 @@ class WilsonCowanThalamoCortical(Model):
 
     G_w = NArray(
         label=r":math:`\G_w`",
-        default=np.array([10.0]),  # 1.0, 3.0
+        default=np.array([1.0]),  # 1.0, 3.0
         domain=Range(lo=0.0, hi=20.0, step=0.1),
         doc="""Whiskers' node input gain""")
 
