@@ -154,9 +154,11 @@ def plot_comparison(tests, **kwargs):
     connectivity = build_connectivity(connectome, inds, config)
 
     # Results path:
-    BASEPATH = os.path.dirname(config.out.FOLDER_RES.split("res")[0][:-1])
-    print(BASEPATH)
-    TESTSPATH = os.path.join(BASEPATH, TESTSFOLDER)
+    if config.VERBOSE > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
+    TESTSPATH = os.path.dirname(config.out.FOLDER_RES.split("res")[0][:-1])
+    if config.VERBOSE > 1: print("TESTSPATH: ", TESTSPATH)
+    BASEPATH = os.path.dirname(TESTSPATH)
+    if config.VERBOSE > 1: print("BASEPATH: ", BASEPATH)
 
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[config.TASKINDS]
@@ -177,23 +179,28 @@ def plot_comparison(tests, **kwargs):
         Ps = []
         Cs = []
 
+        if config.VERBOSE > 1: print("test_name: ", test_name)
         testpath_old = os.path.join(BASEPATH, test_name)
+        if config.VERBOSE > 1: print("testpath_old: ", testpath_old)
         testpath = os.path.join(TESTSPATH, test_name)
+        if config.VERBOSE > 1: print("testpath: ", testpath)
         if os.path.isdir(testpath_old):
             shutil.move(testpath_old, testpath)
-        paths = glob.glob(os.path.join(testpath, "nsd*"))
+        nsdtestpath = os.path.join(testpath, "nsd*")
+        paths = glob.glob(nsdtestpath)
         if len(paths) == 0:
-            raise FileNotFoundError("No simulation files found at path %s" % testpath)
-        for path in glob.glob(os.path.join(testpath, "nsd*")):
+            Warning("No simulation files found at paths %s\nTrying for single simulation!" % nsdtestpath)
+            paths = [testpath]
+        for path in paths:
             resultsfile = os.path.join(path, "res/source_ts.pkl")
-            print(resultsfile)
+            if config.VERBOSE > 1: print(resultsfile)
             with open(resultsfile, 'rb') as handle:
                 source_ts = pickle.load(handle)  # to load results
             Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
                                         source_ts["data"], config.TASKINDS,
                                         transient=source_ts["data"].shape[0]-2**15,  # 2**15 final length
                                         sample_period=source_ts["sample_period"],
-                                        nperseg=512, fmin=0.0, fmax=50.0)
+                                        nperseg=None, fmin=0.0, fmax=50.0)
             Ps.append(Pxx_den)
             Cs.append(Cxy)
 
