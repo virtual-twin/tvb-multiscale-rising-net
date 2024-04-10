@@ -47,7 +47,7 @@ def percent_plot(x, data, percentile_min=10, percentile_max=90, n=5,
             ax.plot(x, np.mean(data, axis=0), color=line_color, **line_kwargs)
         if plot_median:
             ax.plot(x, np.median(data, axis=0), color=line_color, **line_kwargs)
-
+    ax.grid(True, axis="x")
     return ax
 
 

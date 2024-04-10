@@ -962,11 +962,13 @@ def compute_target_PSDs_1D(config, write_files=True, plotter=None):
     if plotter:
         fig, axes = plt.subplots(2, 1, figsize=(10, 10))
         axes[0].plot(config.TARGET_FREQS, psd_target, "k")
-        axes[0].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[0].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[0].grid(True, axis="x")
         axes[0].set_ylabel('PS')
         axes[0].set_title('Target average of M1 and S1 PS')
         axes[1].semilogy(config.TARGET_FREQS, psd_target, "k")
-        axes[1].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[1].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[1].grid(True, axis="x")
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_ylabel('log(PS)')
         if plotter.config.SAVE_FLAG:
@@ -990,13 +992,15 @@ def compute_target_PSDs_m1s1brl(config, write_files=True, plotter=None):
         fig, axes = plt.subplots(2, 1, figsize=(10, 10))
         axes[0].plot(config.TARGET_FREQS, psd_m1_target, "b", label='M1')
         axes[0].plot(config.TARGET_FREQS, psd_s1_target, "g", label='S1')
-        axes[0].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[0].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[0].grid(True, axis="x")
         axes[0].set_ylabel('PS')
         axes[0].set_title('Target M1 and S1 PS')
         axes[0].legend()
         axes[1].semilogy(config.TARGET_FREQS, psd_m1_target, "b", label='M1')
         axes[1].semilogy(config.TARGET_FREQS, psd_s1_target, "g", label='S1')
-        axes[1].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[1].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[1].grid(True, axis="x")
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_ylabel('log(PS)')
         if plotter.config.SAVE_FLAG:
@@ -1023,12 +1027,14 @@ def compute_data_PSDs_1D(raw_results, PSD_target, inds,
         fig, axes = plt.subplots(2, 1, figsize=(10, 10))
         axes[0].plot(ftarg, PSD_target['PSD_target'], "k", label='Target')
         axes[0].plot(ftarg, Pxx_den, "r", label='Cortical average')
-        axes[0].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[0].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[0].grid(True, axis="x")
         axes[0].set_ylabel('PS')
         axes[0].legend()
         axes[1].semilogy(ftarg, PSD_target['PSD_target'], "k", label='Target')
         axes[1].semilogy(ftarg, Pxx_den, "r", label='Cortical average')
-        axes[1].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[1].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[1].grid(True, axis="x")
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_ylabel('log(PS)')
         if plotter.config.SAVE_FLAG:
@@ -1058,7 +1064,8 @@ def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
         axes[0].plot(ftarg, Pxx_den[1], "b-.", label='M1 left')
         axes[0].plot(ftarg, Pxx_den[2], "g--", label='S1 right')
         axes[0].plot(ftarg, Pxx_den[3], "g-.", label='S1 left')
-        axes[0].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[0].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[0].grid(True, axis="x")
         axes[0].set_ylabel('PS')
         axes[0].legend()
         axes[1].semilogy(ftarg, PSD_target['PSD_M1_target'], "b", label='M1 target')
@@ -1067,7 +1074,8 @@ def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
         axes[1].semilogy(ftarg, Pxx_den[1], "b-.", label='M1 left')
         axes[1].semilogy(ftarg, Pxx_den[2], "g--", label='S1 right')
         axes[1].semilogy(ftarg, Pxx_den[3], "g-.", label='S1 left')
-        axes[1].set_xticks([6.0, 8.0, 10.0, 20.0, 30.0, 40.0])
+        axes[1].set_xticks([6.0, 8.0, 10.0, 25.0, 35.0, 45.0])
+        axes[1].grid(True, axis="x")
         axes[1].set_xlabel('Frequency (Hz)')
         axes[1].set_ylabel('log(PS)')
         if plotter.config.SAVE_FLAG:
@@ -1235,8 +1243,8 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     TIME_PLOT = np.minimum(1000.0,  np.maximum(0.0, n_time_len * dt - 100.0))  # ms
     N_TIME_PLOT = int(np.round(TIME_PLOT / dt))
     n_time_len -= int(np.round(transient / dt))
-    NPERSEG = np.array([512, 1024, 2048, 4096])
-    NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
+    # NPERSEG = np.array([512, 1024, 2048, 4096])
+    # NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
     # NPERSEGs = 512
 
     # Plot TVB time series
@@ -1285,7 +1293,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         # Power Spectra and Coherence for M1 - S1 barrel field
         Pxx_den, f, CxyR, fR, CxyL, fL = \
             compute_plot_selected_spectra_coherence(source_ts, inds["m1s1brl"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="M1_S1brl", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1305,7 +1313,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         # Power Spectra and Coherence along the motor pathway:
         if len(inds.get("motor", [])):
             compute_plot_selected_spectra_coherence(source_ts, inds["motor"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="Motor", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1313,7 +1321,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
 
         if config.WHISKERS:
             compute_plot_selected_spectra_coherence(source_ts, inds["whiskers"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="Whiskers", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1323,7 +1331,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         # for Medulla SPV, Sensory PONS
         if len(inds.get("sens", [])):
             compute_plot_selected_spectra_coherence(source_ts, inds["sens"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES,
                                                     figname="SPV_PonsSens", figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1331,7 +1339,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
 
         if len(inds.get("cereb", [])):
             compute_plot_selected_spectra_coherence(source_ts, inds["cereb"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES, figname="Cereb",
                                                     figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1342,7 +1350,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
             print("inds ansilob", inds["ansilob"])
             print("Ansiform lobule source_ts PSD, with compute_plot_selected_spectra_coherence")
             compute_plot_selected_spectra_coherence(source_ts, inds["ansilob"],
-                                                    transient=transient, nperseg=NPERSEGs, fmin=0.0, fmax=100.0,
+                                                    transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                                                     figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob",
                                                     figformat="png",
                                                     show_flag=plotter.config.SHOW_FLAG,
@@ -1459,7 +1467,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
                     Pxx_den_ansilob_temp, f_ansilob, CxyR_ansilob, fR_ansilob, CxyL_ansilob, fL_ansilob = \
                         compute_plot_selected_spectra_coherence(
                             afferent_ts[:, iC], inds["ansilob"],
-                            transient=transient, nperseg=NPERSEG, fmin=0.0, fmax=100.0,
+                            transient=transient, nperseg=None, fmin=0.0, fmax=100.0,
                             figures_path=config.figures.FOLDER_FIGURES, figname="AnsiLob %s afferent" % coupl,
                             figformat="png", show_flag=plotter.config.SHOW_FLAG, save_flag=plotter.config.SAVE_FLAG)
                     Pxx_den_ansilob.append(Pxx_den_ansilob_temp)

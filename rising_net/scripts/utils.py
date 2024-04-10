@@ -67,10 +67,24 @@ def get_regions_indices(regs, labels):
     return iR
 
 
-def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=512, fmin=0.0, fmax=50.0):
+def compute_nperseg(fs, Ndata):
+    # Window:
+    NPERSEG = np.array([256, 512, 1024, 2048, 4096])
+    # Trying to have a resolution of 1 Hz:
+    fmax2 = fs
+    Nf = int(fmax2)
+    # ...constraint by the length of the data:
+    nperseg = np.minimum(Ndata, NPERSEG[np.argmin(np.abs(NPERSEG - Nf))])
+    # nperseg = 512
+    return nperseg
+
+
+def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=None, fmin=0.0, fmax=50.0):
     n_regions = len(inds)
     data = source_ts[transient:, 0, inds].squeeze().T
     fs = 1000/sample_period
+    if nperseg is None:
+        nperseg = compute_nperseg(fs, data.shape[1])
     f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
     finds = np.logical_and(f > fmin, f <= fmax)
     f = f[finds]
@@ -88,7 +102,7 @@ def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient
 
 
 def compute_plot_selected_spectra_coherence(source_ts, inds,
-                                            transient=0.0, conn=None, nperseg=256, fmin=0.0, fmax=100.0,
+                                            transient=0.0, conn=None, nperseg=None, fmin=0.0, fmax=100.0,
                                             figsize=(15, 5), figures_path="", figname="", figformat="png", 
                                             show_flag=True, save_flag=True):
     n_regions = int(len(inds) / 2)
@@ -96,6 +110,8 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
     if conn is None:
         conn = source_ts.connectivity
     fs = 1000/source_ts.sample_period
+    if nperseg is None:
+        nperseg = compute_nperseg(fs, data.shape[1])
     f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
     fig, axes = plt.subplots(n_regions, 2, figsize=(figsize[0], figsize[1]*n_regions))
     if axes.ndim == 1:
@@ -110,12 +126,14 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
         axes[ii, 0].set_xlim([fmin, fmax])
         axes[ii, 0].set_xlabel('frequency [Hz]')
         axes[ii, 0].set_ylabel('PSD [V**2/Hz]')
+        axes[ii, 0].grid(True, axis='x')
         axes[ii, 0].legend()
         axes[ii, 1].semilogy(f, Pxx_den[iR], label=conn.region_labels[inds[iR]])
         axes[ii, 1].semilogy(f, Pxx_den[iL], label=conn.region_labels[inds[iL]])
         axes[ii, 1].set_xlim([fmin, fmax])
         axes[ii, 1].set_xlabel('frequency [Hz]')
         axes[ii, 1].set_ylabel('PSD [log(V**2/Hz)]')
+        axes[ii, 1].grid(True, axis='x')
         axes[ii, 1].legend()
     # plt.ylim([1e-7, 1e2])
     if save_flag and len(figures_path) + len(figname):
@@ -194,7 +212,7 @@ def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fm
         axes[ii].set_ylabel(ylabel[ii])
         axes[ii].vlines(25, yranges[ii][0], yranges[ii][1])
         axes[ii].vlines(45, yranges[ii][0], yranges[ii][1])
-        
+        axes[ii].grid(True, axis='x')
         
     axes[0].set_ylim(yranges[0])
     axes[0].set_title('M1-S1 coherence spectra during virtual whisking')
@@ -276,19 +294,17 @@ def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None)
 
 def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
     # Time and frequency
-    fs = 1000.0 / dt  # sampling frequency in sec
+    fs = 1000.0 / dt
     if transient is None:
         transient = 0
     else:
         transient = int(np.ceil(transient / dt))  # in data points
     # Remove possible transient and transpose time and signals:
     data = data[transient:].T
+    Ndata = data.shape[1]
 
     # Window:
-    # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
-    # fmin = ftarg[0]  # The minimum frequency of the PSD_target...
-    # win_len = int(np.ceil(1000.0 / fmin / dt))  # ...will determine the length of the sliding window....
-    nperseg = 512  # int(np.ceil(2048 / dt))  # NPERSEG[np.argmin(np.abs(NPERSEG - win_len))]
+    nperseg = compute_nperseg(fs, Ndata)
 
     # Compute Power Spectrum
     f, Pxx_den = welch(data, fs, nperseg=nperseg)
