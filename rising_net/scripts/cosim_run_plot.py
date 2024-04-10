@@ -43,8 +43,9 @@ def get_config(**kwargs):
     #     'output_folder': "", 'verbose': 1, 'plot_flag': True}
 
     # Get configuration
+    verbose = kwargs.pop("verbose", 1)
     config, plotter = configure(verbose=0, **kwargs)
-    # config.VERBOSE = 2
+    config.VERBOSE = verbose
 
     print(config.model_params)
     print(config)
@@ -155,7 +156,7 @@ def plot_comparison(tests, **kwargs):
 
     # Results path:
     if config.VERBOSE > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
-    TESTSPATH = os.path.dirname(config.out.FOLDER_RES.split("res")[0][:-1])
+    TESTSPATH = os.path.dirname(config.out.FOLDER_RES.split("res")[0])
     if config.VERBOSE > 1: print("TESTSPATH: ", TESTSPATH)
     BASEPATH = os.path.dirname(TESTSPATH)
     if config.VERBOSE > 1: print("BASEPATH: ", BASEPATH)
