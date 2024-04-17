@@ -190,6 +190,8 @@ def configure(**ARGS):
     config.model_params['I_e'] = args.get('I_e', -0.35)
     config.model_params['w_ie'] = args.get('w_ie', -3.0)
     config.model_params['w_rs'] = args.get('w_rs', -2.0)
+    config.model_params['tau_e'] = args.get('tau_e', 10.0/0.9)
+    config.model_params['tau_i'] = args.get('tau_i', 10.0/0.9)
     if WHISKERS > 0:
         config.model_params['tau_w'] = args.get('tau_w', 10.0)
         config.model_params['I_w'] = args.get('I_w', 0.0)
