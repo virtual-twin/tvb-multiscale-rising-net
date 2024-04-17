@@ -878,6 +878,21 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     if config.PATHWAY_GAIN:
         simulator = apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter)
 
+    # for regs in ["facial", "trigeminal", "medulla", "ansilob"]:  # , "cereb_nuclei"
+    #     for p, pval in zip(["I_e", "tau_e", "tau_i"],
+    #                        [-0.15, 10.0/0.9, 100.0/0.9]):
+    #         pvec = getattr(simulator.model, p) * np.ones((simulator.connectivity.number_of_regions, 1))
+    #         if p == "I_e":
+    #             pvec = pvec[:, 0]
+    #         pvec[inds[regs]] = pval
+    #         setattr(simulator.model, p, pvec)
+    #         print("\n" + "-" * 50)
+    #         print("%s %s = " % (regs, p), getattr(simulator.model, p)[inds[regs]].mean())
+    #         print("-" * 50 + "\n")
+    #
+    # simulator.model.I_e[inds["cereb_nuclei"]] = -0.7
+    # simulator.model.tau_e[inds["cereb_nuclei"]] = 50.0/0.9
+
     # Set monitors:
     if config.RAW_PERIOD > config.DEFAULT_DT:
         mon_raw = TemporalAverage(period=config.RAW_PERIOD)  # ms
