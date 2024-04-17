@@ -465,7 +465,6 @@ def load_pickled_time_series(filepath, connectivity=None):
             sample_period=sample_period)
     else:
         from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesXarray
-        labels_dimensions["Region"] = tsdict.get("region_labels", None)
         return TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
                                 data=data,  time=time,
                                 labels_ordering=dimensions,
