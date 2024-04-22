@@ -7,8 +7,8 @@ from scipy.signal import welch
 import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
-from rising_net.scripts.utils import \
-    get_regions_indices, compute_data_PSDs, compute_data_PSDs_from_raw, dump_pickled_time_series
+from rising_net.scripts.utils import get_regions_indices, dump_pickled_time_series, \
+    compute_data_PSDs, compute_data_PSDs_from_raw, compute_task_transer_metrics
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -100,13 +100,15 @@ def construct_extra_inds_and_maps(connectome, inds, config):
     inds["non_thalamic"] = np.unique(inds['crtx'].tolist() + inds["subcrtx_not_thalspec"].tolist())
     # Task related regions' indices:
     inds['medulla'] = inds['ponssens_trigeminal']
-    config.TASKINDS = np.concatenate([inds["m1"], inds["s1brl"],
-                                      inds["m1thal"], inds["s1brlthal"],
-                                      inds['facial'], inds["trigeminal"], inds['ponssens_trigeminal'],
-                                      inds['ansilob'], inds['cereb_nuclei']])
+    config.TASKREGS = ["m1", 'facial',
+                       "trigeminal", 'ponssens_trigeminal',
+                       'ansilob', 'cereb_nuclei',
+                       "m1thal", "s1brlthal", "s1brl"]
     if len(whiskinds):
-        config.TASKINDS = np.concatenate([config.TASKINDS, inds["whiskers"]])
-    config.TASKINDS = np.sort(config.TASKINDS)
+        config.TASKREGS.insert(2, 'whiskers',)
+    config.TASKINDS = []
+    for reg in config.TASKREGS:
+        config.TASKINDS += list(inds[reg])
     return inds, maps, config
 
 
@@ -1261,6 +1263,13 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     # NPERSEG = np.array([512, 1024, 2048, 4096])
     # NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
     # NPERSEGs = 512
+
+    TaskMetrics = compute_task_transer_metrics(source_ts, transient, simulator.connectivity.region_labels,
+                                               config.TASKINDS, config.THETA, config.GAMMA,
+                                               methods=(5, 2, 3), plot_flag=True,
+                                               figpath=config.figures.FOLDER_FIGURES)
+    dump_pickled_dict(TaskMetrics.to_dict(), config.TASK_TRANSFER_METRICS_PATH)
+    results["TaskMetrics"] = TaskMetrics
 
     # Plot TVB time series
     if isinstance(source_ts, TimeSeriesXarray):
