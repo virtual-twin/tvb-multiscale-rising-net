@@ -338,24 +338,26 @@ def raw_data_or_time_series(data):
         # For TVB TimeSeries instances
         ts = data.data
         time = data.time
-        sampling_period = data.sampling_period
-        return ts, time, sampling_period
+        sample_period = data.sample_period
+        return ts, time, sample_period
     if time is not None:
-        sampling_period = np.mean(np.diff(time))
+        sample_period = np.mean(np.diff(time))
     else:
-        sampling_period = None
-    return ts, time, sampling_period
+        sample_period = None
+    return ts, time, sample_period
 
 
-def compute_data_PSDs_from_raw(raw_results, ftarg, inds, transient=None, average_region_ps=False):
-    data, time, sampling_period = raw_data_or_time_series(raw_results)
+def compute_data_PSDs_from_raw(raw_results, ftarg, inds=None, transient=None, average_region_ps=False):
+    if inds is None:
+        inds = slice(None)
+    data, time, sample_period = raw_data_or_time_series(raw_results)
     return compute_data_PSDs(data[:, 0, inds, 0].squeeze(),
-                             sampling_period, ftarg,
+                             sample_period, ftarg,
                              transient=transient, average_region_ps=average_region_ps)
 
 
-def _compute_tensorpac(xphases, xamplitudes, fs=10000.0, method=2, **kwargs):
-
+def _compute_tensorpac(xphases, xamplitudes, fs=10000.0, methods=(5, 0, 0),
+                       regions_label="", plot_flag=False, ax=None, **kwargs):
     try:
         from tensorpac import Pac
     except:
@@ -371,30 +373,114 @@ def _compute_tensorpac(xphases, xamplitudes, fs=10000.0, method=2, **kwargs):
     phases = p.filter(fs, xphases, ftype='phase', n_jobs=1)
     amplitudes = p.filter(fs, xamplitudes, ftype='amplitude', n_jobs=1)
 
-    # method of PAC
-    # 2: Modulation Index
-    p.idpac = (method, 0, 0)
+    p.idpac = methods
 
     # compute only the pac without filtering
     xpac = p.fit(phases, amplitudes)
 
+    if plot_flag:
+        if ax is None:
+            plt.figure(figsize=(10, 5))
+        else:
+            plt.axes(ax)
+        # plot your Phase-Amplitude Coupling :
+        ax = p.comodulogram(xpac.mean(-1), title=regions_label, cmap='jet')
+        # Get the images on an axis
+        im = ax.images
+        # Assume colorbar was plotted last one plotted last
+        cb = im[-1].colorbar
+        cb.set_label("PAC (%s)" % str(methods), rotation=270)
     return xpac, p
 
 
-def compute_tensorpac(results, pairs, method=2, **kwargs):
-    data, time, sampling_period = raw_data_or_time_series(results)
+def compute_tensorpac(results, pairs=None, methods=(5, 0, 0), transient=None,
+                      region_labels=[], plot_flag=False, figpath=None, **kwargs):
+    data, time, sample_period = raw_data_or_time_series(results)
     if transient is None:
         transient = 0
     else:
-        transient = int(np.ceil(transient / sampling_period))  # in data points
+        transient = int(np.ceil(transient / sample_period))  # in data points
     data = data[transient:]
-    fs = 1000 / sampling_period
+    fs = 1000 / sample_period
     xpacs = []
-    for pair in pairs:
-        xpacs.append(_compute_tensorpac(data[:, 0, pair[0]].squeeze(),
-                                        data[:, 0, pair[1]].squeeze(),
-                                        fs=fs, method=method, **kwargs))
-    return {"syncij": pairs, "pac": np.array(xpacs)}
+    if pairs is None:
+        pairs = np.tile(np.arange(0, data.shape[2]), (2, 1)).T
+
+    def fun(pair, region_labels):
+        if pair[0].item() == pair[1].item():
+            return "%s" % str(region_labels[0].item())
+        else:
+            return "%s - %s" % (str(region_labels[0].item()), str(region_labels[1].item()))
+
+    Nregs = len(region_labels)
+    if Nregs < len(pairs):
+        region_labels = np.array([fun(pair, pair) for pair in pairs])
+    else:
+        region_labels = np.array([fun(pair, region_labels[pair]) for pair in pairs])
+    if plot_flag:
+        Nregs2 = int(np.ceil(Nregs / 2))
+        axshape = (Nregs2, 2)
+        fig, axes = plt.subplots(nrows=Nregs2, ncols=2, figsize=(20, 10 * Nregs2),
+                                 sharex=True, sharey=True)
+    for iP, (pair, reg_lbl) in enumerate(zip(pairs, region_labels)):
+        xpacs.append(_compute_tensorpac(data[:, 0, pair[0]].squeeze().T,
+                                        data[:, 0, pair[1]].squeeze().T,
+                                        fs=fs, methods=methods, regions_label=reg_lbl,
+                                        plot_flag=plot_flag, ax=axes[np.unravel_index(iP, axshape)],
+                                        **kwargs)[0])
+    xpacs = np.array(xpacs).squeeze()
+    if plot_flag:
+        vmin = xpacs.min()
+        vmax = xpacs.max()
+        for ax in axes.flatten():
+            im = ax.images
+            im[-1].set_clim(vmin, vmax)
+            fig.canvas.flush_events()
+        fig.tight_layout()
+        if os.path.isdir(figpath):
+            plt.savefig(os.path.join(figpath, "TrasferMetricsPACs.png"))
+    return {"syncij": pairs, "pac": xpacs}
+
+
+def compute_task_transer_metrics(raw_results, transient, region_labels, taskinds, theta, gamma,
+                                 methods=(5, 0, 0), plot_flag=True, figpath=None):
+    def compute_freq_P_ratio(P, band_freqs):
+        finds = np.where(np.logical_and(f >= band_freqs[0], f <= band_freqs[-1]))[0]
+        return P[:, finds].sum(axis=1) / P.sum(axis=1)
+
+    results = []
+
+    # Compute PSDs:
+    f = np.arange(5.0, 129.0, 1.0)
+    Pxx_den = compute_data_PSDs_from_raw(
+        raw_results, f, inds=taskinds, transient=transient, average_region_ps=False)
+
+    Pth = compute_freq_P_ratio(Pxx_den, theta)
+    Pgm = compute_freq_P_ratio(Pxx_den, gamma)
+    Pgm_th_ratio = Pgm / Pth
+    PAC = compute_tensorpac(raw_results[:, 0, taskinds], transient=transient, methods=methods,
+                            region_labels=region_labels[taskinds], plot_flag=plot_flag, figpath=figpath,
+                            f_pha=theta, f_amp=gamma)['pac'].mean(axis=(1, 2))
+
+    metrics = np.array([Pth, Pgm, Pgm_th_ratio, PAC])
+
+    try:
+        from xarray import DataArray
+        metrics = DataArray(metrics,
+                            dims=["Measure", "Region"],
+                            coords={"Measure": ['Pth', 'Pgm', 'Pgm_th_ratio', 'PAC'],
+                                    "Region": region_labels[taskinds]},
+                            name="Task dynamics transfer metrics")
+        if plot_flag:
+            metrics.plot(y="Region", row="Measure", sharex=False, figsize=(5, 20))
+            if os.path.isdir(figpath):
+                plt.savefig(os.path.join(figpath, "TrasferMetrics.png"))
+
+    except Exception as e:
+        import warnings
+        warning.warn(e)
+
+    return metrics
 
 
 def intval(x):
