@@ -103,11 +103,6 @@ RUN $BASEENV/bin/pip3 install setuptools; \
     cd nestml; \
     $BASEENV/bin/python setup.py install --user;
 
-# Other (large) packages added for scientific work:
-RUN $BASEENV/bin/pip3 install plotly
-#RUN $BASEENV/bin/pip3 install torch
-#RUN $BASEENV/bin/pip3 install sbi
-# RUN $BASEENV/bin/pip3 install sbibm
 
 # Install TVB specific packages
 WORKDIR $PACKAGES
@@ -170,6 +165,12 @@ ARG LAST_SHA_MULTISCALE=LATEST
 RUN cd tvb-multiscale; \
     git pull origin --allow-unrelated-histories; \
     $BASEENV/bin/python setup.py develop --no-deps --user;
+
+# Other (large) packages added for scientific work:
+RUN $BASEENV/bin/pip3 install plotly
+RUN $BASEENV/bin/pip3 install torch
+RUN $BASEENV/bin/pip3 install sbi
+# RUN $BASEENV/bin/pip3 install sbibm
 
 # Install Jupyter notebook specific packages
 # TODO: Resolve the need for notebook version 6.4.12
