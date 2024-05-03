@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
 from rising_net.scripts.utils import get_regions_indices, dump_pickled_time_series, \
-    compute_data_PSDs, compute_data_PSDs_from_raw, compute_task_transer_metrics
+    compute_data_PSDs, compute_data_PSDs_from_raw, compute_task_transfer_metrics
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -109,6 +109,10 @@ def construct_extra_inds_and_maps(connectome, inds, config):
     config.TASKINDS = []
     for reg in config.TASKREGS:
         config.TASKINDS += list(inds[reg])
+
+    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
+        dill.dump(config.__dict__, file, recurse=1)
+
     return inds, maps, config
 
 
@@ -896,17 +900,19 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # simulator.model.tau_e[inds["cereb_nuclei"]] = 50.0/0.9
 
     # Set monitors:
+    monitors = ()
     if config.RAW_PERIOD > config.DEFAULT_DT:
-        mon_raw = TemporalAverage(period=config.RAW_PERIOD)  # ms
-        afferent = AfferentCouplingTemporalAverage(period=config.RAW_PERIOD, variables_of_interest=np.array([0, 1, 2]))
+        monitors += (TemporalAverage(period=config.RAW_PERIOD), ) # ms
+        if config.AFFERENT_MONITOR:
+            monitors += (AfferentCouplingTemporalAverage(period=config.RAW_PERIOD,
+                                                         variables_of_interest=np.array([0, 1, 2])))
     else:
-        mon_raw = Raw()
-        afferent = AfferentCoupling(variables_of_interest=np.array([0, 1, 2]))
-    simulator.monitors = (mon_raw, afferent)
+        monitors += (Raw(), )
+        if config.AFFERENT_MONITOR:
+            monitors += (AfferentCoupling(variables_of_interest=np.array([0, 1, 2])))
     if config.BOLD_PERIOD:
-        bold = Bold(period=config.BOLD_PERIOD,
-                    variables_of_interest=np.array([2]))
-        simulator.monitors = (mon_raw, afferent, bold)
+        monitors += (Bold(period=config.BOLD_PERIOD, variables_of_interest=np.array([2])),)
+    simulator.monitors = monitors
 
     simulator.configure()
 
@@ -1109,16 +1115,16 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
     config = assert_config(config, return_plotter=False)
 
-    writer = False
-    if write_files:
-        # If you want to see what the function above does, take the steps, one by one
-        try:
-            # We need framework_tvb for writing and reading from HDF5 files
-            from tvb_multiscale.core.tvb.io.h5_writer import H5Writer
-            from examples.plot_write_results import write_RegionTimeSeriesXarray_to_h5
-            writer = H5Writer()
-        except:
-            warnings.warn("H5Writer cannot be imported! Probably you haven't installed tvb_framework.")
+    # writer = False
+    # if write_files:
+    #     # If you want to see what the function above does, take the steps, one by one
+    #     try:
+    #         # We need framework_tvb for writing and reading from HDF5 files
+    #         from tvb_multiscale.core.tvb.io.h5_writer import H5Writer
+    #         from examples.plot_write_results import write_RegionTimeSeriesXarray_to_h5
+    #         writer = H5Writer()
+    #     except:
+    #         warnings.warn("H5Writer cannot be imported! Probably you haven't installed tvb_framework.")
 
     source_ts = None
     bold_ts = None
@@ -1137,33 +1143,38 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
         source_ts.configure()
         outputs["source_ts"] = source_ts
 
-        afferent_ts = TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
-            data=results[1][1], time=results[1][0],
-            connectivity=simulator.connectivity,
-            labels_ordering=["Time", "State Variable", "Region", "Neurons"],
-            labels_dimensions={"State Variable": ["cortical coupling", "subcortical coupling", "thalamic coupling"],
-                               "Region": simulator.connectivity.region_labels.tolist()},
-            sample_period=simulator.monitors[1].period)
+        if config.AFFERENT_MONITOR:
+            afferent_ts = TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
+                data=results[1][1], time=results[1][0],
+                connectivity=simulator.connectivity,
+                labels_ordering=["Time", "State Variable", "Region", "Neurons"],
+                labels_dimensions={"State Variable": ["cortical coupling", "subcortical coupling", "thalamic coupling"],
+                                   "Region": simulator.connectivity.region_labels.tolist()},
+                sample_period=simulator.monitors[1].period)
 
-        afferent_ts.configure()
-        outputs["afferent_ts"] = afferent_ts
+            afferent_ts.configure()
+            outputs["afferent_ts"] = afferent_ts
 
         if write_files:
-            if config.VERBOSE:
-                print("Pickle-dumping source_ts to %s!" % config.SOURCE_TS_PATH)
-            dump_pickled_time_series(source_ts, config.SOURCE_TS_PATH)
-            dump_pickled_time_series(afferent_ts, config.AFFERENT_TS_PATH)
+            if source_ts is not None:
+                if config.VERBOSE:
+                    print("Pickle-dumping source_ts to %s!" % config.SOURCE_TS_PATH)
+                dump_pickled_time_series(source_ts, config.SOURCE_TS_PATH)
+            if config.AFFERENT_MONITOR:
+                if config.VERBOSE:
+                    print("Pickle-dumping afferent_ts to %s!" % config.AFFERENT_TS_PATH)
+                dump_pickled_time_series(afferent_ts, config.AFFERENT_TS_PATH)
 
-        # Write to file
-        if writer:
-            try:
-                write_RegionTimeSeriesXarray_to_h5(source_ts, writer,
-                                                   os.path.join(config.out.FOLDER_RES, source_ts.title) + ".h5")
-            except Exception as e:
-                    warnings.warn("Failed to to write source time series to file with error!:\n%s" % str(e))
-
-        if config.VERBOSE > 1:
-            print("Raw ts:\n%s" % str(source_ts))
+            # # Write to file
+            # if writer:
+            #     try:
+            #         write_RegionTimeSeriesXarray_to_h5(source_ts, writer,
+            #                                            os.path.join(config.out.FOLDER_RES, source_ts.title) + ".h5")
+            #     except Exception as e:
+            #             warnings.warn("Failed to to write source time series to file with error!:\n%s" % str(e))
+            #
+            # if config.VERBOSE > 1:
+            #     print("Raw ts:\n%s" % str(source_ts))
 
         if len(results) > 2:
             try:
@@ -1187,12 +1198,12 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                 if write_files:
                     if config.VERBOSE:
                         print("Pickle-dumping BOLD TVB monitor output to %s!" % config.BOLD_TS_PATH)
-                try:
-                    dump_pickled_dict({"bold_ts": results[2][1],
-                                       "bold_t": results[2][0]},
-                                      config.BOLD_TS_PATH)
-                except Exception as e:
-                    warnings.warn("Failed to pickle dump BOLD TVB monitor output with error!:\n%s" % str(e))
+                    try:
+                        dump_pickled_dict({"bold_ts": results[2][1],
+                                           "bold_t": results[2][0]},
+                                          config.BOLD_TS_PATH)
+                    except Exception as e:
+                        warnings.warn("Failed to pickle dump BOLD TVB monitor output with error!:\n%s" % str(e))
 
             if bold_ts is not None:
                 if write_files:
@@ -1200,14 +1211,14 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                         print("Pickle-dumping bold_ts to %s!" % config.BOLD_TS_PATH)
                     dump_pickled_time_series(bold_ts, config.BOLD_TS_PATH)
 
-                # Write to file
-                if writer:
-                    try:
-                        write_RegionTimeSeriesXarray_to_h5(bold_ts, writer,
-                                                           os.path.join(config.out.FOLDER_RES,
-                                                                        bold_ts.title) + ".h5")
-                    except Exception as e:
-                        warnings.warn("Failed to to write BOLD time series to file with error!:\n%s" % str(e))
+                # # Write to file
+                # if writer:
+                #     try:
+                #         write_RegionTimeSeriesXarray_to_h5(bold_ts, writer,
+                #                                            os.path.join(config.out.FOLDER_RES,
+                #                                                         bold_ts.title) + ".h5")
+                #     except Exception as e:
+                #         warnings.warn("Failed to to write BOLD time series to file with error!:\n%s" % str(e))
 
     return outputs
 
@@ -1264,10 +1275,10 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     # NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
     # NPERSEGs = 512
 
-    TaskMetrics = compute_task_transer_metrics(source_ts, transient, simulator.connectivity.region_labels,
-                                               config.TASKINDS, config.THETA, config.GAMMA,
-                                               methods=(5, 2, 3), plot_flag=True,
-                                               figpath=config.figures.FOLDER_FIGURES)
+    TaskMetrics = compute_task_transfer_metrics(source_ts, transient, simulator.connectivity.region_labels,
+                                                config.TASKINDS, config.THETA, config.GAMMA, config.FREQS,
+                                                methods=(5, 2, 3), plot_flag=True,
+                                                figpath=config.figures.FOLDER_FIGURES)
     dump_pickled_dict(TaskMetrics.to_dict(), config.TASK_TRANSFER_METRICS_PATH)
     results["TaskMetrics"] = TaskMetrics
 
