@@ -26,8 +26,8 @@ DEFAULT_ARGS = {# TVB model:
                 "STIMULUS": 0.0,
                 "STIMULUS_BASELINE": 1.0,
                 "tau_w": 10.0,
-                "I_w": 0.0,
-                "G_w": 1.0,
+                "I_w": -0.35,
+                "G_w": 3.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
@@ -40,7 +40,7 @@ DEFAULT_ARGS = {# TVB model:
                 "M1S1_GAIN": 10.0,
                 "M1FACIAL_GAIN": 50.0,   # 50.0,
                 "FACIALTRIG_GAIN": 1.0,  # 50.0,
-                "WHISKERS_GAIN": 10.0,
+                "WHISKERS_GAIN": 50.0,
                 # TVB <-> NEST Interface:
                 "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
                 "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
@@ -112,7 +112,7 @@ def configure(**ARGS):
     SEED = args.get("SEED", None)
     if SEED is not None:
         SEED = int(SEED)
-        outputs_path = os.path.join(outputs_path, "nsd%d" % SEED)
+        outputs_path = os.path.join(outputs_path, "nsd%05d" % SEED)
     else:
         SEED = 0
 
@@ -182,7 +182,7 @@ def configure(**ARGS):
     # TVB Monitors:
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
-
+    config.AFFERENT_MONITOR = True
     # TVB model parameters
     config.model_params = OrderedDict()
     config.model_params['G'] = args.get('G', 6.0)
@@ -230,14 +230,22 @@ def configure(**ARGS):
     config.PRIORS_DEF = \
         {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.05},
          "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
-         "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
-         "tau_w": {"min": 1.0, "max": 20.0, "loc": 10.0, "sc": 2.0},
-         "I_w": {"min": -0.25, "max": 0.25, "loc": 0.0, "sc": 0.05},
-         "G_w": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
-         "GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0}
+         "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
+         "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
+         "I_w": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         "G_w": {"min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
+         "M1FACIAL_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "WHISKERS_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "TRIG_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "MEDULLA_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "CEREB_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "CNM1_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
+         "CNS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 30.0, "sc": 6.0},
+         "TRIGS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0},
+         "MEDULLAS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0},
+         "M1S1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0}
          }
     config.SBI_NUM_WORKERS = 1
     config.SBI_METHOD = 'SNPE'
@@ -246,18 +254,19 @@ def configure(**ARGS):
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
     config.TASK_TRANSFER_METRICS_PATH = os.path.join(config.out.FOLDER_RES, "task_metrics_data.pkl")
     config.TARGET_FREQS = np.arange(5.0, 48.0, 1.0)  # TODO: Decide about 4 or 5 Hz min frequency!!!
+    config.FREQS = np.arange(5.0, 101.0, 1.0)
     config.THETA = np.arange(6.0, 13.0, 1.0)
     config.GAMMA = np.arange(25.0, 101.0, 1.0)
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 10  # 3 - 10
-    config.N_SIMULATIONS = 1200
+    config.N_SIMULATIONS = 100  # 1200
     config.N_SIM_BATCHES = 30
     config.SPLIT_RUN_SAMPLES = 1
     config.N_TRAIN_SAMPLES = 1200
     config.TEST_SAMPLES_RATIO = 0.25
     config.N_SAMPLES_PER_RUN = 1000
-    config.BATCH_FILE_FORMAT = "%s_%03d%s"
+    config.BATCH_FILE_FORMAT = "s_%03d%s"
     config.BATCH_FILE_FORMAT_G = "%s_iG%02d_%03d%s"
     config.BATCH_PRIORS_SAMPLES_FILE = "bps.pt"  # e.g., bps_iG01_iB010.pt
     config.BATCH_SIM_RES_FILE = "bsr.npy"  # e.g., bsr_iG01_iB010.npy
@@ -265,7 +274,16 @@ def configure(**ARGS):
     config.N_PPT_SIMS_PER_BATCH = 40
     config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(1.0, 11.0)
-    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", [])
+    config.SIM_FILE_FORMAT = "%s_%05d%s"  # "%s_%03d%s"
+    config.PRIORS_SAMPLES_FILE = "ps.pt"  # e.g., ps_00100.pt
+    config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
+    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
+                                          ["I_w", "G_w",
+                                           "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
+                                           "MEDULLA_GAIN", "CEREB_GAIN",
+                                           "CNM1_GAIN", "CNS1_GAIN",
+                                           "TRIGS1_GAIN", "MEDULLAS1_GAIN",
+                                           "M1S1_GAIN"])
     # Uniform priors:
     config.prior_min = []
     config.prior_max = []  
@@ -350,3 +368,13 @@ def parse_args(parser, def_args=DEFAULT_ARGS):
     for arg, val in def_args.items():
         args[arg] = getattr(parser_args, arg)
     return args, parser_args, parser
+
+
+def logprint(msg, logger, verbosity):
+    msg = "\n" + msg
+    try:
+        logger.info(msg)
+    except:
+        pass
+    if verbosity:
+        print(msg)
