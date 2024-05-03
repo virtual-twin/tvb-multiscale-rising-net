@@ -78,27 +78,41 @@ def compute_nperseg(fs, Ndata):
     # nperseg = 512
     return nperseg
 
+def interpolate_freqs(data, f, fmin=0.0, fmax=50.0, ftarg=None):
+    if ftarg is not None:
+        # Compute spectrum interpolation...
+        interp = interp1d(f, data, kind='linear', axis=1,
+                          copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
+        # ...to the target frequencies:
+        data = interp(ftarg)
+        fout = ftarg
+    else:
+        finds = np.logical_and(f > fmin, f <= fmax)
+        fout = f[finds]
+        data = data[:, finds]
+    return fout, data
 
-def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=None, fmin=0.0, fmax=50.0):
+
+def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=None,
+                                       fmin=0.0, fmax=50.0, ftarg=None):
     n_regions = len(inds)
     data = source_ts[transient:, 0, inds].squeeze().T
     fs = 1000/sample_period
     if nperseg is None:
         nperseg = compute_nperseg(fs, data.shape[1])
     f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
-    finds = np.logical_and(f > fmin, f <= fmax)
-    f = f[finds]
-    Pxx_den = Pxx_den[:, finds]
+    fout, Pxx_den = interpolate_freqs(Pxx_den, f, fmin=fmin, fmax=fmax, ftarg=ftarg)
     Cxy = []
     n_regions2 = int(n_regions * (n_regions - 1)/2)
     pairs = []
     if n_regions2:
         for ii in range(n_regions):
             for jj in range(ii+1, n_regions):
-                _, Cxyiijj = signal.coherence(data[ii], data[jj], fs, nperseg=nperseg)
-                Cxy.append(Cxyiijj[finds])
+                f, Cxyiijj = signal.coherence(data[ii], data[jj], fs, nperseg=nperseg)
+                Cxy.append(Cxyiijj)
                 pairs.append([ii, jj])
-    return Pxx_den, np.array(Cxy).squeeze(), f, np.array(pairs).squeeze()
+    fout, Cxy = interpolate_freqs(np.array(Cxy).squeeze(), f, fmin=fmin, fmax=fmax, ftarg=ftarg)
+    return Pxx_den, Cxy, fout, np.array(pairs).squeeze()
 
 
 def compute_plot_selected_spectra_coherence(source_ts, inds,
@@ -426,7 +440,8 @@ def compute_tensorpac(results, pairs=None, methods=(5, 0, 0), transient=None,
         xpacs.append(_compute_tensorpac(data[:, 0, pair[0]].squeeze().T,
                                         data[:, 0, pair[1]].squeeze().T,
                                         fs=fs, methods=methods, regions_label=reg_lbl,
-                                        plot_flag=plot_flag, ax=axes[np.unravel_index(iP, axshape)],
+                                        plot_flag=plot_flag,
+                                        ax=axes[np.unravel_index(iP, axshape)] if plot_flag else None,
                                         **kwargs)[0])
     xpacs = np.array(xpacs).squeeze()
     if plot_flag:
@@ -442,21 +457,19 @@ def compute_tensorpac(results, pairs=None, methods=(5, 0, 0), transient=None,
     return {"syncij": pairs, "pac": xpacs}
 
 
-def compute_task_transer_metrics(raw_results, transient, region_labels, taskinds, theta, gamma,
-                                 methods=(5, 0, 0), plot_flag=True, figpath=None):
-    def compute_freq_P_ratio(P, band_freqs):
-        finds = np.where(np.logical_and(f >= band_freqs[0], f <= band_freqs[-1]))[0]
+def compute_task_transfer_metrics(raw_results, transient, region_labels, taskinds, theta, gamma, ftarg, Pxx_den=None,
+                                  methods=(5, 0, 0), plot_flag=True, figpath=None):
+    def compute_freq_P_ratio(P, band_freqs, ftarg):
+        finds = np.where(np.logical_and(ftarg >= band_freqs[0], ftarg <= band_freqs[-1]))[0]
         return P[:, finds].sum(axis=1) / P.sum(axis=1)
 
-    results = []
+    if Pxx_den is None:
+        # Compute PSDs:
+        Pxx_den = compute_data_PSDs_from_raw(
+            raw_results, ftarg, inds=taskinds, transient=transient, average_region_ps=False)
 
-    # Compute PSDs:
-    f = np.arange(5.0, 129.0, 1.0)
-    Pxx_den = compute_data_PSDs_from_raw(
-        raw_results, f, inds=taskinds, transient=transient, average_region_ps=False)
-
-    Pth = compute_freq_P_ratio(Pxx_den, theta)
-    Pgm = compute_freq_P_ratio(Pxx_den, gamma)
+    Pth = compute_freq_P_ratio(Pxx_den, theta, ftarg)
+    Pgm = compute_freq_P_ratio(Pxx_den, gamma, ftarg)
     Pgm_th_ratio = Pgm / Pth
     PAC = compute_tensorpac(raw_results[:, 0, taskinds], transient=transient, methods=methods,
                             region_labels=region_labels[taskinds], plot_flag=plot_flag, figpath=figpath,
