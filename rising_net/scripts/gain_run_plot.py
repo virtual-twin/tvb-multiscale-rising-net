@@ -7,13 +7,22 @@ import os
 import shutil
 from matplotlib import pyplot
 import torch
+import sbi
+from sbi import analysis as analysis
+from xarray import DataArray, concat
+from pandas import Index
+from scipy.interpolate import interp1d
 
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
-from rising_net.scripts.sbi_script import build_priors, prepare_for_sbi, simulate_for_sbi
+from rising_net.scripts.sbi_script import \
+    build_priors, prepare_for_sbi, simulate_for_sbi, sbi_train, sbi_estimate, \
+    write_posterior, write_posterior_samples, add_posterior_samples_iR, load_posterior_samples, compute_diagnostics
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
+
 from tvb_multiscale.core.plot.plotter import Plotter
+from tvb_multiscale.core.utils.file_utils import load_pickled_dict
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 from examples.plot_write_results import plot_write_spiking_network_results
@@ -241,15 +250,438 @@ def gain_run_plot(iR=0, **kwargs):
         results["COH"] = COH
         results["pairs"] = pairs
 
-        TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
-                                                    simulator.connectivity.region_labels[taskinds],
-                                                    taskinds, config.THETA, config.GAMMA, config.FREQS,
-                                                    Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
-        results["TaskMetrics"] = TaskMetrics
+        # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
+        #                                             simulator.connectivity.region_labels[taskinds],
+        #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
+        #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
+        # results["TaskMetrics"] = TaskMetrics
 
         dump_pickled_dict(results, sim_res_filepath(iR, config))
 
     return results, simulator, nest_network, config, inds
+
+
+def params_path_fun(iR=None, path=None):
+    if path is None:
+        path = os.getcwd()
+    if iR is not None:
+        return os.path.join(path, "PRIORS/res/ps_%05d.pt" % iR)
+    else:
+        return os.path.join(path, "PRIORS/res/ps_*.pt")
+
+
+def sim_res_path_fun(iR=None, path=None, mode="TVB"):
+    if path is None:
+        path = os.getcwd()
+    if iR is not None:
+        ipath = os.path.join(path, mode, "nsd%05d" % iR, "res")
+        return os.path.join(ipath, "res_%05d.pkl" % iR), os.path.join(ipath, "config.pkl")
+    else:
+        ipath = os.path.join(path, mode, "nsd*", "res")
+        return os.path.join(ipath, "res_*.pkl"), os.path.join(ipath, "config.pkl")
+
+
+def all_paths_fun(iR=None, path=None, mode="TVB"):
+    if path is None:
+        path = os.getcwd()
+    params_path = params_path_fun(iR, path)
+    res_path, config_path = sim_res_path_fun(iR, path, mode)
+    return params_path, res_path, config_path
+
+
+def loadsim(iR, mode="TVB", path=None, assert_params=True):
+    params_path, res_path, config_path = all_paths_fun(iR, path, mode)
+
+    params = torch.load(params_path).numpy().squeeze()
+    config = load_pickled_dict(config_path)
+    res = load_pickled_dict(res_path)
+
+    if assert_params:
+        for iP, p in enumerate(config["PRIORS_PARAMS_NAMES"]):
+
+            if iP < 2:
+                pval = config["model_params"][p]
+            else:
+                pval = config[p]
+            try:
+                #         print(p)
+                #         print(pval)
+                #         print(params[iP])
+                assert pval == params[iP]
+            except Exception as e:
+                print(p)
+                print(pval)
+                print(params[iP])
+                raise e
+
+    return params, config, res
+
+
+def loadsim_to_xarrays(iR, mode="TVB", path=None, assert_params=True):
+    if path is None:
+        path = os.getcwd()
+    params, config, res = loadsim(iR, mode=mode, path=path, assert_params=assert_params)
+
+    # TS = res["source_ts"]._data[:, :, :, 0].transpose("Region", "Time", "State Variable")
+
+    # PSD = DataArray(res["PSD"], dims=["Region", "f"],
+    #                 coords={"Region": res["source_ts"].labels_dimensions["Region"],
+    #                         "f": res["f"]},
+    #                 name="PSD")
+
+    COH = DataArray(np.zeros((20, 20, 96)), dims=["Region1", "Region2", "f"],
+                    coords={"Region1": res["source_ts"].labels_dimensions["Region"],
+                            "Region2": res["source_ts"].labels_dimensions["Region"],
+                            "f": res["f"]},
+                    name="COH")
+    for iP, pair in enumerate(res["pairs"]):
+        COH[pair[0], pair[1]] = res["COH"][iP]
+
+    # TM = res["TaskMetrics"].T
+
+    return COH, params, config  # TS, PSD, COH, TM, params, config
+
+
+def load_allsims_to_xarrays(Nsims=None, conds=["TVB", "TVB_CEREBOFF"], path=None, assert_params=True):
+    res_files = glob.glob(sim_res_path_fun(iR=None, path=path, mode=conds[0])[0])
+    # TODO: Make this temporary hack more robust!!!:
+    NallSims = int(np.sort(res_files)[-1].split("_")[-1].split(".pkl")[0])
+    # NallSims = len(res_files)
+    if Nsims is None:
+        Nsims = NallSims
+    if Nsims < NallSims:
+        sims = np.random.permutation(NallSims)[:Nsims]
+    else:
+        if Nsims > NallSims:
+            warnings.warn("There are no %d samples available! Switching to %d samples!" % (Nsims, NallSims))
+            Nsims = NallSims
+        sims = np.arange(Nsims).astype("i")
+
+    if Nsims == 0:
+        _, config, _ = loadsim(0, mode=conds[0], path=path, assert_params=False)
+
+    params = []
+    # TSs = []
+    # PSDs = []
+    COHs = []
+    # TMs = []
+
+    failed = []
+    ifailed = []
+    for iiR, iR in enumerate(sims):
+        COHiR = []
+        try:
+            for iC, cond in enumerate(conds):
+                # TS1, PSD1, COH1, TM1, param, config
+                COHiC, param, config = \
+                    loadsim_to_xarrays(iR, mode=cond, path=path, assert_params=assert_params)
+                COHiR.append(COHiC)
+        except Exception as e:
+            failed.append(iR)
+            ifailed.append(iiR)
+            warnings.warn(str(e))
+            continue
+        params.append(param)
+        # TSs.append(concat([TS1, TS2], dim=Index(conds, name="Condition")))
+        # PSDs.append(concat([PSD1, PSD2], dim=Index(conds, name="Condition")))
+        COHs.append(concat(COHiR, dim=Index(conds, name="Condition")))
+        # TMs.append(concat([TM1, TM2], dim=Index(conds, name="Condition")))
+    sims = np.delete(sims, ifailed)
+
+    params = DataArray(np.array(params).T, dims=["Parameter", "Simulation"],
+                       coords={"Parameter": config['PRIORS_PARAMS_NAMES'],
+                               "Simulation": sims})
+    # TSs = concat(TSs, dim=Index(sims, name="Simulation"))
+    # TSs = TSs.transpose(*(tuple(np.array(TSs.dims)[[1, 0]].tolist()) + TSs.dims[2:]))
+    # PSDs = concat(PSDs, dim=Index(sims, name="Simulation"))
+    # PSDs = PSDs.transpose(*(tuple(np.array(PSDs.dims)[[1, 0]].tolist()) + PSDs.dims[2:]))
+    COHs = concat(COHs, dim=Index(sims, name="Simulation"))
+    COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
+    # TMs = concat(TMs, dim=Index(sims, name="Simulation"))
+    # TMs = TMs.transpose(*(tuple(np.array(TMs.dims)[[1, 0]].tolist()) + TMs.dims[2:]))
+
+    nFailed = len(failed)
+    if nFailed:
+        warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
+
+    return COHs, params, failed  # TSs, PSDs, COHs, TMs, params, failed
+
+
+def define_colors(N):
+    from cycler import cycler
+    import matplotlib as mpl
+
+    cmap = mpl.colormaps['jet']
+
+    # Take colors at regular intervals spanning the colormap.
+    colors = cmap(np.linspace(0, 1, N))
+
+    custom_cycler = cycler(color=colors)  # or simply color=colorlist
+    plt.rc('axes', prop_cycle=custom_cycler)
+
+    return custom_cycler
+
+
+def pathway_pairs_fun():
+    pathway_pairs_R = [[0, 3], [3, 5], [5, 7], [7, 9], [9, 11], [11, 13], [0, 13], [13, 18]]
+    pathway_pairs_L = [[1, 2], [2, 4], [4, 6], [6, 8], [8, 10], [10, 12], [1, 12], [12, 19]]
+    pathway_pairs = np.array(pathway_pairs_R + pathway_pairs_L)
+    return pathway_pairs
+
+
+def M1S1_pairs_fun():
+    return np.array([[0, 1], [18, 19]]).T
+
+
+def get_sim_res_COHgamma_params(pathway_pairs, config, Nsims=None, conds=["TVB"], path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=conds, path=path, assert_params=assert_params)
+    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
+    COHs = COHs[:, :, :, :, gammaInds].isel(
+        Region1=DataArray(pathway_pairs[:, 0], dims="Region1-Region2"),
+        Region2=DataArray(pathway_pairs[:, 1], dims="Region1-Region2"))
+    if config.COHERENCE_FISHER_Z_TRANSFORM:
+        COHs = np.arctanh(COHs)
+    return COHs, params
+
+
+def get_sim_res_COHgammaPathway_params(config, Nsims=None, path=None, assert_params=True):
+    COHs, params = get_sim_res_COHgamma_params(pathway_pairs_fun(), config,
+                                                Nsims=Nsims, conds=["TVB"],
+                                                path=path, assert_params=assert_params)
+    COHs = COHs.mean(axis=-1)  # average over gamma band
+    return COHs.values, params.values
+
+
+def get_sim_res_COHgammaM1S1diff_params(config, Nsims=None, path=None, assert_params=True):
+    COHs, params = get_sim_res_COHgamma_params(M1S1_pairs_fun(), config,
+                                               Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                               path=path, assert_params=assert_params)
+    COHs = COHs[0] - COHs[1]   # TVB
+    COHs = COHs.mean(axis=-1)  # average over gamma band
+    return COHs.values, params.values
+
+
+def get_sim_res_COHM1S1diff_params(config, Nsims=None, path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                                   path=path, assert_params=assert_params)
+    pathway_pairs = M1S1_pairs_fun()
+    COHs = COHs[:, :, :, :, :].isel(
+        Region1=DataArray(pathway_pairs[:, 0], dims="Region1-Region2"),
+        Region2=DataArray(pathway_pairs[:, 1], dims="Region1-Region2"))
+    if config.COHERENCE_FISHER_Z_TRANSFORM:
+        COHs = np.arctanh(COHs)
+    thetaInds = np.logical_and(COHs.coords["f"] >= config.THETA[0], COHs.coords["f"] <= config.THETA[-1])
+    betaInds = np.logical_and(COHs.coords["f"] >= config.BETA[0], COHs.coords["f"] <= config.BETA[-1])
+    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
+    COHsPerBand = []
+    COHsDiffsPerBand = []
+    for inds in [thetaInds, betaInds, gammaInds]:
+        # Average over freq band:
+        temp = COHs[:, :, :, inds].mean(axis=-1)
+        # Average over simulations:
+        COHsPerBand.append(temp[0].values.squeeze())
+        # Diff conditions and average over simulations
+        COHsDiffsPerBand.append((temp[0] - temp[1]).values.squeeze())
+    COHs = np.hstack([np.hstack(COHsPerBand), np.hstack(COHsDiffsPerBand)])
+    return COHs, params.values
+
+
+def train_posterior(sim_res_fun, config, Nsims=None, path=None, assert_params=True):
+    COHs, params = sim_res_fun(config, Nsims=Nsims, path=path, assert_params=assert_params)
+    priors = build_priors(config)
+    posterior = sbi_train(priors,
+                          torch.Tensor(params.T),
+                          torch.Tensor(COHs),
+                          config.VERBOSE)
+    return posterior, COHs, params, priors
+
+
+def target_COHgammaPathway_fun(config, target=0.5):
+    target = target*np.ones((16, ))
+    if config.COHERENCE_FISHER_Z_TRANSFORM:
+        target = np.arctanh(target)
+    return torch.Tensor(target)
+
+
+def target_COHgammaM1S1diff_fun(config, target=0.1):
+    target = target*np.ones((2, ))
+    return torch.Tensor(target)
+
+
+def load_Popa_etal_COH(config):
+    with open(os.path.join(config.TARGET_PSD_POPA_PATH, 'COH.npy'), 'rb') as f:
+        COH = np.load(f)
+    # Compute coherence interpolation...
+    interp = interp1d(COH.T[0], COH.T[1], kind='linear', axis=0,
+                      copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
+    return interp(config.TARGET_FREQS)
+
+
+def target_COHM1S1diff_fun(config, target=None):
+    if target is None:
+        COH = load_Popa_etal_COH(config)
+        if config.COHERENCE_FISHER_Z_TRANSFORM:
+            COH = np.arctanh(COH)
+        thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
+        betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
+        gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
+        # TODO: Update when we have the CEREBOFF Popa et al data:
+        target = np.array([[np.mean(COH[thetaInds])]*2,
+                           [np.mean(COH[betaInds])]*2,
+                           [np.mean(COH[gammaInds])]*2,
+                           [0.1*np.mean(COH[thetaInds])]*2,
+                           [0.0]*2,
+                           [(np.max(COH[gammaInds]) - np.min(COH[gammaInds]))/2]*2]).flatten()
+    else:
+        target = target * np.ones((12,))
+    return torch.Tensor(target)
+
+
+def estimate_posterior_samples(target, target_fun, posterior, config, n_samples_per_run=None):
+    if n_samples_per_run is None:
+        n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
+    return sbi_estimate(posterior, target_fun(config, target), n_samples_per_run)
+
+
+def load_posterior_samples_all_runs(runs=None, label="", samples=None, config=None):
+    config = assert_config(config, return_plotter=False)
+    if samples is None:
+        samples = OrderedDict()
+    if runs is None:
+        runs = list(range(config.N_FIT_RUNS))
+    for iR in ensure_list(runs):
+        try:
+            samples_iR = load_posterior_samples(iG=None, iR=iR, label=label, config=config)
+            samples = add_posterior_samples_iR(samples, samples_iR)
+        except Exception as e:
+            warnings.warn("Failed to load posterior samples for iR=%d!\n%s" % (iR, str(e)))
+    return samples
+
+
+def iRstrfun(iR):
+    if iR is None:
+        iRstr = ""
+    else:
+        iRstr = "%02d" % iR
+    return iRstr
+
+
+def plot_infer(runs=None, samples=None, sampleslabel="", figlabel="", config=None):
+    config = assert_config(config, return_plotter=False)
+
+    if samples is None:
+        samples = load_posterior_samples_all_runs(runs, sampleslabel, samples, config)
+
+    n_samples_runs = len(samples[config.OPT_RES_MODE])
+    if runs is None:
+        iiR = slice(None)
+        n_runs = n_samples_runs
+    else:
+        iiR = ensure_list(runs)
+        n_runs = len(iiR)
+    if n_runs == n_samples_runs:
+        iiR = slice(None)
+    elif n_runs > n_samples_runs:
+        raise ValueError("The number of runs requested to plot (=%d) "
+                         "are more than the runs (=%d) in the given or loaded samples!" % (n_runs, n_samples_runs))
+
+    # Get the default values for the parameter except for G
+    pvals = np.concatenate(np.array(samples[config.OPT_RES_MODE])[iiR].tolist()).mean(axis=0).squeeze()
+    samples_points = np.hstack(np.array(samples['samples'])[iiR].tolist()).squeeze()
+    print("samples_points.shape = %s" % str(samples_points.shape))
+
+    if not isinstance(pvals, np.ndarray):
+        pvals = pvals.numpy()
+    limits = []
+    for pmin, pmax in zip(config.prior_min, config.prior_max):
+        limits.append([pmin, pmax])
+    if config.VERBOSE:
+        print("\nPlotting posterior...")
+    labels = []
+    for p, pval in zip(config.PRIORS_PARAMS_NAMES, pvals):
+        try:
+            labels.append("%s %s = %g" % (p, config.OPT_RES_MODE, pval))
+        except Exception as e:
+            print(p)
+            print(config.OPT_RES_MODE)
+            print(pval)
+            print(pvals.shape)
+            raise e
+    fig, axes = analysis.pairplot(samples_points,
+                                  limits=limits,
+                                  ticks=limits,
+                                  figsize=(20, 20),
+                                  labels=labels,
+                                  points=pvals,
+                                  points_offdiag={'markersize': 6},
+                                  points_colors=['r'] * config.n_priors)
+    if config.figures.SAVE_FLAG:
+        filename = 'sbi_pairplot'
+        if len(sampleslabel):
+            filename += "_%s" % sampleslabel
+        if len(figlabel):
+            filename += "_%s" % figlabel
+        filename += '.png'
+        plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, filename))
+    if config.figures.SHOW_FLAG:
+        plt.show()
+    else:
+        plt.close(fig)
+    return fig, axes
+
+
+def infer_for_iR(sim_res_fun, target_fun, target,
+                 n_training_samples_per_run=None, n_posterior_samples_per_run=None,
+                 samples_fit=None, iR=None, path=None, assert_params=True, label="", config=None):
+    ticR = time.time()
+    iRstr = iRstrfun(iR)
+    if config.VERBOSE:
+        print("\n\nFitting %s!..\n" % iRstr)
+    config = assert_config(config, return_plotter=False)
+    posterior, COHs, params, priors = \
+        train_posterior(sim_res_fun, config, Nsims=n_training_samples_per_run,
+                        path=path, assert_params=assert_params)
+    write_posterior(posterior, iG=None, iR=iR, label=label, config=config)
+    posterior, posterior_samples, map = \
+        estimate_posterior_samples(target, target_fun, posterior, config, n_posterior_samples_per_run)
+    results = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
+    results["COHs"] = COHs
+    results["params"] = params
+    samples_fit = write_posterior_samples(results, config,
+                                          iG=None, iR=iR, label=label,
+                                          samples_fit=samples_fit, save_samples=True)
+    # Plot posterior:
+    plot_infer(runs=iR, samples=samples_fit, sampleslabel=label, figlabel=iRstr, config=config)
+    if config.VERBOSE:
+        print("Done with %s in %g sec!" % (iRstr, time.time() - ticR))
+    return samples_fit
+
+
+def infer(sim_res_fun, target_fun, target, path=None, assert_params=True, label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    samples_fit = None
+    if config.N_FIT_RUNS:
+        for iR in range(config.N_FIT_RUNS):
+            # For every fitting run...
+            samples_fit = infer_for_iR(sim_res_fun, target_fun, target,
+                                       samples_fit=samples_fit, iR=iR,
+                                       n_training_samples_per_run=config.N_TRAINING_SAMPLES_PER_RUN,
+                                       n_posterior_samples_per_run=config.N_POSTERIOR_SAMPLES_PER_RUN,
+                                       path=path, assert_params=assert_params, label=label, config=config)
+        # Plot with samples from all runs!:
+        plot_infer(runs=None, samples=samples_fit,
+                   sampleslabel=label, figlabel="Allruns", config=config)
+
+    if config.VERBOSE:
+        print("\n\nFitting with all samples!..\n")
+    samples_fit_all = infer_for_iR(sim_res_fun, target_fun, target,
+                                  samples_fit=None, iR=None,
+                                  n_training_samples_per_run=None,
+                                  n_posterior_samples_per_run=config.N_FIT_RUNS*config.N_POSTERIOR_SAMPLES_PER_RUN,
+                                  path=path, assert_params=assert_params,
+                                  label=label + "Allsamples", config=config)
+
+    return samples_fit_all, samples_fit
 
 
 if __name__ == '__main__':
