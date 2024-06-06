@@ -226,7 +226,7 @@ def configure(**ARGS):
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
     # Fitting
-    config.PRIORS_DIST = args.get('PRIORS_DIST', "normal")  # "normal" or "uniform"
+    config.PRIORS_DIST = args.get('PRIORS_DIST', "uniform")  # "normal" or "uniform"
     config.PRIORS_DEF = \
         {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.05},
          "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
@@ -236,16 +236,16 @@ def configure(**ARGS):
          "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "G_w": {"min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
-         "M1FACIAL_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "WHISKERS_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "TRIG_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "MEDULLA_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "CEREB_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "CNM1_GAIN": {"min": 1.0, "max": 100.0, "loc": 50.0, "sc": 10.0},
-         "CNS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 30.0, "sc": 6.0},
-         "TRIGS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0},
-         "MEDULLAS1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0},
-         "M1S1_GAIN": {"min": 1.0, "max": 100.0, "loc": 10.0, "sc": 2.0}
+         "M1FACIAL_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "WHISKERS_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "TRIG_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "MEDULLA_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CEREB_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CNM1_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CNS1_GAIN": {"min": 1.0, "max": 90.0, "loc": 30.0, "sc": 6.0},
+         "TRIGS1_GAIN": {"min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         "MEDULLAS1_GAIN": {"min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         "M1S1_GAIN": {"min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
     config.SBI_NUM_WORKERS = 1
     config.SBI_METHOD = 'SNPE'
@@ -256,16 +256,19 @@ def configure(**ARGS):
     config.TARGET_FREQS = np.arange(5.0, 48.0, 1.0)  # TODO: Decide about 4 or 5 Hz min frequency!!!
     config.FREQS = np.arange(5.0, 101.0, 1.0)
     config.THETA = np.arange(6.0, 13.0, 1.0)
-    config.GAMMA = np.arange(25.0, 101.0, 1.0)
+    config.BETA = np.arange(13.0, 25.0, 1.0)
+    config.GAMMA = np.arange(25.0, 61.0, 1.0)
+    config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
-    config.N_FIT_RUNS = 10  # 3 - 10
-    config.N_SIMULATIONS = 100  # 1200
+    config.N_FIT_RUNS = 3  # 3 - 10
+    config.N_SIMULATIONS = 10000  # 1200
     config.N_SIM_BATCHES = 30
     config.SPLIT_RUN_SAMPLES = 1
     config.N_TRAIN_SAMPLES = 1200
     config.TEST_SAMPLES_RATIO = 0.25
-    config.N_SAMPLES_PER_RUN = 1000
+    config.N_POSTERIOR_SAMPLES_PER_RUN = 1000  # 0
+    config.N_TRAINING_SAMPLES_PER_RUN = 1500   # 0
     config.BATCH_FILE_FORMAT = "s_%03d%s"
     config.BATCH_FILE_FORMAT_G = "%s_iG%02d_%03d%s"
     config.BATCH_PRIORS_SAMPLES_FILE = "bps.pt"  # e.g., bps_iG01_iB010.pt
