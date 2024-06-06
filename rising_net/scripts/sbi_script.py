@@ -4,6 +4,7 @@ import warnings
 import pickle
 
 import numpy as np
+from xarray import DataArray
 import torch
 from sbi.inference.base import infer, prepare_for_sbi, simulate_for_sbi
 from sbi.inference import SNPE
@@ -274,15 +275,13 @@ def write_posterior_samples(results, config,
                 samples_fit = pickle.load(handle)
         else:
             samples_fit = {}
-    # if iR is None:
-    #     iir = -1
-    # else:
-    #     iir = iR
+    if iR is None:
+        iR = -1
     # Get G for this run:
     if iG is not None:
         samples_fit["G"] = config.Gs[iG]
     for key, val in results.items():
-        samples_fit = safely_append_item_iR(samples_fit, 0, key, val)
+        samples_fit = safely_append_item_iR(samples_fit, iR, key, val)
     if not save_samples:
         del samples_fit["samples"]
     with open(filepath, "wb") as handle:
@@ -313,10 +312,12 @@ def add_posterior_samples_iR(all_samples, samples_iR):
                 all_samples[key] = []
             vals = []
             for vl in val[0]:
-                if isinstance(vl, np.ndarray):
-                    vals.append(vl)
-                else:
+                if isinstance(vl, torch.Tensor):
                     vals.append(vl.numpy())
+                elif isinstance(vl, DataArray):
+                    vals.append(vl.values)
+                else:
+                    vals.append(vl)
             all_samples[key].append(vals)
     return all_samples
 
@@ -380,7 +381,10 @@ def sbi_train(priors, priors_samples, sim_res, verbose):
 
 def sbi_estimate(posterior, target, n_samples_per_run):
     posterior.set_default_x(target)
-    return posterior, posterior.sample((n_samples_per_run,)), posterior.map(num_iter=n_samples_per_run).numpy()
+    return posterior, \
+           posterior.sample((n_samples_per_run,)), \
+           posterior.map(num_init_samples=n_samples_per_run,
+                         num_to_optimize=int(0.1*n_samples_per_run)).numpy()
 
 
 def sbi_infer(priors, priors_samples, sim_res, n_samples_per_run, target, verbose):
@@ -398,8 +402,8 @@ def plot_infer_for_iG(iG, iR=None, samples=None, label="", config=None):
     if iR is None:
         iR = slice(None)
     # Get the default values for the parameter except for G
-    pvals = np.concatenate(samples_fit[config.OPT_RES_MODE][iR]).mean(axis=0)
-    samples_points = np.concatenate(samples_fit['samples'][iR])
+    pvals = np.concatenate(samples[config.OPT_RES_MODE][iR]).mean(axis=0)
+    samples_points = np.concatenate(samples['samples'][iR])
 
     if not isinstance(pvals, np.ndarray):
         pvals = pvals.numpy()
@@ -471,7 +475,7 @@ def sbi_infer_for_iG(iG, label="", config=None):
             sampl_inds = random.sample(all_inds, n_train_samples)
             # Train the network, build the posterior and sample it:
             posterior, posterior_samples, map = sbi_infer(priors, priors_samples[sampl_inds], sim_res[sampl_inds],
-                                                          config.N_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
+                                                          config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
             # Write posterior and samples to files:
             write_posterior(posterior, iG, iR, label, config=config)
             diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
@@ -485,7 +489,7 @@ def sbi_infer_for_iG(iG, label="", config=None):
     ticR = time.time()
     # Train the network, build the posterior and sample it:
     posterior, posterior_samples, map = sbi_infer(priors, priors_samples[:n_samples], sim_res,
-                                                  config.N_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
+                                                  config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
     # Write posterior and samples to files:
     write_posterior(posterior, iG, iR=None, label=label, config=config)
     diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
@@ -534,7 +538,7 @@ def sbi_estimate_for_iG(iG, label="", config=None):
                 print("\n\nEstimating run %d!..\n" % iR)
             ticR = time.time()
             posterior = load_posterior(iG, iR=iR, label=label, config=config)
-            posterior, posterior_samples, map = sbi_estimate(posterior, psd_targ, config.N_SAMPLES_PER_RUN)
+            posterior, posterior_samples, map = sbi_estimate(posterior, psd_targ, config.N_POSTERIOR_SAMPLES_PER_RUN)
             # Write posterior and samples to files:
             write_posterior(posterior, iG, iR, label, config=config)
             diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
@@ -546,7 +550,7 @@ def sbi_estimate_for_iG(iG, label="", config=None):
             print("\n\nEstimating!..\n")
         ticR = time.time()
         posterior = load_posterior(iG, iR=None, label=label, config=config)
-        posterior, posterior_samples, map = sbi_estimate(posterior, PSD_target, config.N_SAMPLES_PER_RUN)
+        posterior, posterior_samples, map = sbi_estimate(posterior, PSD_target, config.N_POSTERIOR_SAMPLES_PER_RUN)
         # Write posterior and samples to files:
         write_posterior(posterior, iG, None, label, config=config)
         diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
@@ -600,7 +604,7 @@ def sbi_train_for_iG(iG, config, iR=None, n_train_samples=None):
     # Train:
     priors = build_priors(config)
     posterior = sbi_train(priors, train_samples, train_res, config.VERBOSE)
-    write_posterior(posterior, iG, iR=iR, label=label, config=config)
+
     if config.VERBOSE:
         print("\nDone with training with all samples in %g sec!" % (time.time() - tic))
         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
@@ -622,13 +626,13 @@ def sbi_test_for_iG(iG, config,
         else:
             run_str = ", iR=%d" % iR
         print("\nTesting network for iG=%d%s by sampling %d posterior samples for %d testing samples!" %
-              (iG, run_str, config.N_SAMPLES_PER_RUN, test_samples.shape[0]))
+              (iG, run_str, config.N_POSTERIOR_SAMPLES_PER_RUN, test_samples.shape[0]))
     samples_fit = None
     nts = len(test_samples)
     for iT, (ts, rs) in enumerate(zip(test_samples, test_res)):
         if config.VERBOSE:
             print("\nTesting sample... %d/%d" % (iT+1, nts))
-        posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_SAMPLES_PER_RUN)
+        posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN)
         # write_posterior(posterior, iG, iR=iR, label=label, config=config)
         diagnostics = compute_diagnostics(posterior_samples, config, priors, map, ts.numpy())
         samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label,
