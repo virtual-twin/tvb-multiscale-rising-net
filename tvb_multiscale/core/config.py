@@ -21,6 +21,7 @@ from tvb.contrib.scripts.utils.file_utils import safe_makedirs
 from tvb_multiscale.core.neotraits import HasTraits
 from tvb_multiscale.core.utils.log_utils import initialize_logger as initialize_logger_base
 
+
 def find_root_dir():
     script_path = os.path.abspath(__file__)
     dir_path = os.path.split(script_path)[0] # drop file name
@@ -42,7 +43,9 @@ def find_root_dir():
 
     return dir_path
 
+
 ROOT_PATH = find_root_dir()
+
 
 def _folder(base, separate_by_run=False, ftype=""):
     folder = os.path.join(base, ftype)
