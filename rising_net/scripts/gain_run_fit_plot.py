@@ -686,7 +686,7 @@ def infer(sim_res_fun, target_fun, target, path=None, assert_params=True, label=
 
 if __name__ == '__main__':
     # Example use:
-    # $ python gain_run_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+    # $ python gain_run_fit_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
     # Called tuning_tvb_nest.py with:
     # keyword argument: w_TVB_to_NEST=world
     # keyword argument: simulation_length=300.0
