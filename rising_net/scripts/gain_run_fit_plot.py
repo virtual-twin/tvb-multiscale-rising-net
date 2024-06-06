@@ -477,12 +477,36 @@ def get_sim_res_COHM1S1diff_params(config, Nsims=None, path=None, assert_params=
     COHsDiffsPerBand = []
     for inds in [thetaInds, betaInds, gammaInds]:
         # Average over freq band:
-        temp = COHs[:, :, :, inds].mean(axis=-1)
-        # Average over simulations:
-        COHsPerBand.append(temp[0].values.squeeze())
-        # Diff conditions and average over simulations
-        COHsDiffsPerBand.append((temp[0] - temp[1]).values.squeeze())
+        temp = COHs[:, :, :, inds]
+        COHsPerBand.append(temp[0].mean(axis=-1).values.squeeze())
+        # Diff conditions and average over freq band
+        COHsDiffsPerBand.append((temp[0] - temp[1]).mean(axis=-1).values.squeeze())
     COHs = np.hstack([np.hstack(COHsPerBand), np.hstack(COHsDiffsPerBand)])
+    return COHs, params.values
+
+
+def get_sim_res_COHM1S1diffratio_params(config, Nsims=None, path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                                   path=path, assert_params=assert_params)
+    pathway_pairs = M1S1_pairs_fun()
+    COHs = COHs[:, :, :, :, :].isel(
+        Region1=DataArray(pathway_pairs[:, 0], dims="Region1-Region2"),
+        Region2=DataArray(pathway_pairs[:, 1], dims="Region1-Region2"))
+    if config.COHERENCE_FISHER_Z_TRANSFORM:
+        COHs = np.arctanh(COHs)
+    thetaInds = np.logical_and(COHs.coords["f"] >= config.THETA[0], COHs.coords["f"] <= config.THETA[-1])
+    betaInds = np.logical_and(COHs.coords["f"] >= config.BETA[0], COHs.coords["f"] <= config.BETA[-1])
+    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
+    # COHsPerBand = []
+    COHsDiffsPerBand = []
+    for inds in [thetaInds, betaInds, gammaInds]:
+        # Get the coherence band:
+        COHsPerBand = COHs[:, :, :, inds]
+        # Diff conditions and normalize with TVB with CEREBON coherence, and average over frequency band
+        COHsDiffsPerBand.append(
+            ( (COHsPerBand[0] - COHsPerBand[1]) / COHsPerBand[0] ).mean(axis=-1).values.squeeze()
+        )
+    COHs = np.hstack(COHsDiffsPerBand)
     return COHs, params.values
 
 
@@ -511,10 +535,10 @@ def target_COHgammaM1S1diff_fun(config, target=0.1):
 def load_Popa_etal_COH(config):
     with open(os.path.join(config.TARGET_PSD_POPA_PATH, 'COH.npy'), 'rb') as f:
         COH = np.load(f)
-    # Compute coherence interpolation...
-    interp = interp1d(COH.T[0], COH.T[1], kind='linear', axis=0,
-                      copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
-    return interp(config.TARGET_FREQS)
+    # # Compute coherence interpolation...
+    # interp = interp1d(COH.T[0], COH.T[1], kind='linear', axis=0,
+    #                   copy=True, bounds_error=None, fill_value=0.0, assume_sorted=True)
+    return COH  # interp(config.TARGET_FREQS)
 
 
 def target_COHM1S1diff_fun(config, target=None):
@@ -526,14 +550,31 @@ def target_COHM1S1diff_fun(config, target=None):
         betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
         gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
         # TODO: Update when we have the CEREBOFF Popa et al data:
-        target = np.array([[np.mean(COH[thetaInds])]*2,
-                           [np.mean(COH[betaInds])]*2,
-                           [np.mean(COH[gammaInds])]*2,
-                           [0.1*np.mean(COH[thetaInds])]*2,
-                           [0.0]*2,
-                           [(np.max(COH[gammaInds]) - np.min(COH[gammaInds]))/2]*2]).flatten()
+        target = np.array([[np.mean(COH[0, thetaInds])]*2,
+                           [np.mean(COH[0, betaInds])]*2,
+                           [np.mean(COH[0, gammaInds])]*2,
+                           [np.mean(COH[0, thetaInds] - COH[1, thetaInds])]*2,
+                           [np.mean(COH[0, betaInds] - COH[1, betaInds])]*2,
+                           [np.mean(COH[0, gammaInds] - COH[1, gammaInds])]*2]).flatten()
     else:
         target = target * np.ones((12,))
+    return torch.Tensor(target)
+
+
+def target_COHM1S1diffratio_fun(config, target=None):
+    if target is None:
+        COH = load_Popa_etal_COH(config)
+        if config.COHERENCE_FISHER_Z_TRANSFORM:
+            COH = np.arctanh(COH)
+        thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
+        betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
+        gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
+        # TODO: Update when we have the CEREBOFF Popa et al data:
+        target = np.array([[np.mean((COH[0, thetaInds] - COH[1, thetaInds])/COH[0, thetaInds])]*2,
+                           [np.mean((COH[0, betaInds] - COH[1, betaInds])/COH[0, betaInds])]*2,
+                           [np.mean((COH[0, gammaInds] - COH[1, gammaInds])/COH[0, gammaInds])]*2]).flatten()
+    else:
+        target = target * np.ones((6,))
     return torch.Tensor(target)
 
 
