@@ -4,6 +4,8 @@ import numpy
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from sbi import analysis as analysis
+
 from matplotlib import pyplot
 
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
@@ -60,30 +62,34 @@ def psd_percent_plot(results,
 
     if inds is None:
         inds = results["inds"]
-    nR = inds.shape[0]
-    fig, axes = plt.subplots(nR, 2, figsize=(figsize[0], figsize[1]*nR/2))
+    nR = len(inds)
+    nR2 = int(nR / 2)
+    fig, axes = plt.subplots(nR2, 4, figsize=(figsize[0], figsize[1]*np.ceil(nR/4)))
     FONTSIZE = 16
     for ind in inds:
         iR = np.where(results["inds"] == ind)[0].item()
+        iR0 = int(iR/2)
+        iC0 = 2*np.mod(iR, 2)
+        iC1 = iC0 + 1
         for test_name, col in zip(tests, colors):
-            axes[iR, 0] = percent_plot(results["f"], results[test_name]['PSD'][:, iR, :].squeeze(),
+            axes[iR0, iC0] = percent_plot(results["f"], results[test_name]['PSD'][:, iR, :].squeeze(),
                               percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                               plot_mean=plot_mean, plot_median=plot_median,
                               color=col, alpha=alpha, mode="linear",
-                              ax=axes[iR, 0], label=test_name, **line_kwargs)
-            axes[iR, 0].set_ylabel("PSD %s" % results["short_labels"][iR], fontsize=FONTSIZE)
-            axes[iR, 1] = percent_plot(results["f"], results[test_name]['PSD'][:, iR, :].squeeze(),
+                              ax=axes[iR0, iC0], label=test_name, **line_kwargs)
+            axes[iR0, iC0].set_ylabel("PSD %s" % results["short_labels"][iR], fontsize=FONTSIZE)
+            axes[iR0, iC1] = percent_plot(results["f"], results[test_name]['PSD'][:, iR, :].squeeze(),
                               percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                               plot_mean=plot_mean, plot_median=plot_median,
                               color=col, alpha=alpha, mode="semilog",
-                              ax=axes[iR, 1], label=test_name, **line_kwargs)
-            if iR == 0:
-                axes[iR, 1].legend(fontsize=fontsize)
-                axes[iR, 0].set_title("Linear PSD", fontsize=fontsize)
-                axes[iR, 1].set_title("Log PSD", fontsize=fontsize)
-            if iR == nR-1:
-                axes[iR, 0].set_xlabel("f (Hz)", fontsize=fontsize)
-                axes[iR, 1].set_xlabel("f (Hz)", fontsize=fontsize)
+                              ax=axes[iR0, iC1], label=test_name, **line_kwargs)
+            if iR0 == 0:
+                axes[iR0, 3].legend(fontsize=fontsize)
+                axes[iR0, iC0].set_title("Linear PSD", fontsize=fontsize)
+                axes[iR0, iC1].set_title("Log PSD", fontsize=fontsize)
+            if iR0 == nR2-1:
+                axes[iR0, iC0].set_xlabel("f (Hz)", fontsize=fontsize)
+                axes[iR0, iC1].set_xlabel("f (Hz)", fontsize=fontsize)
     fig.tight_layout()
     return fig, axes
 
@@ -353,7 +359,7 @@ def coherence_networks_plot(results,
                             resnames=['COHth', 'COHgm'],
                             bands=["theta", "gamma"],
                             figsize=(20, 10), fontsize=16):
-    nR = results["inds"].shape[0]
+    nR = len(results["inds"])
 
     vmins = []
     vmaxs = []
@@ -460,7 +466,7 @@ def prepare_plot_pathway():
 
 def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["g", "r"],
                          percentile_min=1, percentile_max=99, n=1,
-                         plot_mean=False, plot_median=True, mode="semilog",
+                         plot_mean=False, plot_median=True, modePSD="semilog", modeCOH="linear",
                          alpha=0.5, figsize=(10, 10), fontsize=16, **line_kwargs):
 
     mosaic, REGIONS, subplotsPSD, ipsiPSD, REGPAIRS, subplotsCOH, ipsiCOH = prepare_plot_pathway()
@@ -486,10 +492,10 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                         percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
                                      percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                                      plot_mean=plot_mean, plot_median=plot_median,
-                                     color=col, alpha=alpha, ax=axH[reg], mode=mode,
+                                     color=col, alpha=alpha, ax=axH[reg], mode=modePSD,
                                      **line_kwargs)
                     axH[reg].set_title(results['short_labels'][iR])
-                    if mode == "semilog":
+                    if modePSD == "semilog":
                         axH[reg].set_ylabel('log(PSD)', fontsize=fontsize)
                     else:
                         axH[reg].set_ylabel('PSD', fontsize=fontsize)
@@ -536,12 +542,12 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                     percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
                                  percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                                  plot_mean=plot_mean, plot_median=plot_median,
-                                 color=col, alpha=alpha, ax=ax, mode=mode,
+                                 color=col, alpha=alpha, ax=ax, mode=modeCOH,
                                  **line_kwargs)
                     for band, COH, f in zip(["theta", "gamma"],
                                             ["COHth", "COHgm"],
                                             ["fth", "fgm"]):
-                        if mode == "semilog":
+                        if modeCOH == "semilog":
                             mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
                         else:
                             mean = results[test]['COH'][:, iR, results[f]].mean()
@@ -549,7 +555,7 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                                 color=col, linewidth=2.0)
                 ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
                                           results['short_labels'][pair[1]]), fontsize=fontsize)
-                if mode == "semilog":
+                if modeCOH == "semilog":
                     ax.set_ylabel('log(COH)', fontsize=fontsize)
                 else:
                     ax.set_ylabel('COH', fontsize=fontsize)
@@ -558,3 +564,25 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
         figH.tight_layout()
 
     return figR, axR, figL, axL
+
+
+def sbi_pairplot(samples, figpath=None, save_flag=True, show_flag=True, **kwargs):
+    if kwargs.get("limits", None) is None:
+        kwargs["limits"] = np.array([np.min(samples, axis=0), np.max(samples, axis=0)]).T.tolist()
+    if kwargs.get("ticks", None) is None:
+        kwargs["ticks"] = kwargs["limits"]
+    if kwargs.get("points", None) is not None:
+        if kwargs.get("points_colors", None) is None:
+            kwargs["points_colors"] = ['r'] * len(kwargs["points"])
+        if kwargs.get("points_offdiag", None) is None:
+            kwargs["points_offdiag"] = {'markersize': 6}
+    if kwargs.get("figsize", None) is None:
+        kwargs["figsize"] = (20, 20)
+    fig, axes = analysis.pairplot(samples, **kwargs)
+    if save_flag:
+        plt.savefig(figpath)
+    if show_flag:
+        plt.show()
+    else:
+        plt.close(fig)
+    return fig, axes
