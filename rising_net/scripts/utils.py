@@ -9,6 +9,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch
 from sklearn.decomposition import FastICA
 from matplotlib import pyplot as plt
+
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesX
 from tvb.contrib.scripts.utils.data_structures_utils import is_integer, is_float, ensure_list
 
@@ -78,7 +79,8 @@ def compute_nperseg(fs, Ndata):
     # nperseg = 512
     return nperseg
 
-def interpolate_freqs(data, f, fmin=0.0, fmax=50.0, ftarg=None):
+
+def interpolate_freqs(data, f, fmin=0.0, fmax=100.0, ftarg=None):
     if ftarg is not None:
         # Compute spectrum interpolation...
         interp = interp1d(f, data, kind='linear', axis=1,
@@ -94,7 +96,7 @@ def interpolate_freqs(data, f, fmin=0.0, fmax=50.0, ftarg=None):
 
 
 def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient=0, nperseg=None,
-                                       fmin=0.0, fmax=50.0, ftarg=None):
+                                       fmin=0.0, fmax=100.0, ftarg=None):
     n_regions = len(inds)
     data = source_ts[transient:, 0, inds].squeeze().T
     fs = 1000/sample_period
@@ -120,6 +122,7 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
                                             figsize=(15, 5), figures_path="", figname="", figformat="png", 
                                             show_flag=True, save_flag=True):
     n_regions = int(len(inds) / 2)
+    transient = int(transient/source_ts.sample_period)
     data = source_ts[transient:, 0, inds].squeeze().T
     if conn is None:
         conn = source_ts.connectivity
@@ -204,7 +207,7 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
     return Pxx_den, f, CxyRs, fR, CxyLs, fL
 
 
-def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fmin=0.0, fmax=50.0, 
+def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fmin=0.0, fmax=100.0,
                                                   figsize=(15, 5), figures_path="", figformat="png",
                                                   show_flag=True, save_flag=True):
     import numpy as np
