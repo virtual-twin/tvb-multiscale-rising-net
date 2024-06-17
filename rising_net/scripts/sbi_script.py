@@ -141,7 +141,7 @@ def simulate_batch(iB, iG, batch_samples, run_workflow, write_to_file=None, conf
                 config.FIC_SPLIT = numpy_prior
             else:
                 priors_params[prior_name] = numpy_prior
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n\nSimulation %d/%d for iG=%d, iB=%d" % (iS + 1, batch_samples.shape[0], iG, iB))
             print("Simulating for parameters:\n%s" % str(priors_params))
         sim_res.append(
@@ -354,7 +354,7 @@ def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
     return samples
 
 
-def sbi_train(priors, priors_samples, sim_res, verbose):
+def sbi_train(priors, priors_samples, sim_res, verbosity):
     # Initialize the inference algorithm class instance:
     inference = SNPE(prior=priors)
     # Append to the inference the priors samples and simulations results
@@ -366,8 +366,8 @@ def sbi_train(priors, priors_samples, sim_res, verbose):
     while keep_building < 0:
         try:
             # Build the posterior:
-            if verbose:
-                print("Building the posterior...")
+            if verbosity:
+                print("\nBuilding the posterior...")
             posterior = inference.build_posterior(density_estimator)
             keep_building = 0
         except Exception as e:
@@ -379,18 +379,27 @@ def sbi_train(priors, priors_samples, sim_res, verbose):
     return posterior
 
 
-def sbi_estimate(posterior, target, n_samples_per_run):
+def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     posterior.set_default_x(target)
-    return posterior, \
-           posterior.sample((n_samples_per_run,)), \
-           posterior.map(num_init_samples=n_samples_per_run,
-                         num_to_optimize=int(0.1*n_samples_per_run)).numpy()
+    if verbosity:
+        print("\nSetting estimation target...")
+        if verbosity > 1:
+            print(targe)
+    if verbosity:
+        print("\nSampling %d samples from the posterior..." % n_samples_per_run)
+    samples = posterior.sample((n_samples_per_run,))
+    if verbosity:
+        print("\nSampling to find MAP with %d inital samples and %d samples to optimize..." %
+              (n_samples_per_run, int(0.1*n_samples_per_run)))
+    MAP = posterior.map(num_init_samples=n_samples_per_run,
+                        num_to_optimize=int(0.1 * n_samples_per_run)).numpy()
+    return posterior, samples, MAP
 
 
-def sbi_infer(priors, priors_samples, sim_res, n_samples_per_run, target, verbose):
+def sbi_infer(priors, priors_samples, sim_res, n_samples_per_run, target, verbosity):
     # Train the neural network to approximate the posterior and return the posterior estimation:
-    return sbi_estimate(sbi_train(priors, priors_samples, sim_res, verbose),
-                        target, n_samples_per_run)
+    return sbi_estimate(sbi_train(priors, priors_samples, sim_res, verbosity),
+                        target, n_samples_per_run, verbosity)
 
     
 def plot_infer_for_iG(iG, iR=None, samples=None, label="", config=None):
@@ -410,7 +419,7 @@ def plot_infer_for_iG(iG, iR=None, samples=None, label="", config=None):
     limits = []
     for pmin, pmax in zip(config.prior_min, config.prior_max):
         limits.append([pmin, pmax])
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nPlotting posterior for G[%d]=%g..." % (iG, samples['G']))
     labels = []
     for p, pval in zip(config.PRIORS_PARAMS_NAMES, pvals):
@@ -445,7 +454,7 @@ def sbi_infer_for_iG(iG, label="", config=None):
         lblmsg = ", for %s" % label
     else:
         lblmsg = ""
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFitting for G=%g%s!\n" % (G, lblmsg))
     # Load the target
     PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
@@ -468,39 +477,39 @@ def sbi_infer_for_iG(iG, label="", config=None):
         n_train_samples = int(np.ceil(1.0*n_samples / config.SPLIT_RUN_SAMPLES))
         for iR in range(config.N_FIT_RUNS):
             # For every fitting run...
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("\n\nFitting run %d!..\n" % iR)
             ticR = time.time()
             # Choose a subsample of the whole set of samples:
             sampl_inds = random.sample(all_inds, n_train_samples)
             # Train the network, build the posterior and sample it:
             posterior, posterior_samples, map = sbi_infer(priors, priors_samples[sampl_inds], sim_res[sampl_inds],
-                                                          config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
+                                                          config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSITY)
             # Write posterior and samples to files:
             write_posterior(posterior, iG, iR, label, config=config)
             diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
             samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label)
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
 
     # Fit once more using all samples!
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFitting with all samples!..\n")
     ticR = time.time()
     # Train the network, build the posterior and sample it:
     posterior, posterior_samples, map = sbi_infer(priors, priors_samples[:n_samples], sim_res,
-                                                  config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSE)
+                                                  config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSITY)
     # Write posterior and samples to files:
     write_posterior(posterior, iG, iR=None, label=label, config=config)
     diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
     samples_fit = write_posterior_samples(diagnostics, config, iG, label, samples_fit=samples_fit)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Done with fitting with all samples in %g sec!" % (time.time() - ticR))
 
     # Plot posterior:
     plot_infer_for_iG(iG, iR=None, samples=samples_fit, config=config);
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFinished after %g sec!" % (time.time() - tic))
         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
 
@@ -516,7 +525,7 @@ def sbi_estimate_for_iG(iG, label="", config=None):
         lblmsg = ", for %s" % label
     else:
         lblmsg = ""
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFitting for G=%g%s!\n" % (G, lblmsg))
     # Build priors:
     priors = build_priors(config)
@@ -534,19 +543,21 @@ def sbi_estimate_for_iG(iG, label="", config=None):
     if config.N_FIT_RUNS > 0:
         for iR in range(config.N_FIT_RUNS):
             # For every fitting run...
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("\n\nEstimating run %d!..\n" % iR)
             ticR = time.time()
             posterior = load_posterior(iG, iR=iR, label=label, config=config)
-            posterior, posterior_samples, map = sbi_estimate(posterior, psd_targ, config.N_POSTERIOR_SAMPLES_PER_RUN)
+            posterior, posterior_samples, map = sbi_estimate(posterior, psd_targ,
+                                                             config.N_POSTERIOR_SAMPLES_PER_RUN,
+                                                             config.VERBOSITY)
             # Write posterior and samples to files:
             write_posterior(posterior, iG, iR, label, config=config)
             diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
             samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label)
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
     else:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n\nEstimating!..\n")
         ticR = time.time()
         posterior = load_posterior(iG, iR=None, label=label, config=config)
@@ -555,13 +566,13 @@ def sbi_estimate_for_iG(iG, label="", config=None):
         write_posterior(posterior, iG, None, label, config=config)
         diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
         samples_fit = write_posterior_samples(diagnostics, config, iG, None, label)
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("Done in %g sec!" % (time.time() - ticR))
 
         # Plot posterior:
         plot_infer_for_iG(iG, iR=None, samples=samples_fit, config=config);
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFinished after %g sec!" % (time.time() - tic))
         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
 
@@ -593,7 +604,7 @@ def num_train_sample_to_label(nts, format="", config=None):
 
 def sbi_train_for_iG(iG, config, iR=None, n_train_samples=None):
     tic = time.time()
-    if config.VERBOSE:
+    if config.VERBOSITY:
         if iR is None:
             run_str = ""
         else:
@@ -603,9 +614,9 @@ def sbi_train_for_iG(iG, config, iR=None, n_train_samples=None):
     label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
     # Train:
     priors = build_priors(config)
-    posterior = sbi_train(priors, train_samples, train_res, config.VERBOSE)
+    posterior = sbi_train(priors, train_samples, train_res, config.VERBOSITY)
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nDone with training with all samples in %g sec!" % (time.time() - tic))
         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
     return posterior, priors, train_samples, train_res, test_samples, test_res
@@ -620,7 +631,7 @@ def sbi_test_for_iG(iG, config,
         test_samples, test_res = get_train_test_samples(iG, config)[-2:]
     if priors is None:
         priors = build_priors(config)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         if iR is None:
             run_str = ""
         else:
@@ -630,7 +641,7 @@ def sbi_test_for_iG(iG, config,
     samples_fit = None
     nts = len(test_samples)
     for iT, (ts, rs) in enumerate(zip(test_samples, test_res)):
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\nTesting sample... %d/%d" % (iT+1, nts))
         posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN)
         # write_posterior(posterior, iG, iR=iR, label=label, config=config)
@@ -648,9 +659,9 @@ def sbi_train_and_test_for_iG(iG, config, iR=None, n_train_samples=None):
     label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
     # Test:
     samples_fit = sbi_test_for_iG(iG, config, iR, label, posterior, priors, test_samples, test_res)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Done with fitting with all samples in %g sec!"  % (time.time() - tic))
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\nFinished after %g sec!" % (time.time() - tic))
         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
     return samples_fit
@@ -764,7 +775,7 @@ def simulate_after_fitting(iG, iR=None, label="", config=None,
     if FIC_SPLIT is not None:
         config.FIC_SPLIT = FIC_SPLIT
     # Run one simulation with the posterior means:
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Simulating using the estimate of the %s of the parameters' posterior distribution!"
               % config.OPT_RES_MODE)
         print("params =\n", params)
@@ -1047,8 +1058,8 @@ if __name__ == "__main__":
                         help="Number of training samples. Default = -1 will be interpreted as None.")
 
     args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-    verbose = args.get('verbose', DEFAULT_ARGS['verbose'])
-    if verbose:
+    verbosity = args.get('verbosity', DEFAULT_ARGS['verbosity'])
+    if verbosity:
         print("Running %s with arguments:\n" % parser.description)
         print(parser_args, "\n")
         print(args, "\n")

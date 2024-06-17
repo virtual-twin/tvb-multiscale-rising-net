@@ -49,7 +49,7 @@ DEFAULT_ARGS = {# TVB model:
                 "NOISE": 1e-6,
                 "SIMULATION_LENGTH": 2 ** 10 + 1.0,
                 "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
-                'output_folder': "", 'verbose': 1, 'plot_flag': True}
+                'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
 
 def create_plotter(config):
@@ -116,12 +116,12 @@ def configure(**ARGS):
     else:
         SEED = 0
 
-    if args['verbose']:
+    if args['verbosity']:
         print("Outputs' path: %s" % outputs_path)
 
     config = Config(output_base=outputs_path)
 
-    config.VERBOSE = args['verbose']
+    config.VERBOSITY = args['verbosity']
 
     if args['plot_flag']:
         config, plotter = create_plotter(config)
@@ -303,7 +303,7 @@ def configure(**ARGS):
     config.OPT_RES_MODE = "map"  # or "mean"
     config.MIN_ACCURACY = -np.inf
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print(config)
 
     with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
@@ -350,7 +350,7 @@ def args_parser(funname, args=DEFAULT_ARGS):
                  "NOISE": ['ns', float, "Noise amplitude"],
                  "SEED": ['sd', int, "Noise seed additive"],
                  'output_folder': ['o', str, 'Output folder name'],
-                 'verbose': ['v', int,
+                 'verbosity': ['v', int,
                              'Integer flag to print output messages (when > 0) or not (when == 0). Default = 1.0'],
                  'plot_flag': ['pf', bool, 'Boolean flag to plot or not']
                  }

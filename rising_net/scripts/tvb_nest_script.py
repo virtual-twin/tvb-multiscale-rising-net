@@ -283,7 +283,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
     tvb_spikeNet_model_builder.configure()
     # tvb_spikeNet_model_builder.print_summary_info_details(recursive=1)
 
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         # This is how the user defined TVB -> Spiking Network interface looks after configuration
         print("\noutput (TVB->NEST coupling) interfaces' configurations:\n")
         for interface in tvb_spikeNet_model_builder.output_interfaces:
@@ -299,11 +299,11 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
 
     simulator.simulate_spiking_simulator = nest_network.nest_instance.Run  # set the method to run NEST
 
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         simulator.print_summary_info(recursive=3)
         # simulator.print_summary_info_details(recursive=3)
 
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         print("\n\noutput (TVB->NEST coupling) interfaces:\n")
         simulator.output_interfaces.print_summary_info_details(recursive=2)
 
@@ -317,7 +317,7 @@ def simulate_tvb_nest(simulator, nest_network, config):
     simulator.simulation_length, transient = configure_simulation_length_with_transient(config)
     # Simulate and return results
     tic = time.time()
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Simulating TVB-NEST...")
     nest_network.nest_instance.Prepare()
     simulator.configure()
@@ -335,7 +335,7 @@ def simulate_tvb_nest(simulator, nest_network, config):
     nest_network.nest_instance.Run(nest_network.nest_instance.GetKernelStatus("resolution"))
     #  Cleanup NEST network unless you plan to continue simulation later
     nest_network.nest_instance.Cleanup()
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nSimulated in %f secs!" % (time.time() - tic))
     return results, transient, simulator, nest_network
 
@@ -347,7 +347,7 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
     plot_flag = config_args.get('plot_flag', DEFAULT_ARGS.get('plot_flag'))
     config, plotter = assert_config(config, return_plotter=True, **config_args)
     config.model_params.update(model_params)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\n------------------------------------------------\n\n"+
               "Running TVB-NEST workflow for plot_flag=%s, write_files=%s,\nand model_params=\n%s...\n" 
               % (str(plot_flag), str(write_files), str(config.model_params)))
@@ -368,7 +368,7 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
                            inds['ansilob'].tolist())
         simulator.connectivity.weights[inds_off, :] = 0
         simulator.connectivity.weights[:, inds_off] = 0
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n")
             print("-"*25)
             print("-"*25)
@@ -424,7 +424,7 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
         results.update({"PSD": PSD, "PSD_target": PSD_target})
     results.update({"transient": transient, "simulator": simulator, "nest_network": nest_network, "config": config})
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nFinished TVB-NEST workflow in %g sec!\n" % (time.time() - tic))
     return results
 
@@ -432,8 +432,8 @@ def run_tvb_nest_workflow(PSD_target=None, model_params={}, config=None, write_f
 if __name__ == "__main__":
     parser = args_parser("tvb_nest_script")
     args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-    verbose = args.get('verbose', DEFAULT_ARGS['verbose'])
-    if verbose:
+    VERBOSITY = args.get('VERBOSITY', DEFAULT_ARGS['VERBOSITY'])
+    if VERBOSITY:
         print("Running %s with arguments:\n" % parser.description)
         print(args, "\n")
     run_tvb_nest_workflow(**args)

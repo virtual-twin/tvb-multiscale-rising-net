@@ -231,11 +231,11 @@ def build_NEST_network(config=None):
 
     if 'eglif_cond_alpha_multisyn' not in nest.Models():
         try:
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
         except:
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("FAILED! Needing to compile it first!")
             import subprocess
             pwd = os.getcwd()
@@ -243,11 +243,11 @@ def build_NEST_network(config=None):
             cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
             os.chdir(os.path.join(cereb_path, 'build'))
             # This is our shell command, executed by Popen.
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("Compiling cereb module...")
             p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
                                  stdout=subprocess.PIPE, shell=True)
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print(p.communicate())
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
@@ -269,7 +269,7 @@ def build_NEST_network(config=None):
     nest.set_verbosity('M_ERROR')
     nest.SetKernelStatus({"overwrite_files": True, "data_path": "sim_data/", "resolution": 0.05})
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Building NESTNetwork...")
 
     # Create NEST network...
@@ -279,7 +279,7 @@ def build_NEST_network(config=None):
     f = h5py.File(config.CEREB_SCAFFOLD_PATH, 'r+')
 
     neuron_types = list(f['cells/placement'].keys())
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         print(neuron_types)
 
     neuron_number = {}
@@ -336,7 +336,7 @@ def build_NEST_network(config=None):
             nest_network.brain_regions[region][pop] = \
                 NESTPopulation(neuron_models[neuron_name][region],  # possible NEST model params as well here
                                nest, label=pop, brain_region=region)
-            if config.VERBOSE > 1:
+            if config.VERBOSITY > 1:
                 print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
         nest_nodes_inds += nodes_inds
 
@@ -357,7 +357,7 @@ def build_NEST_network(config=None):
                     nest_network.brain_regions[region][pop] = \
                         NESTPopulation(nest.Create("parrot_neuron", n_neurons),  # possible NEST model params as well here
                                        nest, label=pop, brain_region=region)
-                    if config.VERBOSE > 1:
+                    if config.VERBOSITY > 1:
                         print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
 
             nest_nodes_inds += nodes_inds
@@ -374,7 +374,7 @@ def build_NEST_network(config=None):
             target = np.array(conn[:, 1] - start_id_scaffold[post_name] + neuron_models[post_name][post_region][0])
             pre = list(source.astype(int))
             post = list(target.astype(int))
-            if config.VERBOSE > 1:
+            if config.VERBOSITY > 1:
                 print("Connecting  ", conn_name, "!")
                 print("%s - %s -> %s -> %s" % (pre_name, pre_region, post_name, post_region))
 
@@ -403,7 +403,7 @@ def build_NEST_network(config=None):
             region_names = neuron_types_to_region[pop]
             mossy_fibers_targets = {}
             for region, region_mf in zip(region_names,  ['Right Ansiform lobule', 'Left Ansiform lobule']):
-                if config.VERBOSE > 1:
+                if config.VERBOSITY > 1:
                     print("Connecting! %s - %s -> %s -> %s" % (pop, region, "mossy_fibers", region_mf))
                 # translate to NEST ids
                 mossy_fibers_targets[region] = \
@@ -420,7 +420,7 @@ def build_NEST_network(config=None):
                                      nest, model="poisson_generator", label="Background", brain_region=region)
             nest.Connect(nest_network.input_devices["Background"][region].device,
                          neuron_models['mossy_fibers'][region])
-            if config.VERBOSE > 1:
+            if config.VERBOSITY > 1:
                 print("Connected!  %s - %s -> %s -> %s" % ("Background", region, pop, region))
 
     if "input" in str(config.NEST_PERIPHERY).lower() or "TVB" in str(config.NEST_PERIPHERY):
@@ -464,7 +464,7 @@ def build_NEST_network(config=None):
             nest.Connect(nest_network.input_devices["Stimulus"][region].device,
                          nest_network.brain_regions[region][pop].nodes,
                          conn_spec=conn_spec)
-            if config.VERBOSE > 1:
+            if config.VERBOSITY > 1:
                 print("Connected!  %s - %s -> %s -> %s" % ("Stimulus", region, pop, region))
 
     # Create output, measuring devices, spike_recorders and multimeters measuring V_m:
@@ -487,7 +487,7 @@ def build_NEST_network(config=None):
                 nodes = nest_network.brain_regions[region][pop].nodes
             nest.Connect(nodes, nest_network.output_devices[pop][region].device)
             nest_network.output_devices[pop].update()  # update DeviceSet after the new NESTDevice entry
-            if config.VERBOSE > 1:
+            if config.VERBOSITY > 1:
                 print("\n...created spike_recorder device for population %s in brain region %s..." % (pop, region))
 
         # if pop not in ['mossy_fibers', "whisking_stimulus"]:
@@ -499,11 +499,11 @@ def build_NEST_network(config=None):
         #     nest.Connect(nest_network.output_devices[pop_ts][region].device,
         #                  nest_network.brain_regions[region][pop].nodes)
         #     nest_network.output_devices[pop_ts].update()  # update DeviceSet after the new NESTDevice entry
-        #     if config.VERBOSE > 1:
+        #     if config.VERBOSITY > 1:
         #         print("\n...created multimeter device for population %s in brain region %s..." % (pop_ts, region))
 
     nest_network.configure()
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         nest_network.print_summary_info_details(recursive=1, connectivity=False)
 
     return nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold
@@ -610,7 +610,7 @@ def plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
                 color=color[cell])
         ), row=sel_row, col=1)
 
-        if config.VERBOSE > 1:
+        if config.VERBOSITY > 1:
             print("mean frequency: ", int(m_f))
 
         return tms
@@ -673,10 +673,10 @@ def plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
 def simulate_nest_network(nest_network, config, neuron_models={}, neuron_number={}):
     tic = time.time()
     # Simulate:
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nSimulating NEST network...")
     nest_network.nest_instance.Simulate(config.SIMULATION_LENGTH)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nSimulated in %f secs!" % (time.time() - tic))
     return nest_network
 
@@ -685,7 +685,7 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
     tic = time.time()
     config, plotter = assert_config(config, return_plotter=True, **config_args)
     config.model_params.update(model_params)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\n------------------------------------------------\n\n"+
               "Running NEST workflow for plot_flag=%s, \nand model_params=\n%s...\n" 
               % (str(plot_flag), str(config.model_params)))
@@ -707,7 +707,7 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
                            inds['ansilob'].tolist())
         simulator.connectivity.weights[inds_off, :] = 0
         simulator.connectivity.weights[:, inds_off] = 0
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n")
             print("-"*25)
             print("-"*25)
@@ -735,7 +735,7 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
                                            time=None, transient=transient, monitor_period=simulator.monitors[0].period,
                                            plot_per_neuron=False, plotter=plotter, writer=None, config=config)
         plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nFinished NEST workflow in %g sec!\n" % (time.time() - tic))
     results = {"nest_network": nest_network, "simulator": simulator, "config": config}
     return results
@@ -744,8 +744,8 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
 if __name__ == "__main__":
     parser = args_parser("nest_script")
     args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-    verbose = args.get('verbose', DEFAULT_ARGS['verbose'])
-    if verbose:
+    VERBOSITY = args.get('VERBOSITY', DEFAULT_ARGS['VERBOSITY'])
+    if VERBOSITY:
         print("Running %s with arguments:\n" % parser.description)
         print(args, "\n")
     run_nest_workflow(**args)

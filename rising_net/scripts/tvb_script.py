@@ -30,7 +30,7 @@ def load_connectome(config):
     voxel_count = np.load(config.VOXEL_COUNT_FILE)
     inds = np.load(config.INDS_FILE, allow_pickle=True).item()
     inds["ponssens"] = inds["ponssens"][[0, 2]]
-    if config.VERBOSE > 1:
+    if config.VERBOSITY > 1:
         print("major_structs_labels:\n", np.unique(major_structs_labels))
         print("ROI inds:\n", inds)
 
@@ -162,7 +162,7 @@ def plot_norm_w_hist(w, wp, inds, plotter_config, title_string=""):
     return fig
 
 
-def logprocess_weights(connectome, inds, verbose=1, plotter=None):
+def logprocess_weights(connectome, inds, verbosity=1, plotter=None):
     w = connectome['weights'].copy()
     w[np.isnan(w)] = 0.0  # zero nans
     w0 = w <= 0  # zero weights
@@ -174,7 +174,7 @@ def logprocess_weights(connectome, inds, verbose=1, plotter=None):
     w[wp] = np.log(w[wp])  # log positive values
     w[w0] = 0.0  # zero zero values (redundant)
     connectome['weights'] = w
-    if verbose > 1:
+    if verbosity > 1:
         print('\nnormalized weights [min, max] = \n', [w[wp].min(), w[wp].max()])
     if plotter:
         plot_norm_w_hist(w, wp, inds, plotter.config, title_string="logtransformed ")
@@ -190,10 +190,10 @@ def prepare_connectome(config, plotter=None):
         # Construct some more indices and maps
     inds, maps, config = construct_extra_inds_and_maps(connectome, inds, config)
     # if config.CONN_LOG:
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Logtransforming connectivity weights!")
     # Logprocess connectome
-    connectome = logprocess_weights(connectome, inds, verbose=config.VERBOSE, plotter=plotter)
+    connectome = logprocess_weights(connectome, inds, verbosity=config.VERBOSITY, plotter=plotter)
     # Prepare connectivity with all possible normalizations
     return connectome, major_structs_labels, voxel_count, inds, maps, config
 
@@ -207,7 +207,7 @@ def build_connectivity(connectome, inds, config):
     # Set all NaN and Inf weights to 0.0, if any:
     connectivity.weights[np.logical_or(np.isnan(connectivity.weights), np.isinf(connectivity.weights))] = 0.0
     if config.CONN_NORM_PERCENTILE:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("Normalizing connectivity weights with %g percentile!" % config.CONN_NORM_PERCENTILE)
         connectivity.weights /= np.percentile(connectivity.weights, config.CONN_NORM_PERCENTILE)
     # Set maximum tract length so that we have a minimum time delay of one TVB integration time step:
@@ -218,7 +218,7 @@ def build_connectivity(connectome, inds, config):
         connectivity.weights[inds["whiskers"], inds["facial"]] = 1.0
         connectivity.weights[inds["trigeminal"], inds["whiskers"]] = config.WHISKERS_GAIN
     connectivity.configure()
-    if config.WHISKERS * config.VERBOSE:
+    if config.WHISKERS * config.VERBOSITY:
         print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["whiskers"], inds["facial"]]))
         print("Facial -> Whiskers delays!:\n%s" % str(connectivity.delays[inds["whiskers"], inds["facial"]]))
         print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["trigeminal"], inds["whiskers"]]))
@@ -226,7 +226,7 @@ def build_connectivity(connectome, inds, config):
 
     #if "w" in config.THAL_CRTX_FIX:
     # Fix the thalamocortical weights to 1.0:
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Fixing thalamocortical weights!")
     # Fix structural connectivity (specific) thalamo-cortical weights to 1,
     # such that all thalamo-cortical weights are equal to the parameters
@@ -282,7 +282,7 @@ def build_model(number_of_regions, inds, maps, config):
 
     dummy = np.ones((number_of_regions,1))
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Configuring model with parameters:\n%s" % str(config.model_params))
 
     STIMULUS = config.model_params.get("STIMULUS", None)
@@ -429,7 +429,7 @@ def apply_fic(simulator, inds, config, plotter=None):
                                     ["FIC_SPLIT", "(1.0-FIC_SPLIT)"]):
         ficsplit = config.FIC * fv
         if ficsplit > 0:
-            if config.VERBOSE:
+            if config.VERBOSITY:
                 print("Applying FIC for parameter %s: G * FIC * %s = %g * %g * %g = %g!" %
                       (fp, split_string, G, config.FIC, fv,  G * ficsplit))
             # We will modify the w_ie and w_rs parameters a bit based on indegree:
@@ -441,7 +441,7 @@ def apply_fic(simulator, inds, config, plotter=None):
 
 
 def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task_laterality=-1,
-                                 fix_inds=[], indegree_gain=None, verbose=1):
+                                 fix_inds=[], indegree_gain=None, verbosity=1):
     # Determine source and fixed regions' indices:
     FIXflag = False
     if len(fix_inds):
@@ -471,12 +471,12 @@ def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task
         raise ValueError("Pathway gains %s of length %d do not match with target regions inds %s of length %d!"
                          % (str(pathway_gains), len(pathway_gains), str(src_inds), len(src_inds)))
     pathway_gains = np.array(pathway_gains)
-    if verbose: print("pathway_gains = ", pathway_gains)
+    if verbosity: print("pathway_gains = ", pathway_gains)
     indegree_ratio = []
     for iT, trg in enumerate(trg_inds):
-        if verbose: print("trg = ", trg)
+        if verbosity: print("trg = ", trg)
         indegree = weights[trg].sum()                  # initial total indegree
-        if verbose: print("indegree = ", indegree)
+        if verbosity: print("indegree = ", indegree)
         if indegree_gain is not None:
             new_indegree = indegree / indegree_gain
             print("new_indegree to fix = ", new_indegree)
@@ -486,18 +486,18 @@ def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task
             hemi_src_inds = src_inds[slice(np.abs(np.mod(iT, 2)-1), None, 2)]
         else:
             hemi_src_inds = src_inds
-        if verbose: print("hemi_src_inds = ", hemi_src_inds)
+        if verbosity: print("hemi_src_inds = ", hemi_src_inds)
         orig = weights[trg, hemi_src_inds]
-        if verbose: print("orig = ", orig)
+        if verbosity: print("orig = ", orig)
         origsum = orig.sum()
-        if verbose: print("origsum = ", origsum)
+        if verbosity: print("origsum = ", origsum)
         if FIXflag:
             hemi_fix_inds = fix_inds[slice(np.mod(iT, 2), None, 2)]  # Only ipsilaterally
-            if verbose: print("hemi_fix_inds = ", hemi_fix_inds)
+            if verbosity: print("hemi_fix_inds = ", hemi_fix_inds)
             fix = weights[trg, hemi_fix_inds]
-            if verbose: print("fix = ", fix)
+            if verbosity: print("fix = ", fix)
             fixsum = fix.sum()
-            if verbose: print("fixsum = ", fixsum)
+            if verbosity: print("fixsum = ", fixsum)
         else:
             fixsum = 0.0
         pathway_gains_corr = pathway_gains
@@ -506,28 +506,28 @@ def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task
             newsum = (weights[trg, hemi_src_inds] * pathway_gains_corr).sum()
             if newsum > maxnewsum:
                 pathway_gains_corr *= (maxnewsum/newsum)
-        if verbose: print("pathway_gains_corr = ", pathway_gains_corr)
+        if verbosity: print("pathway_gains_corr = ", pathway_gains_corr)
         weights[trg, hemi_src_inds] *= pathway_gains_corr  # increase pathway
-        if verbose: print("w = \n", weights[trg, hemi_src_inds])
+        if verbosity: print("w = \n", weights[trg, hemi_src_inds])
         newsum = weights[trg, hemi_src_inds].sum()
-        if verbose: print("wsum = \n", newsum)
+        if verbosity: print("wsum = \n", newsum)
         if indegree_gain is not None:
             nornom = new_indegree - newsum - fixsum
             if nornom < 0.0:
                 new_indegree = newsum + fixsum + 0.01 * indegree
-                if verbose: print("new_indegree_corr = ", new_indegree)
+                if verbosity: print("new_indegree_corr = ", new_indegree)
                 indegree_gain = indegree / new_indegree
-                if verbose: print("indegree_gain_corr = ", indegree_gain)
+                if verbosity: print("indegree_gain_corr = ", indegree_gain)
                 nornom = new_indegree - newsum - fixsum
             norm = nornom / (indegree - origsum - fixsum)
-            if verbose: print("norm = ", norm)
+            if verbosity: print("norm = ", norm)
             weights[trg] *= norm
             weights[trg, hemi_src_inds] /= norm
             if FIXflag:
                 weights[trg, hemi_fix_inds] /= norm  # set fixed connections
-                if verbose: print("wfix = \n", weights[trg, hemi_fix_inds])
+                if verbosity: print("wfix = \n", weights[trg, hemi_fix_inds])
         final_indegree = weights[trg].sum()
-        if verbose: print("final indegree = ", final_indegree)
+        if verbosity: print("final indegree = ", final_indegree)
         try:
             assert np.all(final_indegree >= 0.0)
         except Exception as e:
@@ -547,7 +547,7 @@ def apply_pathway_gain_to_target(src_inds, trg_inds, pathway_gain, weights, task
 def apply_pathway_gains(weights, inds, config):
 
     task_laterality = config.TASK_LATERALITY  # -1: contralatterally, 0: bilaterally, 1: ipsilaterally
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n" + "-" * 50)
         print("Applying pathway gain...")
         print("-" * 50 + "\n")
@@ -559,7 +559,7 @@ def apply_pathway_gains(weights, inds, config):
     # 1. PosSens Trigeminal (Medulla) <- Trigeminal (stimulus)
 
     if config.TRIG_GAIN > 1.0:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("trigeminal -> ponssens_trigeminal (Medulla)")
         weights, indegree_ratio = \
@@ -568,12 +568,12 @@ def apply_pathway_gains(weights, inds, config):
                                          config.TRIG_GAIN, weights,
                                          task_laterality=-task_laterality,  # ipsilaterally
                                          indegree_gain=1.0,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["ponssens_trigeminal"] = indegree_ratio
 
     # 2. AnsiLob <- PosSens Trigeminal (Medulla)
     if config.MEDULLA_GAIN > 1.0:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("trigeminal ponssens_trigeminal (Medulla) -> ansilob")
         weights, indegree_ratio = \
@@ -582,12 +582,12 @@ def apply_pathway_gains(weights, inds, config):
                                          config.MEDULLA_GAIN, weights,
                                          task_laterality=-task_laterality,  # ipsilaterally
                                          indegree_gain=1.0,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["ansilob"] = indegree_ratio
 
     if config.CEREB_GAIN > 1.0:
         # 5. Cereb nuclei <- AnsiLob
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("ansilob -> CerebNuclei")
         weights, indegree_ratio = \
@@ -596,7 +596,7 @@ def apply_pathway_gains(weights, inds, config):
                                          config.CEREB_GAIN, weights,
                                          task_laterality=-task_laterality,  # ipsilaterally
                                          indegree_gain=1.0,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["cereb_nuclei"] = indegree_ratio
 
     # B. INPUT SENSORY PATHWAY:
@@ -612,7 +612,7 @@ def apply_pathway_gains(weights, inds, config):
             sources.append(source)
             sourcenames.append(name)
     if len(sources):
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("[%s] -> s1brlthal" % (", ".join(sourcenames)))
         weights, indegree_ratio = \
@@ -622,14 +622,14 @@ def apply_pathway_gains(weights, inds, config):
                                          task_laterality=task_laterality,  # contralaterally
                                          fix_inds=inds["s1brl"],
                                          indegree_gain=None,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["s1brlthal"] = indegree_ratio
 
 
     # C. INPUT MOTOR PATHWAY
     if config.CNM1_GAIN > 1.0:
         # 1.  M1 thal <- CerebNuclei
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("CerebNuclei -> m1thal")
         weights, indegree_ratio = \
@@ -639,12 +639,12 @@ def apply_pathway_gains(weights, inds, config):
                                          task_laterality=task_laterality,  # contralaterally
                                          fix_inds=inds["m1"],
                                          indegree_gain=None,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["m1thal"] = indegree_ratio
 
     # C. OUTPUT MOTOR PATHWAY
     if config.M1FACIAL_GAIN > 1.0:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("M1 -> facial motor nucleus")
         weights, indegree_ratio = \
@@ -653,10 +653,10 @@ def apply_pathway_gains(weights, inds, config):
                                          config.M1FACIAL_GAIN, weights,
                                          task_laterality=task_laterality,  # contralaterally
                                          indegree_gain=1.0,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["facial"] = indegree_ratio
     if config.FACIALTRIG_GAIN > 1.0:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("facial motor nucleus -> trigeminal")
         weights, indegree_ratio = \
@@ -665,12 +665,12 @@ def apply_pathway_gains(weights, inds, config):
                                          config.FACIALTRIG_GAIN, weights,
                                          task_laterality=-task_laterality,  # ipsilaterally
                                          indegree_gain=1.0,
-                                         verbose=config.VERBOSE)
+                                         verbosity=config.VERBOSITY)
         indegree_ratios["facial"] = indegree_ratio
 
     # E. M1 <-> S1
     if config.M1S1_GAIN > 1.0:
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("M1 -> S1")
         weights, indegree_ratio = apply_pathway_gain_to_target(
@@ -679,11 +679,11 @@ def apply_pathway_gains(weights, inds, config):
             weights, task_laterality=0,
             fix_inds=inds["m1thal"].tolist(),
             indegree_gain=config.M1S1_GAIN,
-            verbose=config.VERBOSE
+            verbosity=config.VERBOSITY
         )
         indegree_ratios["m1"] = indegree_ratio
 
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("-" * 25 + "\n")
             print("S1 -> M1")
         weights, indegree_ratio = apply_pathway_gain_to_target(
@@ -692,35 +692,35 @@ def apply_pathway_gains(weights, inds, config):
             weights, task_laterality=0,
             fix_inds=inds["s1brlthal"].tolist(),
             indegree_gain=config.M1S1_GAIN,
-            verbose=config.VERBOSE
+            verbosity=config.VERBOSITY
             )
         indegree_ratios["s1brl"] = indegree_ratio
 
     return weights, indegree_ratios
 
 
-def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
+def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbosity=1):
 
     def adjust_fic(weights, indegree_ratios, inds, fie, fwie, I_e, w_ie):  #  ...,
         for ind, indegree_ratio in zip(inds, indegree_ratios):
-            if verbose: print("region ind = %d" % ind)
+            if verbosity: print("region ind = %d" % ind)
             new_indegree = weights[ind].sum()
-            if verbose: print("new_indegree = %g" % new_indegree)
-            if verbose: print("indegree_ratio = %g" % indegree_ratio)
+            if verbosity: print("new_indegree = %g" % new_indegree)
+            if verbosity: print("indegree_ratio = %g" % indegree_ratio)
             indegree = new_indegree * indegree_ratio
             if fie is not None:
-                if verbose: print("indegree = %g" % indegree)
-                if verbose: print("I_e[%d]_old = %g" % (ind, I_e[ind]))
+                if verbosity: print("indegree = %g" % indegree)
+                if verbosity: print("I_e[%d]_old = %g" % (ind, I_e[ind]))
                 I_e[ind] = fie(I_e[ind], indegree, new_indegree)
-                if verbose: print("I_e[%d]_adj = %g" % (ind, I_e[ind]))
+                if verbosity: print("I_e[%d]_adj = %g" % (ind, I_e[ind]))
             if fwie is not None:
-                if verbose: print("indegree = %g" % indegree)
-                if verbose: print("w_ie[%d]_old = %g" % (ind, w_ie[ind]))
+                if verbosity: print("indegree = %g" % indegree)
+                if verbosity: print("w_ie[%d]_old = %g" % (ind, w_ie[ind]))
                 w_ie[ind] = fwie(w_ie[ind], indegree, new_indegree)
-                if verbose: print("w_ie[%d]_adj = %g" % (ind, w_ie[ind]))
+                if verbosity: print("w_ie[%d]_adj = %g" % (ind, w_ie[ind]))
         return I_e, w_ie
 
-    if verbose:
+    if verbosity:
         print("-" * 25)
         print("-" * 25)
         print("Adjusting FICed parameters for (non thalamic) regions with modified indegree...")
@@ -729,7 +729,7 @@ def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
         indmax_Ie = inds["crtx_and_subcrtx"][[np.argmax(simulator.model.I_e[inds["crtx_and_subcrtx"]])]][0].item()
         iemax = simulator.model.I_e[indmax_Ie]
 
-        if verbose:  print("Ie[%d]_max = %g" % (indmax_Ie, iemax))
+        if verbosity:  print("Ie[%d]_max = %g" % (indmax_Ie, iemax))
         fie = lambda ie, indegree, new_indegree: np.minimum(iemax,
                                                             iemax + (new_indegree - indegree_min) * np.minimum(0.0, (
                                                                         ie - iemax) / (indegree - indegree_min)))
@@ -739,7 +739,7 @@ def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
     if FIC_SPLIT < 1.0:
         indmax_wie = inds["crtx_and_subcrtx"][[np.argmax(simulator.model.w_ie[inds["crtx_and_subcrtx"]])]][0].item()
         wiemax = simulator.model.w_ie[indmax_wie]
-        if verbose: print("w_ie[%d]_max = %g" % (indmax_wie, wiemax))
+        if verbosity: print("w_ie[%d]_max = %g" % (indmax_wie, wiemax))
         #  i.e., ymax  + (     x       -     x0     ) *            (yold - ymax)  / (   xold  -    xmin)
         fwie = lambda wie, indegree, new_indegree: np.minimum(wiemax,
                                                               wiemax + (new_indegree - indegree_min) * np.minimum(0.0, (
@@ -749,10 +749,10 @@ def adjust_ficed_params(simulator, indegree_ratios, inds, FIC_SPLIT, verbose=1):
         fwie = None
     if FIC_SPLIT > 0.0 and FIC_SPLIT < 1.0:
         assert indmax_Ie == indmax_wie
-    if verbose: print("indegree_min = %g" % indegree_min)
+    if verbosity: print("indegree_min = %g" % indegree_min)
     for reg, indratios in indegree_ratios.items():
         if "thal" not in reg and np.any(np.logical_not(np.isclose(indratios, 1.0, rtol=1e-03, atol=1e-03))):
-            if verbose: print("...adjusting regions %s..." % reg)
+            if verbosity: print("...adjusting regions %s..." % reg)
             simulator.model.I_e, simulator.model.w_ie = \
                 adjust_fic(simulator.connectivity.weights, indratios, inds[reg],
                            fie, fwie, simulator.model.I_e, simulator.model.w_ie)
@@ -771,15 +771,15 @@ def apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter=None):
 
     simulator.connectivity.weights, indegree_ratios = apply_pathway_gains(simulator.connectivity.weights, inds, config)
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("-" * 25)
         print("Indegree ratios:")
         print(indegree_ratios)
         print("-" * 25)
     if config.FIC > 0.0:
-        simulator = adjust_ficed_params(simulator, indegree_ratios, inds, config.FIC_SPLIT, config.VERBOSE)
+        simulator = adjust_ficed_params(simulator, indegree_ratios, inds, config.FIC_SPLIT, config.VERBOSITY)
 
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n" + "-" * 50)
         print("Pathway connections to indegree %:")
 
@@ -827,7 +827,7 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # Variability to thalamocortical connections:
     # if config.THAL_CRTX_FIX:
     #     if "d" in config.THAL_CRTX_FIX:
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("Fixing thalamocortical delays!")
     # Fix structural connectivity (specific) thalamo-cortical tracts length to a value,
     # such that all thalamo-cortical delays are equal to the parameter tau_ct,
@@ -918,8 +918,8 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
 
     simulator.integrate_next_step = simulator.integrator.integrate_with_update
 
-    if config.VERBOSE > 1:
-        simulator.print_summary_info_details(recursive=config.VERBOSE)
+    if config.VERBOSITY > 1:
+        simulator.print_summary_info_details(recursive=config.VERBOSITY)
 
     # Serializing TVB cosimulator is necessary for parallel cosimulation:
     from tvb_multiscale.core.tvb.cosimulator.cosimulator_serialization import serialize_tvb_cosimulator
@@ -951,7 +951,7 @@ def simulate(simulator, config):
     # Simulate and return results
     tic = time.time()
     results = simulator.run()
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nSimulated in %f secs!" % (time.time() - tic))
     return results, transient
 
@@ -1157,11 +1157,11 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
         if write_files:
             if source_ts is not None:
-                if config.VERBOSE:
+                if config.VERBOSITY:
                     print("Pickle-dumping source_ts to %s!" % config.SOURCE_TS_PATH)
                 dump_pickled_time_series(source_ts, config.SOURCE_TS_PATH)
             if config.AFFERENT_MONITOR:
-                if config.VERBOSE:
+                if config.VERBOSITY:
                     print("Pickle-dumping afferent_ts to %s!" % config.AFFERENT_TS_PATH)
                 dump_pickled_time_series(afferent_ts, config.AFFERENT_TS_PATH)
 
@@ -1173,7 +1173,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
             #     except Exception as e:
             #             warnings.warn("Failed to to write source time series to file with error!:\n%s" % str(e))
             #
-            # if config.VERBOSE > 1:
+            # if config.VERBOSITY > 1:
             #     print("Raw ts:\n%s" % str(source_ts))
 
         if len(results) > 2:
@@ -1187,7 +1187,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                     sample_period=simulator.monitors[2].period)
                 bold_ts.configure()
 
-                if config.VERBOSE > 1:
+                if config.VERBOSITY > 1:
                     print("BOLD ts:\n%s" % str(bold_ts))
 
                 outputs["bold_ts"] = bold_ts
@@ -1196,7 +1196,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
                 outputs["bold_ts"] = results[2]
                 warnings.warn("Failed to construct BOLD time series with error!:\n%s" % str(e))
                 if write_files:
-                    if config.VERBOSE:
+                    if config.VERBOSITY:
                         print("Pickle-dumping BOLD TVB monitor output to %s!" % config.BOLD_TS_PATH)
                     try:
                         dump_pickled_dict({"bold_ts": results[2][1],
@@ -1207,7 +1207,7 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
             if bold_ts is not None:
                 if write_files:
-                    if config.VERBOSE:
+                    if config.VERBOSITY:
                         print("Pickle-dumping bold_ts to %s!" % config.BOLD_TS_PATH)
                     dump_pickled_time_series(bold_ts, config.BOLD_TS_PATH)
 
@@ -1552,7 +1552,7 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
     plot_flag = config_args.get('plot_flag', DEFAULT_ARGS.get('plot_flag'))
     config, plotter = assert_config(config, return_plotter=True, **config_args)
     config.model_params.update(model_params)
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\n------------------------------------------------\n\n"+
               "Running TVB workflow for plot_flag=%s, write_files=%s,\nand model_params=\n%s...\n" 
               % (str(plot_flag), str(write_files), str(config.model_params)))
@@ -1571,7 +1571,7 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
                            inds['ansilob'].tolist())
         simulator.connectivity.weights[inds_off, :] = 0
         simulator.connectivity.weights[:, inds_off] = 0
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n")
             print("-"*25)
             print("-"*25)
@@ -1613,7 +1613,7 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
         results.update({"PSD": PSD, "PSD_target": PSD_target})
     results.update({"transient": transient, "simulator": simulator, "inds": inds, "config": config})
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\nFinished TVB workflow in %g sec!\n" % (time.time() - tic))
     return results
 
@@ -1621,8 +1621,8 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
 if __name__ == "__main__":
     parser = args_parser("tvb_script")
     args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-    verbose = args.get('verbose', DEFAULT_ARGS['verbose'])
-    if verbose:
+    verbosity = args.get('verbosity', DEFAULT_ARGS['verbosity'])
+    if verbosity:
         print("Running %s with arguments:\n" % parser.description)
         print(args, "\n")
     run_workflow(**args)

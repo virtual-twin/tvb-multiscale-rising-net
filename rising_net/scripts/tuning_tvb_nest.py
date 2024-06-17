@@ -20,7 +20,7 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 #                 'w_ie': -3.0, 'w_rs': -2.0,
 #                 'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
 #                 'PRIORS_DIST': 'uniform',
-#                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
+#                 'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
 # config.TRANSIENT_RATIO =0.25
 # # TVB - NEST interface parameters:
@@ -38,7 +38,7 @@ def tuning_tvb_nest(w_TVB_to_NEST=0.04, **kwargs):
 
     # for w_TVB_to_NEST in TUNED_VALUES_TVB_TO_NEST:
     # Get configuration
-    config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST), verbose=2,
+    config, plotter = configure(output_folder='nest_tvb_' + str(w_TVB_to_NEST), verbosity=2,
                                 STIMULUS=0.0,  # We are fitting in resting state!!!
                                 w_TVB_to_NEST=w_TVB_to_NEST,
                                 DEFAULT_TVB_NOISE_SEED=42+seed,

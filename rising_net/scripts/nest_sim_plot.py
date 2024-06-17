@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # results = run_nest_workflow(PSD_target=None, model_params={}, config=config)
     plot_flag = kwargs["plot_flag"]
-    if config.VERBOSE:
+    if config.VERBOSITY:
         print("\n\n------------------------------------------------\n\n"+
               "Running NEST workflow for plot_flag=%s, \nand model_params=\n%s...\n"
               % (str(plot_flag), str(config.model_params)))

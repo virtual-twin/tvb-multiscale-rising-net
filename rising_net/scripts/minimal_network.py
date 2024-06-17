@@ -38,7 +38,7 @@ def get_config(**kwargs):
     #                 'w_ie': -3.0, 'w_rs': -2.0,
     #                 'CONN_LOG': True, 'FIC': 1.11,  'FIC_SPLIT': 0.31,  #'fit',
     #                 'PRIORS_DIST': 'uniform',
-    #                 'output_folder': "", 'verbose': 1, 'plot_flag': True}
+    #                 'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
     # config.TRANSIENT_RATIO =0.25
 
@@ -111,7 +111,7 @@ def get_config(**kwargs):
         path = os.path.join(path, "nsd%d" % seed)
 
     # Get configuration
-    config, plotter = configure(output_folder=path, verbose=0,
+    config, plotter = configure(output_folder=path, verbosity=0,
                                 NOISE=10 ** (-NOISE),
                                 SIMULATION_LENGTH=simulation_length,
                                 **kwargs)
