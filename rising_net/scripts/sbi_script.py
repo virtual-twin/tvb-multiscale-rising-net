@@ -388,14 +388,15 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     if verbosity:
         print("\nSampling %d samples from the posterior..." % n_samples_per_run)
         tic = time.time()
-    samples = posterior.sample((n_samples_per_run,))
+    samples = posterior.sample((n_samples_per_run,), show_progress_bars=verbosity>0)
     if verbosity:
         print("\nDONE sampling in %g secs!" % (time.time() - tic))
-        print("\nSampling to find MAP with %d inital samples and %d samples to optimize..." %
+        print("\nSampling to find MAP with %d initial samples and %d samples to optimize..." %
               (n_samples_per_run, int(0.1*n_samples_per_run)))
         tic = time.time()
     MAP = posterior.map(num_init_samples=n_samples_per_run,
-                        num_to_optimize=int(0.1 * n_samples_per_run)).numpy()
+                        num_to_optimize=int(0.1 * n_samples_per_run),
+                        show_progress_bars=verbosity>0).numpy()
     if verbosity:
         print("\nDONE sampling for MAP in %g secs!" % (time.time() - tic))
         if verbosity > 1:
