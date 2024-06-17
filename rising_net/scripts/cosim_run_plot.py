@@ -147,8 +147,7 @@ def plot_comparison(tests, **kwargs):
     TESTSFOLDER = "-".join(TESTS)
 
     # CONFIGURATION:
-    kwargs.pop("output_folder", "")
-    config, plotter = get_config(output_folder=TESTSFOLDER, **kwargs)
+    config, plotter = get_config(**kwargs)
 
     # CONNECTIVITY:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
@@ -156,18 +155,20 @@ def plot_comparison(tests, **kwargs):
 
     # Results path:
     if config.VERBOSE > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
-    TESTSPATH = os.path.dirname(config.out.FOLDER_RES.split("res")[0])
+    TESTSPATH = os.path.join(os.path.dirname(config.out.FOLDER_RES.split("res")[0]), TESTSFOLDER)
+    config.out._out_base = TESTSPATH
+    config.figures._out_base = TESTSPATH
     if config.VERBOSE > 1: print("TESTSPATH: ", TESTSPATH)
     BASEPATH = os.path.dirname(TESTSPATH)
-    if config.VERBOSE > 1: print("BASEPATH: ", BASEPATH)
+    if config.VERBOSE > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
 
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[config.TASKINDS]
     # Task related regions' abreviated labels:
     SHORT_LABELS = [shorten_region_name(reg, exclude=["of", "the", "to"]) for reg in REGION_LABELS]
 
-    THETA = [6.0, 12.0]  # Hz
-    GAMMA = [25.0, 45.0]  # Hz
+    THETA = config.THETA[[0, -1]]  # Hz
+    GAMMA = config.GAMMA[[0, -1]]  # Hz
 
     # results dictionary:
     results = {"inds": config.TASKINDS,
@@ -201,7 +202,7 @@ def plot_comparison(tests, **kwargs):
                                         source_ts["data"], config.TASKINDS,
                                         transient=source_ts["data"].shape[0]-2**15,  # 2**15 final length
                                         sample_period=source_ts["sample_period"],
-                                        nperseg=None, fmin=0.0, fmax=50.0)
+                                        nperseg=None, fmin=0.0, fmax=GAMMA[-1])
             Ps.append(Pxx_den)
             Cs.append(Cxy)
 
@@ -222,7 +223,7 @@ def plot_comparison(tests, **kwargs):
     figR, axR, figL, axL = plot_pathway_psd_coh(results, inds,
                                                 tests=TESTS, colors=colors,
                                                 percentile_min=1, percentile_max=99, n=1,
-                                                plot_mean=True, plot_median=False, mode="semilog",
+                                                plot_mean=True, plot_median=False, modePSD="semilog", modeCOH="linear",
                                                 alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)
 
     if plotter.config.SAVE_FLAG:
