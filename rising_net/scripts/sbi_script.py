@@ -384,15 +384,22 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     if verbosity:
         print("\nSetting estimation target...")
         if verbosity > 1:
-            print(targe)
+            print("\ntarget = %s" % str(target))
     if verbosity:
         print("\nSampling %d samples from the posterior..." % n_samples_per_run)
+        tic = time.time()
     samples = posterior.sample((n_samples_per_run,))
     if verbosity:
+        print("\nDONE sampling in %g secs!" % (time.time() - tic))
         print("\nSampling to find MAP with %d inital samples and %d samples to optimize..." %
               (n_samples_per_run, int(0.1*n_samples_per_run)))
+        tic = time.time()
     MAP = posterior.map(num_init_samples=n_samples_per_run,
                         num_to_optimize=int(0.1 * n_samples_per_run)).numpy()
+    if verbosity:
+        print("\nDONE sampling for MAP in %g secs!" % (time.time() - tic))
+        if verbosity > 1:
+            print("\nMAP = %s" % str(MAP))
     return posterior, samples, MAP
 
 
@@ -561,7 +568,8 @@ def sbi_estimate_for_iG(iG, label="", config=None):
             print("\n\nEstimating!..\n")
         ticR = time.time()
         posterior = load_posterior(iG, iR=None, label=label, config=config)
-        posterior, posterior_samples, map = sbi_estimate(posterior, PSD_target, config.N_POSTERIOR_SAMPLES_PER_RUN)
+        posterior, posterior_samples, map = sbi_estimate(posterior, PSD_target, config.N_POSTERIOR_SAMPLES_PER_RUN,
+                                                         config.VERBOSITY)
         # Write posterior and samples to files:
         write_posterior(posterior, iG, None, label, config=config)
         diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
@@ -643,7 +651,8 @@ def sbi_test_for_iG(iG, config,
     for iT, (ts, rs) in enumerate(zip(test_samples, test_res)):
         if config.VERBOSITY:
             print("\nTesting sample... %d/%d" % (iT+1, nts))
-        posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN)
+        posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN,
+                                                         config.VERBOSITY)
         # write_posterior(posterior, iG, iR=iR, label=label, config=config)
         diagnostics = compute_diagnostics(posterior_samples, config, priors, map, ts.numpy())
         samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label,
