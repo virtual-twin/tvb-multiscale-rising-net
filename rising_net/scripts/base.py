@@ -259,6 +259,7 @@ def configure(**ARGS):
     config.BETA = np.arange(13.0, 25.0, 1.0)
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
+    config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 3.0]
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 3  # 3 - 10
