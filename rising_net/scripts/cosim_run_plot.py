@@ -40,12 +40,12 @@ def get_config(**kwargs):
     #                   "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
     #     # WORKFLOW:
     #     "TASK": True,
-    #     'output_folder': "", 'verbose': 1, 'plot_flag': True}
+    #     'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
     # Get configuration
-    verbose = kwargs.pop("verbose", 1)
-    config, plotter = configure(verbose=0, **kwargs)
-    config.VERBOSE = verbose
+    verbosity = kwargs.pop("verbosity", 1)
+    config, plotter = configure(verbosity=0, **kwargs)
+    config.VERBOSITY = verbosity
 
     print(config.model_params)
     print(config)
@@ -71,7 +71,7 @@ def cosim_run_plot(**kwargs):
                            inds['ansilob'].tolist())
         simulator.connectivity.weights[inds_off, :] = 0
         simulator.connectivity.weights[:, inds_off] = 0
-        if config.VERBOSE:
+        if config.VERBOSITY:
             print("\n")
             print("-" * 25)
             print("-" * 25)
@@ -154,13 +154,13 @@ def plot_comparison(tests, **kwargs):
     connectivity = build_connectivity(connectome, inds, config)
 
     # Results path:
-    if config.VERBOSE > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
+    if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
     TESTSPATH = os.path.join(os.path.dirname(config.out.FOLDER_RES.split("res")[0]), TESTSFOLDER)
     config.out._out_base = TESTSPATH
     config.figures._out_base = TESTSPATH
-    if config.VERBOSE > 1: print("TESTSPATH: ", TESTSPATH)
+    if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
     BASEPATH = os.path.dirname(TESTSPATH)
-    if config.VERBOSE > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
+    if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
 
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[config.TASKINDS]
@@ -181,11 +181,11 @@ def plot_comparison(tests, **kwargs):
         Ps = []
         Cs = []
 
-        if config.VERBOSE > 1: print("test_name: ", test_name)
+        if config.VERBOSITY > 1: print("test_name: ", test_name)
         testpath_old = os.path.join(BASEPATH, test_name)
-        if config.VERBOSE > 1: print("testpath_old: ", testpath_old)
+        if config.VERBOSITY > 1: print("testpath_old: ", testpath_old)
         testpath = os.path.join(TESTSPATH, test_name)
-        if config.VERBOSE > 1: print("testpath: ", testpath)
+        if config.VERBOSITY > 1: print("testpath: ", testpath)
         if os.path.isdir(testpath_old):
             shutil.move(testpath_old, testpath)
         nsdtestpath = os.path.join(testpath, "nsd*")
@@ -195,7 +195,7 @@ def plot_comparison(tests, **kwargs):
             paths = [testpath]
         for path in paths:
             resultsfile = os.path.join(path, "res/source_ts.pkl")
-            if config.VERBOSE > 1: print(resultsfile)
+            if config.VERBOSITY > 1: print(resultsfile)
             with open(resultsfile, 'rb') as handle:
                 source_ts = pickle.load(handle)  # to load results
             Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
