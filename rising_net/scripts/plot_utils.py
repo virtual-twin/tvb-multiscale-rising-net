@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import warnings
+from copy import deepcopy
 import numpy
 import numpy as np
 import matplotlib.pyplot as plt
@@ -567,15 +568,23 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
 
 
 def sbi_pairplot(samples, figpath=None, save_flag=True, show_flag=True, **kwargs):
-    if kwargs.get("limits", None) is None:
-        kwargs["limits"] = np.array([np.min(samples, axis=0), np.max(samples, axis=0)]).T.tolist()
-    if kwargs.get("ticks", None) is None:
-        kwargs["ticks"] = kwargs["limits"]
     if kwargs.get("points", None) is not None:
         if kwargs.get("points_colors", None) is None:
             kwargs["points_colors"] = ['r'] * len(kwargs["points"])
         if kwargs.get("points_offdiag", None) is None:
             kwargs["points_offdiag"] = {'markersize': 6}
+    if kwargs.get("limits", None) is None:
+        kwargs["limits"] = np.array([np.min(samples, axis=0), np.max(samples, axis=0)]).T.tolist()
+    nParams = samples.shape[1]
+    if kwargs.get("ticks", None) is None:
+        if kwargs.get("limits", None) is not None:
+            kwargs["ticks"] = deepcopy(kwargs["limits"])
+        if kwargs.get("points") is not None:
+            if kwargs.get("ticks", None) is None:
+                kwargs["ticks"] = [[]] * nParams
+            for iT, point in enumerate(kwargs["points"]):
+                kwargs["ticks"][iT].append(point)
+                kwargs["ticks"][iT] = np.sort(kwargs["ticks"][iT]).tolist()
     if kwargs.get("figsize", None) is None:
         kwargs["figsize"] = (20, 20)
     fig, axes = analysis.pairplot(samples, **kwargs)
