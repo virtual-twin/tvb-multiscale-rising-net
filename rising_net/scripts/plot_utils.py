@@ -575,7 +575,12 @@ def sbi_pairplot(samples, figpath=None, save_flag=True, show_flag=True, **kwargs
             kwargs["points_offdiag"] = {'markersize': 6}
     if kwargs.get("limits", None) is None:
         kwargs["limits"] = np.array([np.min(samples, axis=0), np.max(samples, axis=0)]).T.tolist()
-    nParams = samples.shape[1]
+    if np.array(kwargs["limits"]).ndim == 1:
+        kwargs["limits"] = np.array([kwargs["limits"]]).tolist()
+    if samples.ndim == 1:
+        nParams = 1
+    else:
+        nParams = np.maximum(1, samples.shape[1])
     if kwargs.get("ticks", None) is None:
         if kwargs.get("limits", None) is not None:
             kwargs["ticks"] = deepcopy(kwargs["limits"])
@@ -585,6 +590,8 @@ def sbi_pairplot(samples, figpath=None, save_flag=True, show_flag=True, **kwargs
             for iT, point in enumerate(kwargs["points"]):
                 kwargs["ticks"][iT].append(point)
                 kwargs["ticks"][iT] = np.sort(kwargs["ticks"][iT]).tolist()
+    elif np.array(kwargs["ticks"]).ndim == 1:
+        kwargs["ticks"] = np.array([kwargs["ticks"]]).tolist()
     if kwargs.get("figsize", None) is None:
         kwargs["figsize"] = (20, 20)
     fig, axes = analysis.pairplot(samples, **kwargs)
