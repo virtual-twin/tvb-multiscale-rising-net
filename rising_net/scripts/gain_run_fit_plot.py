@@ -600,6 +600,43 @@ def get_sim_res_COHM1S1diffratioDist2Sum_params_from_path(config, Nsims=None, pa
     return get_sim_res_COHM1S1diffratioDist2Sum(COHs, config), params.values
 
 
+
+def get_sim_res_COHM1S1diffratioDistRatio(COHs, config):
+    COHs =  get_sim_res_COHM1S1diffratio(COHs, config)
+    target = target_COHM1S1diffratio_fun(config).numpy()
+    for iB, w in enumerate(config.FREQ_BAND_FITNESS_WEIGHTS):
+        iC = 2*iB
+        for iH in range(2):
+            COHs[:, iC+iH] = w * (COHs[:, iC+iH] - target[iC+iH])/target[iC+iH]
+    return COHs
+
+
+def get_sim_res_COHM1S1diffratioDistRatio_params_from_path(config, Nsims=None, path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                                   path=path, assert_params=assert_params)
+    return get_sim_res_COHM1S1diffratioDistRatio(COHs, config), params.values
+
+
+def get_sim_res_COHM1S1diffratioDistRatioDist(COHs, config):
+    return get_sim_res_COHM1S1diffratioDistRatio(COHs, config).sum(axis=1)[:, np.newaxis]
+
+
+def get_sim_res_COHM1S1diffratioDistRatioDist_params_from_path(config, Nsims=None, path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                                   path=path, assert_params=assert_params)
+    return get_sim_res_COHM1S1diffratioDistRatioDist(COHs, config), params.values
+
+
+def get_sim_res_COHM1S1diffratioDistRatioDist2(COHs, config):
+    return (get_sim_res_COHM1S1diffratioDistRatio(COHs, config)**2).sum(axis=1)[:, np.newaxis]
+
+
+def get_sim_res_COHM1S1diffratioDistRatioDist2_params_from_path(config, Nsims=None, path=None, assert_params=True):
+    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
+                                                   path=path, assert_params=assert_params)
+    return get_sim_res_COHM1S1diffratioDistRatioDist2(COHs, config), params.values
+
+
 def params_pairplot(samples, points=None, metric=None, config=None, figname=None, figpath=None):
     config = assert_config(config, return_plotter=False)
     limits = []
@@ -788,6 +825,10 @@ def target_COHM1S1diffratioDist_fun(config, target=None):
 
 
 def target_COHM1S1diffratioDist2Sum_fun(config, target=None):
+    return torch.Tensor(np.zeros((1,)))
+
+
+def target_COHM1S1diffratioDistRatioDist(config, target=None):
     return torch.Tensor(np.zeros((1,)))
 
 
