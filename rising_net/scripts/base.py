@@ -23,8 +23,8 @@ from tvb.simulator.integrators import EulerStochastic
 DEFAULT_ARGS = {# TVB model:
                 'I_s': 0.1,  # 0.085,
                 'I_e': -0.35,
-                "STIMULUS": 0.0,
-                "STIMULUS_BASELINE": 1.0,
+                # "STIMULUS": 0.0,
+                # "STIMULUS_BASELINE": 1.0,
                 "tau_w": 10.0,
                 "I_w": -0.35,
                 "G_w": 3.0,
@@ -67,7 +67,7 @@ def configure(**ARGS):
     args = deepcopy(DEFAULT_ARGS)
     args.update(**ARGS)
 
-    STIMULUS = args.get("STIMULUS", 0)
+    # STIMULUS = args.get("STIMULUS", 0)
     G_w = args.get("G_w", 0)
     WHISKERS_GAIN = args.get("WHISKERS_GAIN", 10.0)
     if G_w * WHISKERS_GAIN > 0.0:
@@ -77,7 +77,7 @@ def configure(**ARGS):
         WHISKERS_GAIN = 0
         G_w = 0
     PATHWAY_GAIN = args.get("PATHWAY_GAIN", 0)
-    TASK = PATHWAY_GAIN * (STIMULUS + WHISKERS)
+    TASK = PATHWAY_GAIN * WHISKERS  # (STIMULUS + )
     MODE = args["MODE"]
     BASENAME = MODE
     # if TASK:
@@ -196,10 +196,10 @@ def configure(**ARGS):
         config.model_params['tau_w'] = args.get('tau_w', 10.0)
         config.model_params['I_w'] = args.get('I_w', 0.0)
         config.model_params['G_w'] = G_w
-    elif STIMULUS > 0:
-        config.model_params['STIMULUS'] = STIMULUS  # 0.25
-    config.STIMULUS_RATE = 8.0  # Hz
-    config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
+    # elif STIMULUS > 0:
+    #     config.model_params['STIMULUS'] = STIMULUS  # 0.25
+    # config.STIMULUS_RATE = 8.0  # Hz
+    # config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
 
     # NEST model parameters:
     config.NEST_STIMULUS = 15.0  # Hz
@@ -232,8 +232,8 @@ def configure(**ARGS):
          "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
-         "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
-         "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
+         # "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
+         # "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "G_w": {"min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
          "M1FACIAL_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
@@ -342,8 +342,8 @@ def args_parser(funname, args=DEFAULT_ARGS):
                  'G': ['g', float, 'Global connectivity scaling'],
                  'FIC': ['fic', FICtype, 'Indegree FIC weight'],
                  'FIC_SPLIT': ['ficsplt', float, 'FIC splitting parameter'],
-                 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
-                 'STIMULUS_BASELINE': ['sb', float, 'Whisking stimulus baseline'],
+                 # 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
+                 # 'STIMULUS_BASELINE': ['sb', float, 'Whisking stimulus baseline'],
                  'G_w': ['gw', float, "Whiskers' gain"],
                  'tau_w': ['tw', float, "Whiskers' time constant"],
                  'I_w': ['iw', float, "Whiskers'  baseline"],
