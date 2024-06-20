@@ -285,39 +285,39 @@ def build_model(number_of_regions, inds, maps, config):
     if config.VERBOSITY:
         print("Configuring model with parameters:\n%s" % str(config.model_params))
 
-    STIMULUS = config.model_params.get("STIMULUS", None)
+    # STIMULUS = config.model_params.get("STIMULUS", None)
 
     model_params = {}
     for p, pval in config.model_params.items():
-        if p != "STIMULUS":
-            if pval is not None:
-                pval = np.array([pval]).flatten()
-                if p == 'G':
-                    # G normalized by the number of regions as in Griffiths et al paper
-                    # Geff = G /(number_of_regions - inds['thalspec'].size)
-                    pval = pval / (number_of_regions - inds['thalspec'].size)
-                model_params[p] = pval
+        # if p != "STIMULUS":
+        if pval is not None:
+            pval = np.array([pval]).flatten()
+            if p == 'G':
+                # G normalized by the number of regions as in Griffiths et al paper
+                # Geff = G /(number_of_regions - inds['thalspec'].size)
+                pval = pval / (number_of_regions - inds['thalspec'].size)
+            model_params[p] = pval
 
-    if STIMULUS:
-        if model_params.get("G", WilsonCowanThalamoCortical.G.default)[0].item() > 0.0:
-            # Stimulus to M1 and S1 barrel field
-            # inds_stim = np.concatenate((inds["motor"][:2], inds["sens"][-2:])
-            # if config.NEST_PERIPHERY:
-            #     inds_stim = np.array(inds["facial"])
-            # else:
-            inds_stim = np.concatenate((inds["facial"], inds["trigeminal"]))
-        else:
-            # Stimulus directly to all specific thalami:
-            inds_stim = inds['thalspec']
-        # Stimuli:
-        A_st = 0 * dummy.astype("f")
-        B_st = 0 * dummy.astype("f")
-        f_st = 0 * dummy.astype("f")
-        # Stimulus to trigeminal
-        A_st[inds_stim] = STIMULUS
-        B_st[inds_stim] = config.STIMULUS_BASELINE
-        f_st[inds_stim] = config.STIMULUS_RATE  # Hz
-        model_params.update({"A_st": A_st, "B_st": B_st, "f_st": f_st})
+    # if STIMULUS:
+    #     if model_params.get("G", WilsonCowanThalamoCortical.G.default)[0].item() > 0.0:
+    #         # Stimulus to M1 and S1 barrel field
+    #         # inds_stim = np.concatenate((inds["motor"][:2], inds["sens"][-2:])
+    #         # if config.NEST_PERIPHERY:
+    #         #     inds_stim = np.array(inds["facial"])
+    #         # else:
+    #         inds_stim = np.concatenate((inds["facial"], inds["trigeminal"]))
+    #     else:
+    #         # Stimulus directly to all specific thalami:
+    #         inds_stim = inds['thalspec']
+    #     # Stimuli:
+    #     A_st = 0 * dummy.astype("f")
+    #     B_st = 0 * dummy.astype("f")
+    #     f_st = 0 * dummy.astype("f")
+    #     # Stimulus to trigeminal
+    #     A_st[inds_stim] = STIMULUS
+    #     B_st[inds_stim] = config.STIMULUS_BASELINE
+    #     f_st[inds_stim] = config.STIMULUS_RATE  # Hz
+    #     model_params.update({"A_st": A_st, "B_st": B_st, "f_st": f_st})
 
     model = WilsonCowanThalamoCortical(is_cortical=maps['is_cortical'][:, np.newaxis],
                                        is_thalamic=maps['is_thalamic'][:, np.newaxis],
@@ -902,16 +902,16 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # Set monitors:
     monitors = ()
     if config.RAW_PERIOD > config.DEFAULT_DT:
-        monitors += (TemporalAverage(period=config.RAW_PERIOD), ) # ms
+        monitors += (TemporalAverage(period=config.RAW_PERIOD), )  # ms
         if config.AFFERENT_MONITOR:
             monitors += (AfferentCouplingTemporalAverage(period=config.RAW_PERIOD,
-                                                         variables_of_interest=np.array([0, 1, 2])))
+                                                         variables_of_interest=np.array([0, 1, 2])), )
     else:
         monitors += (Raw(), )
         if config.AFFERENT_MONITOR:
-            monitors += (AfferentCoupling(variables_of_interest=np.array([0, 1, 2])))
+            monitors += (AfferentCoupling(variables_of_interest=np.array([0, 1, 2])), )
     if config.BOLD_PERIOD:
-        monitors += (Bold(period=config.BOLD_PERIOD, variables_of_interest=np.array([2])),)
+        monitors += (Bold(period=config.BOLD_PERIOD, variables_of_interest=np.array([2])), )
     simulator.monitors = monitors
 
     simulator.configure()
