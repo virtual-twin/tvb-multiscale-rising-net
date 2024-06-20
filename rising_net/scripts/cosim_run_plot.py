@@ -147,7 +147,8 @@ def plot_comparison(tests, **kwargs):
     TESTSFOLDER = "-".join(TESTS)
 
     # CONFIGURATION:
-    config, plotter = get_config(**kwargs)
+    MODE = kwargs.pop("MODE", TESTS[0])
+    config, plotter = get_config(MODE=MODE, **kwargs)
 
     # CONNECTIVITY:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
@@ -155,12 +156,12 @@ def plot_comparison(tests, **kwargs):
 
     # Results path:
     if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
-    TESTSPATH = os.path.join(os.path.dirname(config.out.FOLDER_RES.split("res")[0]), TESTSFOLDER)
+    BASEPATH = os.path.dirname(config.out.FOLDER_RES.split("/res")[0])
+    if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
+    TESTSPATH = os.path.join(BASEPATH, TESTSFOLDER)
+    if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
     config.out._out_base = TESTSPATH
     config.figures._out_base = TESTSPATH
-    if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
-    BASEPATH = os.path.dirname(TESTSPATH)
-    if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
 
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[config.TASKINDS]
@@ -189,6 +190,7 @@ def plot_comparison(tests, **kwargs):
         if os.path.isdir(testpath_old):
             shutil.move(testpath_old, testpath)
         nsdtestpath = os.path.join(testpath, "nsd*")
+        if config.VERBOSITY > 1: print("nsdtestpath: ", nsdtestpath)
         paths = glob.glob(nsdtestpath)
         if len(paths) == 0:
             Warning("No simulation files found at paths %s\nTrying for single simulation!" % nsdtestpath)
