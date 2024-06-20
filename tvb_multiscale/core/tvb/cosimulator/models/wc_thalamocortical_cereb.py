@@ -192,29 +192,29 @@ class GriffithsThalamoCortical(Model):
         domain=Range(lo=-1.0, hi=1.0, step=0.05),
         doc="""Static sensory/neuromodulatory drive""")
 
-    M_e = NArray(
-        label=":math:`M_e",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=10.0, step=0.01),
-        doc="""Amplitude of sinusoidal stimulus to cortical excitatory population""")
-
-    M_s = NArray(
-        label=":math:`M_s",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=10.0, step=0.01),
-        doc="""Amplitude of sinusoidal stimulus to thalamic relay population""")
-
-    f_e = NArray(
-        label=":math:`f_e",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=100.0, step=0.1),
-        doc="""Frequency of sinusoidal stimulus to cortical excitatory population""")
-
-    f_s = NArray(
-        label=":math:`f_s",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=100.0, step=0.1),
-        doc="""Frequency of sinusoidal stimulus to thalamic relay population""")
+    # M_e = NArray(
+    #     label=":math:`M_e",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=10.0, step=0.01),
+    #     doc="""Amplitude of sinusoidal stimulus to cortical excitatory population""")
+    #
+    # M_s = NArray(
+    #     label=":math:`M_s",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=10.0, step=0.01),
+    #     doc="""Amplitude of sinusoidal stimulus to thalamic relay population""")
+    #
+    # f_e = NArray(
+    #     label=":math:`f_e",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=100.0, step=0.1),
+    #     doc="""Frequency of sinusoidal stimulus to cortical excitatory population""")
+    #
+    # f_s = NArray(
+    #     label=":math:`f_s",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=100.0, step=0.1),
+    #     doc="""Frequency of sinusoidal stimulus to thalamic relay population""")
 
     # Used for phase-plane axis ranges and to bound random initial() conditions.
     state_variable_range = Final(
@@ -273,10 +273,10 @@ class GriffithsThalamoCortical(Model):
     _M_s = None
     _omega_e = None
     _omega_s = None
-    _stim_e_inds = None
-    _stim_s_inds = None
-    _stim_e = None
-    _stim_s = None
+    # _stim_e_inds = None
+    # _stim_s_inds = None
+    # _stim_e = None
+    # _stim_s = None
 
     _et_buffers = None
     _sc_buffers = None
@@ -348,26 +348,26 @@ class GriffithsThalamoCortical(Model):
         self._SR_del = np.zeros((self._n_cortical, self.number_of_modes))
         self._SC_del = np.zeros((self._n_cortical, self.number_of_modes))
 
-        # Stimulus computation
-        self.M_e = self._assert_size(self.M_e)
-        self._stim_e_inds = self.M_e != 0.0
-        if np.sum(self._stim_e_inds):
-            self.f_e = self._assert_size(self.f_e)
-            self._stim_e = np.zeros((self._n_regions, 1))
-            self._M_e = self.M_e[self._stim_e_inds]
-            self._omega_e = 2 * np.pi / 1000 * self.f_e[self._stim_e_inds]  # convert f to angular frequenc omega...
-        else:
-            self._stim_e = None
-
-        self.M_s = self._assert_size(self.M_s)
-        self._stim_s_inds = np.logical_and(self.M_s != 0.0, self.is_cortical)
-        if np.sum(self._stim_s_inds):
-            self.f_s = self._assert_size(self.f_s)
-            self._M_s = self.M_s[self._stim_s_inds]
-            self._stim_s = np.zeros((self._n_regions, 1))
-            self._omega_s = 2 * np.pi / 1000 * self.f_s[self._stim_s_inds]  # ...and time for ms to sec
-        else:
-            self._stim_s = None
+        # # Stimulus computation
+        # self.M_e = self._assert_size(self.M_e)
+        # self._stim_e_inds = self.M_e != 0.0
+        # if np.sum(self._stim_e_inds):
+        #     self.f_e = self._assert_size(self.f_e)
+        #     self._stim_e = np.zeros((self._n_regions, 1))
+        #     self._M_e = self.M_e[self._stim_e_inds]
+        #     self._omega_e = 2 * np.pi / 1000 * self.f_e[self._stim_e_inds]  # convert f to angular frequenc omega...
+        # else:
+        #     self._stim_e = None
+        #
+        # self.M_s = self._assert_size(self.M_s)
+        # self._stim_s_inds = np.logical_and(self.M_s != 0.0, self.is_cortical)
+        # if np.sum(self._stim_s_inds):
+        #     self.f_s = self._assert_size(self.f_s)
+        #     self._M_s = self.M_s[self._stim_s_inds]
+        #     self._stim_s = np.zeros((self._n_regions, 1))
+        #     self._omega_s = 2 * np.pi / 1000 * self.f_s[self._stim_s_inds]  # ...and time for ms to sec
+        # else:
+        #     self._stim_s = None
 
     def sigm_activ(self, x):
         return 1 / (1 + np.exp(-self.beta * (x - self.sigma)))
@@ -450,7 +450,7 @@ class GriffithsThalamoCortical(Model):
                self._I_r
 
     def update_state_variables_before_integration(self, state_variables, coupling,
-                                                  local_coupling=0.0, stimulus=0.0, time=0.0):
+                                                  local_coupling=0.0, stimulus=0.0):  # , time=0.0
         # This is executed only once for each time step
         # at the beginning of the integration schema computation
 
@@ -482,18 +482,18 @@ class GriffithsThalamoCortical(Model):
         # Store this temporarily to avoid double computation:
         self._dEin = state_variables[4]
 
-        # Compute stimulus, if any, for this time point:
-        if self._stim_e is not None:
-            self._stim_e = self._M_e * np.sin(self._omega_e * time)
-        if self._stim_s is not None:
-            self._stim_s = self._M_s * np.sin(self._omega_s * time)
+        # # Compute stimulus, if any, for this time point:
+        # if self._stim_e is not None:
+        #     self._stim_e = self._M_e * np.sin(self._omega_e * time)
+        # if self._stim_s is not None:
+        #     self._stim_s = self._M_s * np.sin(self._omega_s * time)
 
         return state_variables
 
-    #     def update_state_variables_after_integration(self, state_variables, time=0.0):
+    #     def update_state_variables_after_integration(self, state_variables):  # , time=0.0
     #         return state_variables
 
-    def dfun(self, state_variables, coupling, local_coupling=0.0, time=0.0):
+    def dfun(self, state_variables, coupling, local_coupling=0.0):  # , time=0.0
         r"""
 
         .. math::
@@ -515,8 +515,8 @@ class GriffithsThalamoCortical(Model):
             self._Isigm = self.sigm_activ(I)  # I, inh
             self._dEin = self._f_Ein(c_e)  # c, long-range coupling, Cortical exc
 
-        if self._stim_e is not None:
-            self._dEin[self._stim_e_inds] = self._dEin[self._stim_e_inds] + self._stim_e
+        # if self._stim_e is not None:
+        #     self._dEin[self._stim_e_inds] = self._dEin[self._stim_e_inds] + self._stim_e
 
         derivative[0] = (-E + self._dEin) / self.tau_e
 
@@ -524,8 +524,8 @@ class GriffithsThalamoCortical(Model):
 
         derivative[2] = -S
         derivative[2, self.is_cortical[:, 0]] += self._f_Sin()
-        if self._stim_s is not None:
-            derivative[2, self._stim_s_inds] = derivative[2, self._stim_s_inds] + self._stim_s
+        # if self._stim_s is not None:
+        #     derivative[2, self._stim_s_inds] = derivative[2, self._stim_s_inds] + self._stim_s
         derivative[2] /= self.tau_s
 
         derivative[3] = -R
@@ -736,23 +736,23 @@ class WilsonCowanThalamoCortical(Model):
         domain=Range(lo=-1.0, hi=1.0, step=0.05),
         doc="""Static sensory/neuromodulatory drive""")
 
-    A_st = NArray(
-        label=":math:`A_st",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=10.0, step=0.01),
-        doc="""Amplitude of sinusoidal stimulus to excitatory population""")
-
-    f_st = NArray(
-        label=":math:`f_st",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=100.0, step=0.1),
-        doc="""Frequency of sinusoidal stimulus to excitatory population""")
-
-    B_st = NArray(
-        label=":math:`B_st",
-        default=np.array([0.0]),
-        domain=Range(lo=0.0, hi=10.0, step=0.01),
-        doc="""Baseline of sinusoidal stimulus to excitatory population""")
+    # A_st = NArray(
+    #     label=":math:`A_st",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=10.0, step=0.01),
+    #     doc="""Amplitude of sinusoidal stimulus to excitatory population""")
+    #
+    # f_st = NArray(
+    #     label=":math:`f_st",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=100.0, step=0.1),
+    #     doc="""Frequency of sinusoidal stimulus to excitatory population""")
+    #
+    # B_st = NArray(
+    #     label=":math:`B_st",
+    #     default=np.array([0.0]),
+    #     domain=Range(lo=0.0, hi=10.0, step=0.01),
+    #     doc="""Baseline of sinusoidal stimulus to excitatory population""")
 
     # Used for phase-plane axis ranges and to bound random initial() conditions.
     state_variable_range = Final(
@@ -819,7 +819,7 @@ class WilsonCowanThalamoCortical(Model):
     _Esigm = None
     _Isigm = None
     _Ein = None
-    _stim = None
+    # _stim = None
 
     _et_buffers = None  # only for testing
     _sc_buffers = None  # only for testing
@@ -929,18 +929,18 @@ class WilsonCowanThalamoCortical(Model):
                 self._rs_buffers.append(SafeQueue(dummy.copy(), n_delay_step_tt))
                 self._sr_buffers.append(SafeQueue(dummy.copy(), n_delay_step_tt))
 
-        # Prepare stimulus only for those regions that have some
-        self.A_st = self._assert_size(self.A_st)
-        self.B_st = self._assert_size(self.B_st)
-        self._stim_inds = self.A_st != 0.0
-        if np.sum(self._stim_inds):
-            self._A_st = self.A_st[self._stim_inds]
-            self._B_st = self.B_st[self._stim_inds]
-            # convert f to angular frequency omega:
-            self._omega_st = 2 * np.pi / 1000 * self._assert_size(self.f_st)[self._stim_inds]
-            self._stim = 1
-        else:
-            self._stim = None
+        # # Prepare stimulus only for those regions that have some
+        # self.A_st = self._assert_size(self.A_st)
+        # self.B_st = self._assert_size(self.B_st)
+        # self._stim_inds = self.A_st != 0.0
+        # if np.sum(self._stim_inds):
+        #     self._A_st = self.A_st[self._stim_inds]
+        #     self._B_st = self.B_st[self._stim_inds]
+        #     # convert f to angular frequency omega:
+        #     self._omega_st = 2 * np.pi / 1000 * self._assert_size(self.f_st)[self._stim_inds]
+        #     self._stim = 1
+        # else:
+        #     self._stim = None
 
     def sigm_activ(self, x):
         return 1 / (1 + np.exp(-self.beta * (x - self.sigma)))
@@ -1027,7 +1027,7 @@ class WilsonCowanThalamoCortical(Model):
         return self._G_w * c_sb + self._I_w
 
     def update_state_variables_before_integration(self, state_variables, coupling,
-                                                  local_coupling=0.0, stimulus=0.0, time=0.0):
+                                                  local_coupling=0.0, stimulus=0.0):  # , time=0.0
         # This is executed only once for each time step
         # at the beginning of the integration schema computation
 
@@ -1090,16 +1090,16 @@ class WilsonCowanThalamoCortical(Model):
         if self._n_whiskers:
             self._Ein[self.is_whiskers[:, 0]] = self._f_W(coupling[1, self.is_whiskers[:, 0]])
 
-        # Add the stimulus:
-        if self._stim is not None:
-            self._stim = self._A_st * ( self._B_st + np.sin(self._omega_st * time) )
+        # # Add the stimulus:
+        # if self._stim is not None:
+        #     self._stim = self._A_st * ( self._B_st + np.sin(self._omega_st * time) )
 
         return state_variables
 
     #     def update_state_variables_after_integration(self, state_variables, time=0.0):
     #         return state_variables
 
-    def dfun(self, state_variables, coupling, local_coupling=0.0, time=0.0):
+    def dfun(self, state_variables, coupling, local_coupling=0.0):  # , time=0.0
         r"""
 
         .. math::
@@ -1147,8 +1147,8 @@ class WilsonCowanThalamoCortical(Model):
         if self._n_whiskers:
             derivative[1, self.is_whiskers[:, 0]] = 0.0
 
-        if self._stim is not None:
-            self._Ein[self._stim_inds] = self._Ein[self._stim_inds] + self._stim
+        # if self._stim is not None:
+        #     self._Ein[self._stim_inds] = self._Ein[self._stim_inds] + self._stim
 
         derivative[0, :] = (- E + self._Ein) / self._tau_e
 
@@ -1247,7 +1247,7 @@ class WilsonCowanThalamoCorticalFIC(WilsonCowanThalamoCortical):
                self._I_so
 
     def update_state_variables_before_integration(self, state_variables, coupling,
-                                                  local_coupling=0.0, stimulus=0.0, time=0.0):
+                                                  local_coupling=0.0, stimulus=0.0):  # , time=0.0
         # This is executed only once for each time step
         # at the beginning of the integration schema computation
 
@@ -1310,13 +1310,13 @@ class WilsonCowanThalamoCorticalFIC(WilsonCowanThalamoCortical):
         # Store this temporarily to avoid double computation:
         self._Ein = state_variables[2, :].copy()
 
-        # Add the stimulus:
-        if self._stim is not None:
-            self._stim = self._A_st * np.sin(self._omega_st * time)
+        # # Add the stimulus:
+        # if self._stim is not None:
+        #     self._stim = self._A_st * np.sin(self._omega_st * time)
 
         return state_variables
 
-    def dfun(self, state_variables, coupling, local_coupling=0.0, time=0.0):
+    def dfun(self, state_variables, coupling, local_coupling=0.0):  # , time=0.0
         r"""
 
         .. math::
@@ -1372,8 +1372,8 @@ class WilsonCowanThalamoCorticalFIC(WilsonCowanThalamoCortical):
                 + self._f_Rin(c_cx[self.is_thalamic[:, 0]])  # c_cx, long-range coupling, Cortical exc
                 ) / self._tau_r
 
-        if self._stim is not None:
-            self._Ein[self._stim_inds] = self._Ein[self._stim_inds] + self._stim
+        # if self._stim is not None:
+        #     self._Ein[self._stim_inds] = self._Ein[self._stim_inds] + self._stim
 
         derivative[0, :] = (- E + self._Ein) / self._tau_e
 
