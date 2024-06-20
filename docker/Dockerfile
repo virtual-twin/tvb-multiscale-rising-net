@@ -194,10 +194,10 @@ RUN $BASEENV/bin/pip3 install traitlets==5.9.0
 #ModuleNotFoundError: No module named 'matplotlib.docstring'
 RUN $BASEENV/bin/pip3 install matplotlib==3.5.3  # The version required by tvb-framework
 
-WORKDIR $PACKAGES
-RUN cd tvb-multiscale; \
-    git checkout rising-net; \
-    git pull --allow-unrelated-histories;
+#WORKDIR $PACKAGES
+#RUN cd tvb-multiscale; \
+#    git checkout rising-net; \
+#    git pull --allow-unrelated-histories;
 
 # Compile tvb-netpyne .mod files
 WORKDIR $PACKAGES
