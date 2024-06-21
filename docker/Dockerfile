@@ -181,6 +181,8 @@ RUN $BASEENV/bin/pip3 install sbi
 # Install Jupyter notebook specific packages
 # TODO: Resolve the need for notebook version 6.4.12
 RUN $BASEENV/bin/pip3 install jupyterlab notebook==6.5.6 ipympl jupyter_contrib_nbextensions --user;
+# TODO: Find a better solution for this bug: https://github.com/jupyter/notebook/issues/6702 :
+RUN $BASEENV/bin/pip3 install --upgrade jupyter_server==1.23.5 --user;
 RUN $LOCALENV/bin/jupyter-contrib nbextension install --user;
 RUN $LOCALENV/bin/jupyter-nbextension enable --py widgetsnbextension;  # --sys-prefix
 # Due to this:
