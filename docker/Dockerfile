@@ -51,9 +51,12 @@ ENV PYTHONPATH=$PYTHONPATH:$BASEENV:$LOCALENV
 ENV PATH="${BASEENV}/bin":"${LOCALENV}/bin":${PATH};
 
 # Basic python dependencies:
-RUN $BASEENV/bin/pip3 install --upgrade pip; \
-    $BASEENV/bin/pip3 install --upgrade nose ipython numpy scipy matplotlib; \
-    $BASEENV/bin/pip3 install parameters quantities neo "django<1.9" django-tagging future hgapi gitpython sumatra nixio numba gunicorn;
+RUN $BASEENV/bin/pip3 install --upgrade pip;
+RUN $BASEENV/bin/pip3 install --upgrade nose ipython numpy scipy matplotlib;
+RUN $BASEENV/bin/pip3 install parameters quantities neo "django<1.9" django-tagging future hgapi gitpython sumatra;
+# Work around for this error https://github.com/h5py/h5py/issues/2146#issuecomment-1297791917 :
+RUN $BASEENV/bin/pip3 install h5py --only-binary h5py;
+RUN $BASEENV/bin/pip3 install nixio numba gunicorn;
 
 # Install from sources libneurosim (NEST boost dependency)
 WORKDIR $PACKAGES
