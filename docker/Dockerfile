@@ -125,9 +125,9 @@ RUN $BASEENV/bin/pip3 install ANNarchy;
 
 # Install PySpike
 WORKDIR $PACKAGES
-RUN git clone --depth 1 https://github.com/mariomulansky/PySpike.git; \
-    cd PySpike; \
-    $BASEENV/bin/python3 setup.py build_ext install --user;
+#RUN git clone --depth 1 https://github.com/mariomulansky/PySpike.git; \
+#    cd PySpike; \
+#    $BASEENV/bin/python3 setup.py build_ext install --user;
 # Install Elephant
 WORKDIR $PACKAGES
 RUN $BASEENV/bin/pip3 install elephant;
@@ -165,9 +165,10 @@ RUN cd tvb-root; \
 WORKDIR $PACKAGES
 # TODO: Remove this once the repo is made public!:
 # RUN git clone --depth 1 --no-single-branch https://github.com/virtual-twin/tvb-multiscale-rising-net.git tvb-multiscale;
-RUN git clone --depth 1 --no-single-branch https://github.com/the-virtual-brain/tvb-multiscale.git;
+RUN git clone --depth 1 https://github.com/the-virtual-brain/tvb-multiscale.git;
 ARG LAST_SHA_MULTISCALE=LATEST
 RUN cd tvb-multiscale; \
+    git checkout dev; \
     git pull origin --allow-unrelated-histories; \
     $BASEENV/bin/python setup.py develop --no-deps --user;
 
@@ -179,13 +180,13 @@ RUN $BASEENV/bin/pip3 install sbi
 
 # Install Jupyter notebook specific packages
 # TODO: Resolve the need for notebook version 6.4.12
-RUN $BASEENV/bin/pip3 install jupyterlab notebook==6.4.12 ipympl jupyter_contrib_nbextensions --user;
+RUN $BASEENV/bin/pip3 install jupyterlab notebook==6.5.6 ipympl jupyter_contrib_nbextensions --user;
 RUN $LOCALENV/bin/jupyter-contrib nbextension install --user;
 RUN $LOCALENV/bin/jupyter-nbextension enable --py widgetsnbextension;  # --sys-prefix
 # Due to this:
 # https://github.com/microsoft/azuredatastudio/issues/24436
 # we need to downgrade traitlets:
-RUN $BASEENV/bin/pip3 install traitlets==5.9.0
+RUN $BASEENV/bin/pip3 install traitlets==5.13.0
 
 # TODO: UNDO THIS!
 # Downgrade matplotlib as a temporary fix for error:
