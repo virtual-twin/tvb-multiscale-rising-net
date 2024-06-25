@@ -1120,6 +1120,8 @@ if __name__ == '__main__':
 
     import sys
 
+    MODE = ""
+
     kwargs = {}
     ntests = 0
     for arg in sys.argv[1:]:
