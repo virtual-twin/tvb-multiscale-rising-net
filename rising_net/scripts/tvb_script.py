@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from rising_net.scripts.base import *
 from rising_net.scripts.utils import get_regions_indices, dump_pickled_time_series, \
-    compute_data_PSDs, compute_data_PSDs_from_raw, compute_task_transfer_metrics
+    compute_data_PSDs, compute_data_PSDs_from_raw  # , compute_task_transfer_metrics
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
 # Put the results in a Timeseries instance
@@ -1275,12 +1275,12 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     # NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
     # NPERSEGs = 512
 
-    TaskMetrics = compute_task_transfer_metrics(source_ts, transient, simulator.connectivity.region_labels,
-                                                config.TASKINDS, config.THETA, config.GAMMA, config.FREQS,
-                                                methods=(5, 2, 3), plot_flag=True,
-                                                figpath=config.figures.FOLDER_FIGURES)
-    dump_pickled_dict(TaskMetrics.to_dict(), config.TASK_TRANSFER_METRICS_PATH)
-    results["TaskMetrics"] = TaskMetrics
+    # TaskMetrics = compute_task_transfer_metrics(source_ts, transient, simulator.connectivity.region_labels,
+    #                                             config.TASKINDS, config.THETA, config.GAMMA, config.FREQS,
+    #                                             methods=(5, 2, 3), plot_flag=True,
+    #                                             figpath=config.figures.FOLDER_FIGURES)
+    # dump_pickled_dict(TaskMetrics.to_dict(), config.TASK_TRANSFER_METRICS_PATH)
+    # results["TaskMetrics"] = TaskMetrics
 
     # Plot TVB time series
     if isinstance(source_ts, TimeSeriesXarray):

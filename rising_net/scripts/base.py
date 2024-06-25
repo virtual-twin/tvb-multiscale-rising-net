@@ -255,7 +255,7 @@ def configure(**ARGS):
     config.TARGET_PSD_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
-    config.TASK_TRANSFER_METRICS_PATH = os.path.join(config.out.FOLDER_RES, "task_metrics_data.pkl")
+    # config.TASK_TRANSFER_METRICS_PATH = os.path.join(config.out.FOLDER_RES, "task_metrics_data.pkl")
     config.TARGET_FREQS = np.arange(5.0, 48.0, 1.0)  # TODO: Decide about 4 or 5 Hz min frequency!!!
     config.FREQS = np.arange(5.0, 101.0, 1.0)
     config.THETA = np.arange(6.0, 13.0, 1.0)
