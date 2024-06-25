@@ -62,6 +62,7 @@ def create_plotter(config):
 
 
 def configure(**ARGS):
+    from tvb_multiscale.core.config import find_root_dir
     from tvb_multiscale.tvb_nest.config import Config
 
     args = deepcopy(DEFAULT_ARGS)
@@ -97,7 +98,9 @@ def configure(**ARGS):
 
     # Construct configuration
     work_path = os.getcwd()
-    data_path = os.path.expanduser("~/packages/tvb-multiscale/rising_net/data")
+    root_path = find_root_dir()
+    rising_net = os.path.join(root_path, "rising_net")
+    data_path = os.path.join(rising_net, "data")
     tvb_conn_filepath = os.path.join(data_path, BRAIN_CONN_FILE)
     major_structs_labels_filepath = os.path.join(data_path, MAJOR_STRUCTS_LABELS_FILE)
     voxel_count_filepath = os.path.join(data_path, VOXEL_COUNT_FILE)
