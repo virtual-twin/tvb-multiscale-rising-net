@@ -5,7 +5,7 @@ import datetime
 
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
-from rising_net.scripts.cosim_run_plot import *
+from rising_net.scripts.rest_run_fit_plot import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
 

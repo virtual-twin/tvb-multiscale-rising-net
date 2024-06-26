@@ -5,6 +5,8 @@ import glob
 import pickle
 import os
 import shutil
+
+import numpy
 from matplotlib import pyplot
 import torch
 import sbi
@@ -12,82 +14,24 @@ from xarray import DataArray, concat
 from pandas import Index
 from scipy.interpolate import interp1d
 
-from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
+from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
+    coherence_networks_plot
+from rising_net.scripts.rest_run_fit_plot import get_config
+from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import \
-    build_priors, prepare_for_sbi, simulate_for_sbi, sbi_train, sbi_estimate, \
+    build_priors, sample_priors_for_sbi, prepare_for_sbi, simulate_for_sbi, sbi_train, sbi_estimate, \
     write_posterior, write_posterior_samples, add_posterior_samples_iR, load_posterior_samples, compute_diagnostics
+from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
-from rising_net.scripts.cosim_run_plot import plot_comparison
+from rising_net.scripts.utils import compute_selected_spectra_coherence
 
 from tvb_multiscale.core.plot.plotter import Plotter
-from tvb_multiscale.core.utils.file_utils import load_pickled_dict
+from tvb_multiscale.core.utils.file_utils import load_pickled_dict, dump_pickled_dict
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 from examples.plot_write_results import plot_write_spiking_network_results
-
-
-def sim_filepath(iR, config, filepath=None, extension=None, filename=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
-    return config.SIM_FILE_FORMAT % (filepath, iR, extension)
-
-
-def priors_filepath(iR, config, filepath=None, extension=None):
-    return sim_filepath(iR, config, filepath, extension, config.PRIORS_SAMPLES_FILE)
-
-
-def sample_priors_for_sbi(config=None):
-    config = assert_config(config, return_plotter=False)
-    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config, file, recurse=1)
-    dummy_sim = lambda priors: priors
-    priors = build_priors(config)
-    simulator, priors = prepare_for_sbi(dummy_sim, priors)
-    priors_samples, sim_res = simulate_for_sbi(dummy_sim, proposal=priors,
-                                               num_simulations=1,
-                                               num_workers=config.SBI_NUM_WORKERS)
-    return priors_samples, sim_res
-
-
-def priors_samples(iR, priors_samples=None, config=None, write_to_files=True):
-    config = assert_config(config, return_plotter=False)
-    if priors_samples is None:
-        priors_samples = sample_priors_for_sbi(config)[0]
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
-    if write_to_files:
-        torch.save(priors_samples, priors_filepath(iR, config, filepath, extension))
-    return priors_samples
-
-
-def generate_priors_samples(config=None):
-    from collections import OrderedDict
-
-    config = assert_config(config, return_plotter=False, MODE="PRIORS")
-
-    samples = []
-    for iR in range(config.N_SIMULATIONS):
-        samples.append(priors_samples(iR, config=config, write_to_files=True).numpy())
-    samples = np.array(samples).squeeze()
-    print("samples.shape=%s" % str(samples.shape))
-    stats = OrderedDict()
-    for p in ["min", "max", "mean", "std"]:
-        stats[p] = []
-        stats[p] = getattr(samples, p)(axis=0)
-        print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
-
-    return samples, stats
-
-
-def load_priors_samples(iR, config=None):
-    config = assert_config(config, return_plotter=False, MODE="PRIORS")
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
-    return torch.load(priors_filepath(iR, config, filepath, extension))
-
-
-def sim_res_filepath(iR, config, filepath=None, extension=None):
-    return sim_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
 
 
 def get_config(iR=None, **kwargs):
@@ -95,11 +39,9 @@ def get_config(iR=None, **kwargs):
     # DEFAULT_ARGS = {  # TVB model:
     #     'I_s': 0.1,  # 0.085,
     #     'I_e': -0.35,
-    #     "STIMULUS": 0.0,
-    #     "STIMULUS_BASELINE": 1.0,
     #     "tau_w": 10.0,
     #     "I_w": -0.35,
-    #     "G_w": 3.0,
+    #     "G_w": 5.0,
     #     # TVB network:
     #     'G': 6.0,
     #     'FIC': 1.11,  # 2.0,
@@ -149,7 +91,7 @@ def get_config(iR=None, **kwargs):
     return config, plotter
 
 
-def gain_run_plot(iR=0, **kwargs):
+def task_run_plot(iR=0, **kwargs):
 
     config, plotter = get_config(iR, **kwargs)
 
@@ -260,6 +202,173 @@ def gain_run_plot(iR=0, **kwargs):
     dump_pickled_dict(results, sim_res_filepath(iR, config))
 
     return results, simulator, nest_network, config, inds
+
+
+def plot_comparison(tests, **kwargs):
+
+    TESTS = tests
+    colors = []
+    for test, col in zip(["COSIM", "COSIM_CEREBOFF", "TVB", "TVB_CEREBOFF"], ["b", "m", "g", "r"]):
+        if test in TESTS:
+            colors.append(col)
+    TESTSFOLDER = "-".join(TESTS)
+
+    # CONFIGURATION:
+    MODE = kwargs.pop("MODE", TESTS[0])
+    config, plotter = get_config(MODE=MODE, **kwargs)
+
+    # CONNECTIVITY:
+    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
+    connectivity = build_connectivity(connectome, inds, config)
+
+    # Results path:
+    if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
+    BASEPATH = os.path.dirname(config.out.FOLDER_RES.split("/res")[0])
+    if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
+    TESTSPATH = os.path.join(BASEPATH, TESTSFOLDER)
+    if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
+    config.out._out_base = TESTSPATH
+    config.figures._out_base = TESTSPATH
+
+    # Task related regions' labels:
+    REGION_LABELS = connectivity.region_labels[config.TASKINDS]
+    # Task related regions' abreviated labels:
+    SHORT_LABELS = [shorten_region_name(reg, exclude=["of", "the", "to"]) for reg in REGION_LABELS]
+
+    THETA = config.THETA[[0, -1]]  # Hz
+    GAMMA = config.GAMMA[[0, -1]]  # Hz
+
+    # results dictionary:
+    results = {"inds": config.TASKINDS,
+               "region_labels": REGION_LABELS, "short_labels": SHORT_LABELS,
+               "theta": THETA, "gamma": GAMMA}
+
+    for test_name in TESTS:
+
+        results[test_name] = {}
+        Ps = []
+        Cs = []
+
+        if config.VERBOSITY > 1: print("test_name: ", test_name)
+        testpath_old = os.path.join(BASEPATH, test_name)
+        if config.VERBOSITY > 1: print("testpath_old: ", testpath_old)
+        testpath = os.path.join(TESTSPATH, test_name)
+        if config.VERBOSITY > 1: print("testpath: ", testpath)
+        if os.path.isdir(testpath_old):
+            shutil.move(testpath_old, testpath)
+        nsdtestpath = os.path.join(testpath, "nsd*")
+        if config.VERBOSITY > 1: print("nsdtestpath: ", nsdtestpath)
+        paths = glob.glob(nsdtestpath)
+        if len(paths) == 0:
+            Warning("No simulation files found at paths %s\nTrying for single simulation!" % nsdtestpath)
+            paths = [testpath]
+        for path in paths:
+            resultsfile = os.path.join(path, "res/source_ts.pkl")
+            if config.VERBOSITY > 1: print(resultsfile)
+            with open(resultsfile, 'rb') as handle:
+                source_ts = pickle.load(handle)  # to load results
+            Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
+                                        source_ts["data"], config.TASKINDS,
+                                        transient=source_ts["data"].shape[0]-2**15,  # 2**15 final length
+                                        sample_period=source_ts["sample_period"],
+                                        nperseg=None, fmin=0.0, fmax=GAMMA[-1])
+            Ps.append(Pxx_den)
+            Cs.append(Cxy)
+
+        results[test_name]['PSD'] = np.array(Ps)
+        results[test_name]['COH'] = np.array(Cs)
+        fth = np.where(np.logical_and(f > THETA[0], f < THETA[1]))[0]
+        results[test_name]['COHth'] = results[test_name]['COH'][:, :, fth].mean(axis=2)  # TODO Find out if it is correct!
+        fgm = np.where(np.logical_and(f > GAMMA[0], f < GAMMA[1]))[0]
+        results[test_name]['COHgm'] = results[test_name]['COH'][:, :, fgm].mean(axis=2) # TODO Find out if it is correct!
+
+    results["f"] = f      # frequency vector
+    results["fth"] = fth  # theta frequency vector inds
+    results["fgm"] = fgm  # gamma frequency vector inds
+    results["ij"] = ij    # pairs of regions of coherences where i, j in [0, config.TASKINDS.size]
+
+    dump_pickled_dict(results, os.path.join(config.out.FOLDER_RES, "res_PSD_COH.pkl"))
+
+    figR, axR, figL, axL = plot_pathway_psd_coh(results, inds,
+                                                tests=TESTS, colors=colors,
+                                                percentile_min=1, percentile_max=99, n=1,
+                                                plot_mean=True, plot_median=False, modePSD="semilog", modeCOH="linear",
+                                                alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)
+
+    if plotter.config.SAVE_FLAG:
+        for fig, hemi in zip([figR, figL], ["Right", "Left"]):
+            plt.figure(fig.number)
+            plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "PathwayPSD_COH_%s.png" % hemi))
+
+    figPSD, axesPSD = psd_percent_plot(results,
+                                        inds=None,
+                                        tests=TESTS, colors=colors,
+                                        percentile_min=1, percentile_max=99, n=1,
+                                        plot_mean=False, plot_median=True,
+                                        alpha=0.5, figsize=config.figures.DEFAULT_SIZE, fontsize=16)
+
+    if plotter.config.SAVE_FLAG:
+        plt.figure(figPSD.number)
+        plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "PSDs.png"))
+
+    figCOH, axesCOH = coherence_networks_plot(results,
+                                              tests=TESTS,
+                                              resnames=['COHth', 'COHgm'],
+                                              bands=["theta", "gamma"],
+                                              figsize=config.figures.DEFAULT_SIZE, fontsize=16)
+
+    if plotter.config.SAVE_FLAG:
+        plt.figure(figCOH.number)
+        plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "COHs.png"))
+
+
+def sim_filepath(iR, config, filepath=None, extension=None, filename=None):
+    if filepath is None or extension is None:
+        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
+    return config.SIM_FILE_FORMAT % (filepath, iR, extension)
+
+
+def priors_filepath(iR, config, filepath=None, extension=None):
+    return sim_filepath(iR, config, filepath, extension, config.PRIORS_SAMPLES_FILE)
+
+
+def priors_samples(iR, priors_samples=None, config=None, write_to_files=True):
+    config = assert_config(config, return_plotter=False)
+    if priors_samples is None:
+        priors_samples = sample_priors_for_sbi(config)[0]
+    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
+    if write_to_files:
+        torch.save(priors_samples, priors_filepath(iR, config, filepath, extension))
+    return priors_samples
+
+
+def generate_priors_samples(config=None):
+    from collections import OrderedDict
+
+    config = assert_config(config, return_plotter=False, MODE="PRIORS")
+
+    samples = []
+    for iR in range(config.N_SIMULATIONS):
+        samples.append(priors_samples(iR, config=config, write_to_files=True).numpy())
+    samples = np.array(samples).squeeze()
+    print("samples.shape=%s" % str(samples.shape))
+    stats = OrderedDict()
+    for p in ["min", "max", "mean", "std"]:
+        stats[p] = []
+        stats[p] = getattr(samples, p)(axis=0)
+        print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
+
+    return samples, stats
+
+
+def load_priors_samples(iR, config=None):
+    config = assert_config(config, return_plotter=False, MODE="PRIORS")
+    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
+    return torch.load(priors_filepath(iR, config, filepath, extension))
+
+
+def sim_res_filepath(iR, config, filepath=None, extension=None):
+    return sim_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
 
 
 def params_path_fun(iR=None, path=None):
@@ -978,7 +1087,7 @@ def posterior_predictive_check_simulations(label="", config=None, **kwargs):
     kwargs.update(dict(zip(config.PRIORS_PARAMS_NAMES, samples)))
     results = {}
     for mode in ["TVB", "TVB_CEREBOFF"]:
-        results[mode] = gain_run_plot(iR=iR,
+        results[mode] = task_run_plot(iR=iR,
                                       MODE="FIT/PPC/%s/%s_%05d" % (label, mode, sampl_ind),
                                       plot_flag=False,
                                       **kwargs)
@@ -1048,7 +1157,7 @@ def stats_simulation(metric, metric_vals, statsName, sim_res_fun, target_fun, co
     for iS in range(Nsims):
         COHsCond = []
         for test in tests:
-            res = gain_run_plot(iR=sims[iS],
+            res = task_run_plot(iR=sims[iS],
                                 MODE="%s/%s" % (fitpathlabel, test), **kwargs)[0]
             COHsCond.append(coh_to_xarray(res))
             results[test].append(res)
@@ -1113,7 +1222,7 @@ def ppc_best_simulations(sim_res_fun, target_fun, target=None,
 
 if __name__ == '__main__':
     # Example use:
-    # $ python gain_run_fit_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+    # $ python task_run_fit_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
     # Called tuning_tvb_nest.py with:
     # keyword argument: w_TVB_to_NEST=world
     # keyword argument: simulation_length=300.0
@@ -1145,4 +1254,4 @@ if __name__ == '__main__':
     if MODE == "PPC":
         posterior_predictive_check_simulations(**kwargs)
     else:
-        gain_run_plot(**kwargs)
+        task_run_plot(**kwargs)
