@@ -27,7 +27,7 @@ DEFAULT_ARGS = {# TVB model:
                 # "STIMULUS_BASELINE": 1.0,
                 "tau_w": 10.0,
                 "I_w": -0.35,
-                "G_w": 3.0,
+                "G_w": 5.0,
                 # TVB network:
                 'G': 6.0,
                 'FIC': 1.11,  # 2.0,
@@ -231,7 +231,7 @@ def configure(**ARGS):
     # Fitting
     config.PRIORS_DIST = args.get('PRIORS_DIST', "uniform")  # "normal" or "uniform"
     config.PRIORS_DEF = \
-        {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.05},
+        {"I_s": {"min": 0.0, "max": 0.2, "loc": 0.1, "sc": 0.025},
          "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
@@ -262,7 +262,7 @@ def configure(**ARGS):
     config.BETA = np.arange(13.0, 25.0, 1.0)
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
-    config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 3.0]
+    config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 3  # 3 - 10
@@ -285,7 +285,8 @@ def configure(**ARGS):
     config.PRIORS_SAMPLES_FILE = "ps.pt"  # e.g., ps_00100.pt
     config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
-                                          ["I_w", "G_w",
+                                          ["I_s", "FIC", "FICSPLIT",
+                                           "I_w", "G_w",
                                            "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
                                            "MEDULLA_GAIN", "CEREB_GAIN",
                                            "CNM1_GAIN", "CNS1_GAIN",
