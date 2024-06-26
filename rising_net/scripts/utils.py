@@ -69,15 +69,13 @@ def get_regions_indices(regs, labels):
 
 
 def compute_nperseg(fs, Ndata):
-    # Window:
-    NPERSEG = np.array([256, 512, 1024, 2048, 4096])
+    # # Window:
+    # NPERSEG = np.array([256, 512, 1024, 2048, 4096])
     # Trying to have a resolution of 1 Hz:
-    fmax2 = fs
-    Nf = int(fmax2)
+    # Nf = int(fs)
     # ...constraint by the length of the data:
-    nperseg = np.minimum(Ndata, NPERSEG[np.argmin(np.abs(NPERSEG - Nf))])
-    # nperseg = 512
-    return nperseg
+    # nperseg = np.minimum(Ndata, NPERSEG[np.argmin(np.abs(NPERSEG - Nf))])
+    return np.minimum(Ndata, int(fs))
 
 
 def interpolate_freqs(data, f, fmin=0.0, fmax=100.0, ftarg=None):
