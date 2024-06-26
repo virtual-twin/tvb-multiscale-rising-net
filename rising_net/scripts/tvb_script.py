@@ -1271,9 +1271,6 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     TIME_PLOT = np.minimum(1000.0,  np.maximum(0.0, n_time_len * dt - 100.0))  # ms
     N_TIME_PLOT = int(np.round(TIME_PLOT / dt))
     n_time_len -= int(np.round(transient / dt))
-    # NPERSEG = np.array([512, 1024, 2048, 4096])
-    # NPERSEGs = NPERSEG[np.argmin(np.abs(NPERSEG - n_time_len / 10))]
-    # NPERSEGs = 512
 
     # TaskMetrics = compute_task_transfer_metrics(source_ts, transient, simulator.connectivity.region_labels,
     #                                             config.TASKINDS, config.THETA, config.GAMMA, config.FREQS,
