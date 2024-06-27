@@ -285,7 +285,7 @@ def configure(**ARGS):
     config.PRIORS_SAMPLES_FILE = "ps.pt"  # e.g., ps_00100.pt
     config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
-                                          ["I_s", "FIC", "FICSPLIT",
+                                          ["I_s", "FIC", "FIC_SPLIT",
                                            "I_w", "G_w",
                                            "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
                                            "MEDULLA_GAIN", "CEREB_GAIN",
