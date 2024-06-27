@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import os
 import warnings
 import pickle
 
@@ -14,12 +14,6 @@ from sbi import analysis as analysis
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
 from rising_net.scripts.base import *
-from rising_net.scripts.rest_run_fit_plot import batch_filepath, batch_priors_filepath, batch_sim_res_filepath, \
-    simulate_batch, simulate_TVB_for_sbi_batch, load_priors_and_simulations_for_sbi, posterior_filepath, \
-    posterior_samples_filepath, load_posterior_samples_all_Gs, plot_infer_for_iG, sbi_infer_for_iG, \
-    get_train_test_samples_for_iG, num_train_sample_to_label, sbi_test_for_iG, sbi_train_and_test_for_iG, \
-    simulate_after_fitting_for_iG, posterior_predictive_check_simulations_for_iG_iB, \
-    read_ppt_batch_sim_res_from_file_for_iG, read_all_ppt_batch_sim_res_files_for_iG
 from rising_net.scripts.tvb_script import run_workflow, load_connectome
 
 
@@ -128,6 +122,31 @@ def write_posterior_samples(results, config,
     with open(filepath, "wb") as handle:
         pickle.dump(samples_fit, handle)
     return samples_fit
+
+
+def filepath_prefixes(filepath, iG=None, iR=None, label=""):
+    if iG is not None:
+        filepath += "_iG%02d" % iG
+    if iR is not None:
+        filepath += "_iR%02d" % iR
+    if len(label):
+        filepath += "_%s" % label
+    return filepath
+
+
+def construct_filepath(default_filepath, config, iG=None, iR=None, label="", filepath=None, extension=None):
+    if filepath is None or extension is None:
+        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, default_filepath))
+    filepath = filepath_prefixes(filepath, iG, iR, label)
+    return "%s%s" % (filepath, extension)
+
+
+def posterior_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
+    return construct_filepath(config.POSTERIOR_PATH, config, iG, iR, label, filepath, extension)
+
+
+def posterior_samples_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
+    return construct_filepath(config.POSTERIOR_SAMPLES_PATH, config, iG, iR, label, filepath, extension)
 
 
 def load_posterior(iG=None, iR=None, label="", config=None):

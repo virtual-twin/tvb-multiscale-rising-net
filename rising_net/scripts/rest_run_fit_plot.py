@@ -14,7 +14,10 @@ import numpy
 from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config
-from rising_net.scripts.tvb_script import run_workflow, load_connectome
+from rising_net.scripts.nest_script import build_NEST_network
+from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
+from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
+    build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import sample_priors_for_sbi, build_priors, load_posterior_samples, \
@@ -22,14 +25,17 @@ from rising_net.scripts.sbi_script import sample_priors_for_sbi, build_priors, l
     load_posterior, sbi_estimate, sbi_train
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
+from rising_net.scripts.utils import compute_selected_spectra_coherence
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from examples.plot_write_results import plot_write_spiking_network_results
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
+from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 
-def get_config(**kwargs):
+
+def get_config(iR=None, **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
     #     'I_s': 0.1,
@@ -37,7 +43,7 @@ def get_config(**kwargs):
     #     'w_ie': -3.0,
     #     "tau_w": 10.0,
     #     "I_w": -0.35,
-    #     "G_w": 5.0,
+    #     "G_w": 0.0,
     #     # TVB network:
     #     'G': 6.0,
     #     'FIC': 1.11,  # 2.0,
@@ -62,7 +68,13 @@ def get_config(**kwargs):
 
     # Get configuration
     verbosity = kwargs.pop("verbosity", 1)
-    config, plotter = configure(verbosity=0, **kwargs)
+    kwargs['PATHWAY_GAIN'] = 0
+    kwargs['WHISKER'] = 0.0
+    kwargs["G_w"] = 5.0
+    if iR is not None:
+        config, plotter = configure(verbosity=0, SEED=int(iR), **kwargs)
+    else:
+        config, plotter = configure(verbosity=0, **kwargs)
     config.VERBOSITY = verbosity
 
     print(config.model_params)
@@ -71,9 +83,19 @@ def get_config(**kwargs):
     return config, plotter
 
 
-def rest_run_plot(**kwargs):
+def sim_filepath(iR, config, filepath=None, extension=None, filename=None):
+    if filepath is None or extension is None:
+        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
+    return config.SIM_FILE_FORMAT % (filepath, iR, extension)
 
-    config, plotter = get_config(**kwargs)
+
+def sim_res_filepath(iR, config, filepath=None, extension=None):
+    return sim_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
+
+
+def cosim_run_plot(iR=None, **kwargs):
+
+    config, plotter = get_config(iR, **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
@@ -123,34 +145,63 @@ def rest_run_plot(**kwargs):
 
     # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
 
-    # Compute coherence
+    # Compute transient
     transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
     if config.RAW_PERIOD > config.DEFAULT_DT:
-        transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD + config.RAW_PERIOD/2
+        transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD
 
-    results = plot_tvb(transient, inds,
-                       results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
+    if plotter:
+        results = plot_tvb(transient, inds,
+                           results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
 
-    # if "COSIM" in config.MODE::
-    #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-    #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
-    #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+        # if "COSIM" in config.MODE::
+        #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+        #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
+        #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
 
-    results_path = os.path.join(config.out.FOLDER_RES, 'results.pickle')
-    with open(results_path, 'wb') as handle:
-       pickle.dump(results, handle)
-    print(results_path)
-    # results = pickle.load(results_path, 'rb'))  # to load results
+        # results_path = os.path.join(config.out.FOLDER_RES, 'results.pkl')
+        # with open(results_path, 'wb') as handle:
+        #    pickle.dump(results, handle)
+        # print(results_path)
+        # # results = pickle.load(results_path, 'rb'))  # to load results
+        #
+        # coherence_path = os.path.join(config.out.FOLDER_RES, 'coherence.pkl')
+        # # Save coherence
+        # CxyR = results["CxyR_M1_S1"]
+        # fR = results["fR"]
+        # CxyL = results["Cxyl_M1_S1"]
+        # fL = results["fL"]
+        # with open(coherence_path, 'wb') as handle:
+        #     pickle.dump([CxyR, fR, fL, CxyL], handle)
+        # print(coherence_path)
 
-    coherence_path = os.path.join(config.out.FOLDER_RES, 'coherence.pkl')
-    # Save coherence
-    CxyR = results["CxyR_M1_S1"]
-    fR = results["fR"]
-    CxyL = results["Cxyl_M1_S1"]
-    fL = results["fL"]
-    with open(coherence_path, 'wb') as handle:
-        pickle.dump([CxyR, fR, fL, CxyL], handle)
-    print(coherence_path)
+    # else:
+
+    if isinstance(results, (list, tuple)):
+        results = tvb_res_to_time_series(results, simulator, config=config, write_files=False)
+
+    n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
+
+    source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
+    results["source_ts"] = source_ts
+    taskinds = np.arange(source_ts.shape[2]).astype("i")
+
+    # Power Spectra and Coherence for M1 - S1 barrel field
+    PSD, COH, f, pairs = \
+        compute_selected_spectra_coherence(results["source_ts"], taskinds, results["source_ts"].sample_period,
+                                           transient=0, nperseg=1024, ftarg=config.FREQS)
+    results["PSD"] = PSD
+    results["f"] = f
+    results["COH"] = COH
+    results["pairs"] = pairs
+
+    # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
+    #                                             simulator.connectivity.region_labels[taskinds],
+    #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
+    #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
+    # results["TaskMetrics"] = TaskMetrics
+
+    dump_pickled_dict(results, sim_res_filepath(iR, config))
 
     return results, simulator, nest_network, config, inds
 
@@ -293,31 +344,6 @@ def load_priors_and_simulations_for_sbi(iG=None, priors=None, priors_samples=Non
             sim_res.append(np.load(batch_sim_res_filepath(iB, config, iG, filepath, extension)))
         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
     return priors, priors_samples, sim_res
-
-
-def filepath_prefixes(filepath, iG=None, iR=None, label=""):
-    if iG is not None:
-        filepath += "_iG%02d" % iG
-    if iR is not None:
-        filepath += "_iR%02d" % iR
-    if len(label):
-        filepath += "_%s" % label
-    return filepath
-
-
-def construct_filepath(default_filepath, config, iG=None, iR=None, label="", filepath=None, extension=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, default_filepath))
-    filepath = filepath_prefixes(filepath, iG, iR, label)
-    return "%s%s" % (filepath, extension)
-
-
-def posterior_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.POSTERIOR_PATH, config, iG, iR, label, filepath, extension)
-
-
-def posterior_samples_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.POSTERIOR_SAMPLES_PATH, config, iG, iR, label, filepath, extension)
 
 
 def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
@@ -971,46 +997,51 @@ def plot_all_together(config, iGs=None, diagnostics=["diff", "accuracy", "zscore
 
 
 # TODO: Figure this out!:
-# if __name__ == '__main__':
-#     # Example use:
-#     # $ python tuning_tvb_nest.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
-#     # Called tuning_tvb_nest.py with:
-#     # keyword argument: w_TVB_to_NEST=world
-#     # keyword argument: simulation_length=300.0
-#
-#     import sys
-#
-#     kwargs = {}
-#     ntests = 0
-#     for arg in sys.argv[1:]:
-#         keyval = arg.split("=")
-#         if keyval[0] not in ["MODE"]:
-#             key = float(keyval[1])
-#         else:
-#             key = keyval[1].split(" ")
-#             if keyval[0] == "MODE":
-#                 ntests = len(key)
-#                 if ntests == 1:
-#                     key = key[0]
-#         kwargs[keyval[0]] = key
-#
-#     rest_run_plot(**kwargs)
-#
-#
+if __name__ == '__main__':
+    # Example use:
+    # $ python tuning_tvb_nest.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+    # Called tuning_tvb_nest.py with:
+    # keyword argument: w_TVB_to_NEST=world
+    # keyword argument: simulation_length=300.0
+
+    import sys
+
+    kwargs = {}
+    ntests = 0
+    for arg in sys.argv[1:]:
+        keyval = arg.split("=")
+        if keyval[0] not in ["MODE", "plot_flag"]:
+            key = float(keyval[1])
+        else:
+            key = keyval[1].split(" ")
+            if keyval[0] == "MODE":
+                ntests = len(key)
+                if ntests == 1:
+                    key = key[0]
+            elif keyval[0] == "plot_flag":
+                if keyval[1] == "False":
+                    key = False
+                else:
+                    key = True
+        kwargs[keyval[0]] = key
+
+    cosim_run_plot(**kwargs)
+
+
 # if __name__ == "__main__":
 #     parser = args_parser("rest_run_fit_plot")
 #     parser.add_argument('--script_id', '-scr',
 #                         dest='script_id', metavar='script_id',
-#                         type=int, required=False, default=1, # nargs=1,
+#                         type=int, required=False, default=1,  # nargs=1,
 #                         help="Integer 0 or 1 (default) to select simulate_TVB_for_sbi_batch "
 #                              "or sbi_infer_for_iG, respectively")
 #     parser.add_argument('--iB', '-ib',
 #                         dest='iB', metavar='iB',
-#                         type=int, required=False, default=0, # nargs=1,
+#                         type=int, required=False, default=0,  # nargs=1,
 #                         help="Batch integer indice. Default=0.")
 #     parser.add_argument('--iG', '-ig',
 #                         dest='iG', metavar='iG',
-#                         type=int, required=False, default=-1, # nargs=1,
+#                         type=int, required=False, default=-1,  # nargs=1,
 #                         help="G values' integer indice. Default = -1 will be interpreted as None.")
 #     parser.add_argument('--iR', '-ir',
 #                         dest='iR', metavar='iR',

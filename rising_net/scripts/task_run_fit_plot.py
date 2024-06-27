@@ -17,7 +17,7 @@ from scipy.interpolate import interp1d
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.rest_run_fit_plot import get_config
+from rising_net.scripts.rest_run_fit_plot import cosim_run_plot, sim_filepath
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import \
     build_priors, sample_priors_for_sbi, prepare_for_sbi, simulate_for_sbi, sbi_train, sbi_estimate, \
@@ -89,119 +89,6 @@ def get_config(iR=None, **kwargs):
         dill.dump(config.__dict__, file, recurse=1)
 
     return config, plotter
-
-
-def task_run_plot(iR=0, **kwargs):
-
-    config, plotter = get_config(iR, **kwargs)
-
-    # Load and prepare connectome and connectivity with all possible normalizations:
-    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
-    connectivity = build_connectivity(connectome, inds, config)
-    # Prepare model
-    model = build_model(connectivity.number_of_regions, inds, maps, config)
-    # Prepare simulator
-    simulator = build_simulator(connectivity, model, inds, maps, config, plotter=plotter)
-
-    if "CEREBOFF" in config.MODE:
-        inds_off = np.sort(inds['cereb_crtx'].tolist() +
-                           inds['cereb_nuclei'].tolist() +
-                           inds['ansilob'].tolist())
-        simulator.connectivity.weights[inds_off, :] = 0
-        simulator.connectivity.weights[:, inds_off] = 0
-        if config.VERBOSITY:
-            print("\n")
-            print("-" * 25)
-            print("-" * 25)
-            print("Setting to 0.0 connections in and out of cerebellum\n"
-                  "['Left/Right Cerebellar Cortex'\n"
-                  "'Left/Right Cerebellar Nuclei'\n"
-                  "'Left Ansiform lobule']!!!:\n"
-                  "IN: %s\n"
-                  "OUT: %s" % (str(simulator.connectivity.weights[inds_off, :]),
-                               str(simulator.connectivity.weights[:, inds_off])))
-        simulator.connectivity.configure()
-        simulator.configure()
-
-    nest_network = None
-    if "COSIM" in config.MODE:
-        # Build NEST network
-        nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
-        # Build TVB-NEST interfaces
-        simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
-                                                            neuron_models, start_id_scaffold)
-        if "CEREBOFF" in config.MODE:
-            for hemi in ["Right", "Left"]:
-                nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
-                print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
-                print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
-        # Simulate TVB-NEST model
-        results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
-    else:
-        # Run simulation and get results for reference values
-        results, transient = simulate(simulator, config)
-
-    # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
-
-    # Compute transient
-    transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
-    if config.RAW_PERIOD > config.DEFAULT_DT:
-        transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD
-
-    if plotter:
-        results = plot_tvb(transient, inds,
-                           results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
-
-        # if "COSIM" in config.MODE::
-        #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-        #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
-        #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
-
-        # results_path = os.path.join(config.out.FOLDER_RES, 'results.pkl')
-        # with open(results_path, 'wb') as handle:
-        #    pickle.dump(results, handle)
-        # print(results_path)
-        # # results = pickle.load(results_path, 'rb'))  # to load results
-        #
-        # coherence_path = os.path.join(config.out.FOLDER_RES, 'coherence.pkl')
-        # # Save coherence
-        # CxyR = results["CxyR_M1_S1"]
-        # fR = results["fR"]
-        # CxyL = results["Cxyl_M1_S1"]
-        # fL = results["fL"]
-        # with open(coherence_path, 'wb') as handle:
-        #     pickle.dump([CxyR, fR, fL, CxyL], handle)
-        # print(coherence_path)
-
-    # else:
-
-    if isinstance(results, (list, tuple)):
-        results = tvb_res_to_time_series(results, simulator, config=config, write_files=False)
-
-    n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
-
-    source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
-    results["source_ts"] = source_ts
-    taskinds = np.arange(source_ts.shape[2]).astype("i")
-
-    # Power Spectra and Coherence for M1 - S1 barrel field
-    PSD, COH, f, pairs = \
-        compute_selected_spectra_coherence(results["source_ts"], taskinds, results["source_ts"].sample_period,
-                                           transient=0, nperseg=1024, ftarg=config.FREQS)
-    results["PSD"] = PSD
-    results["f"] = f
-    results["COH"] = COH
-    results["pairs"] = pairs
-
-    # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
-    #                                             simulator.connectivity.region_labels[taskinds],
-    #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
-    #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
-    # results["TaskMetrics"] = TaskMetrics
-
-    dump_pickled_dict(results, sim_res_filepath(iR, config))
-
-    return results, simulator, nest_network, config, inds
 
 
 def plot_comparison(tests, **kwargs):
@@ -322,12 +209,6 @@ def plot_comparison(tests, **kwargs):
         plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "COHs.png"))
 
 
-def sim_filepath(iR, config, filepath=None, extension=None, filename=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
-    return config.SIM_FILE_FORMAT % (filepath, iR, extension)
-
-
 def priors_filepath(iR, config, filepath=None, extension=None):
     return sim_filepath(iR, config, filepath, extension, config.PRIORS_SAMPLES_FILE)
 
@@ -365,10 +246,6 @@ def load_priors_samples(iR, config=None):
     config = assert_config(config, return_plotter=False, MODE="PRIORS")
     filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
     return torch.load(priors_filepath(iR, config, filepath, extension))
-
-
-def sim_res_filepath(iR, config, filepath=None, extension=None):
-    return sim_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
 
 
 def params_path_fun(iR=None, path=None):
@@ -1087,10 +964,10 @@ def posterior_predictive_check_simulations(label="", config=None, **kwargs):
     kwargs.update(dict(zip(config.PRIORS_PARAMS_NAMES, samples)))
     results = {}
     for mode in ["TVB", "TVB_CEREBOFF"]:
-        results[mode] = task_run_plot(iR=iR,
-                                      MODE="FIT/PPC/%s/%s_%05d" % (label, mode, sampl_ind),
-                                      plot_flag=False,
-                                      **kwargs)
+        results[mode] = cosim_run_plot(iR=iR,
+                                       MODE="FIT/PPC/%s/%s_%05d" % (label, mode, sampl_ind),
+                                       plot_flag=False,
+                                       **kwargs)
     return results
 
 
@@ -1157,8 +1034,8 @@ def stats_simulation(metric, metric_vals, statsName, sim_res_fun, target_fun, co
     for iS in range(Nsims):
         COHsCond = []
         for test in tests:
-            res = task_run_plot(iR=sims[iS],
-                                MODE="%s/%s" % (fitpathlabel, test), **kwargs)[0]
+            res = cosim_run_plot(iR=sims[iS],
+                                 MODE="%s/%s" % (fitpathlabel, test), **kwargs)[0]
             COHsCond.append(coh_to_xarray(res))
             results[test].append(res)
         COHs.append(concat(COHsCond, dim=Index(tests, name="Condition")))
@@ -1254,4 +1131,4 @@ if __name__ == '__main__':
     if MODE == "PPC":
         posterior_predictive_check_simulations(**kwargs)
     else:
-        task_run_plot(**kwargs)
+        cosim_run_plot(**kwargs)
