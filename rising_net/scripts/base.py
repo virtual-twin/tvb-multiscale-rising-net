@@ -266,32 +266,28 @@ def configure(**ARGS):
     config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
     config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 3  # 3 - 10
-    config.N_SIMULATIONS = 10000  # 1200
-    config.N_SIM_BATCHES = 30
+    config.N_SIMULATIONS = 1000  # 1200
+    config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 1
-    config.N_TRAIN_SAMPLES = 1200
+    config.N_TRAIN_SAMPLES = 1000
     config.TEST_SAMPLES_RATIO = 0.25
-    config.N_POSTERIOR_SAMPLES_PER_RUN = 1000  # 0
-    config.N_TRAINING_SAMPLES_PER_RUN = 1500   # 0
-    config.BATCH_FILE_FORMAT = "s_%03d%s"
-    config.BATCH_FILE_FORMAT_G = "%s_iG%02d_%03d%s"
-    config.BATCH_PRIORS_SAMPLES_FILE = "bps.pt"  # e.g., bps_iG01_iB010.pt
-    config.BATCH_SIM_RES_FILE = "bsr.npy"  # e.g., bsr_iG01_iB010.npy
-    config.N_PPT_SIM_BATCHES = 30
-    config.N_PPT_SIMS_PER_BATCH = 40
-    config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
+    config.N_POSTERIOR_SAMPLES_PER_RUN = 100  # 0
+    config.N_TRAINING_SAMPLES_PER_RUN = 500   # 0
+    # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(1.0, 11.0)
-    config.SIM_FILE_FORMAT = "%s_%05d%s"  # "%s_%03d%s"
-    config.PRIORS_SAMPLES_FILE = "ps.pt"  # e.g., ps_00100.pt
+    config.FILE_FORMAT = "%s_%05d%s"  # "%s_%03d%s"
+    config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"  # e.g., ps_00100.pt
     config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
-    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES",
-                                          ["I_s", "FIC", "FIC_SPLIT",
-                                           "I_w", "G_w",
-                                           "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
-                                           "MEDULLA_GAIN", "CEREB_GAIN",
-                                           "CNM1_GAIN", "CNS1_GAIN",
-                                           "TRIGS1_GAIN", "MEDULLAS1_GAIN",
-                                           "M1S1_GAIN"])
+    if TASK:
+        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
+                                   "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
+                                   "MEDULLA_GAIN", "CEREB_GAIN",
+                                   "CNM1_GAIN", "CNS1_GAIN",
+                                   "TRIGS1_GAIN", "MEDULLAS1_GAIN",
+                                   "M1S1_GAIN"]
+    else:
+        DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
+    config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
     # Uniform priors:
     config.prior_min = []
     config.prior_max = []  
