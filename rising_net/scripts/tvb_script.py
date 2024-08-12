@@ -1223,6 +1223,23 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
     return outputs
 
 
+def compute_PSD_target_and_data(config, results, inds, transient, plotter=None, write_files=True):
+    # This is the PSD target we are trying to fit...
+    if config.model_params['G']:
+        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+        PSD_target = compute_target_PSDs_m1s1brl(config, write_files=write_files, plotter=plotter)
+        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
+        PSD = compute_data_PSDs_m1s1brl(results, PSD_target, inds, transient,
+                                        write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+    else:
+        # ...for a disconnected brain, average PS of all regions:
+        PSD_target = compute_target_PSDs_1D(config, write_files=write_files, plotter=plotter)
+        # ...for a disconnected brain, average PS of all regions:
+        PSD = compute_data_PSDs_1D(results, PSD_target, inds, transient,
+                                   write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+    return PSD, PSD_target
+
+
 def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None, write_files=True):
     from rising_net.scripts.utils import \
         compute_plot_selected_spectra_coherence  # , compute_plot_ica
@@ -1237,19 +1254,8 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
     MIN_REGIONS_FOR_RASTER_PLOT = 9
     FIGSIZE = config.figures.DEFAULT_SIZE
 
-    # This is the PSD target we are trying to fit...
-    if config.model_params['G']:
-        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-        PSD_target = compute_target_PSDs_m1s1brl(config, write_files=write_files, plotter=plotter)
-        # ...for a connected brain, i.e., PS of bilateral M1 and S1:
-        PSD = compute_data_PSDs_m1s1brl(results[0], PSD_target, inds, transient,
-                                        write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
-    else:
-        # ...for a disconnected brain, average PS of all regions:
-        PSD_target = compute_target_PSDs_1D(config, write_files=write_files, plotter=plotter)
-        # ...for a disconnected brain, average PS of all regions:
-        PSD = compute_data_PSDs_1D(results[0], PSD_target, inds, transient,
-                                   write_files=write_files, psd_data_path=config.PSD_DATA_PATH, plotter=plotter)
+    PSD, PSD_target = compute_PSD_target_and_data(config, results[0],  inds, transient,
+                                                  write_files=write_files, plotter=plotter)
 
     if isinstance(results, (list, tuple)):
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
