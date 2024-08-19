@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
+import glob
 import os
+import random
 import warnings
 import pickle
+from copy import deepcopy
 
+import numpy
 import numpy as np
 from xarray import DataArray
 import torch
@@ -14,7 +18,11 @@ from sbi import analysis as analysis
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
 from rising_net.scripts.base import *
+from rising_net.scripts.filepaths import get_path, get_res_path, iRstr, construct_filepath, simres_filepath, \
+    figs_filepath
+from rising_net.scripts.plot_utils import sbi_pairplot
 from rising_net.scripts.tvb_script import run_workflow, load_connectome
+from rising_net.scripts.utils import dump_pickled_dict
 
 
 def build_priors(config):
@@ -30,24 +38,136 @@ def build_priors(config):
     return priors
 
 
-def sample_priors_for_sbi(config=None):
+def samples_filepath(config, default_filename="", folder="", iR=None, label="", filepath=None, extension=None):
+    if len(default_filename) == 0:
+        default_filename = config.SAMPLES_FILE
+    return construct_filepath(default_filename,
+                              get_res_path(config, folder),
+                              iR=iR, label=label,
+                              filepath=filepath, extension=extension)
+
+
+def params_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return construct_filepath(config.TRAIN_PARAMS_SAMPLES_FILE,
+                              get_path(config),
+                              iR=iR, label=label,
+                              filepath=filepath, extension=extension)
+
+
+def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return construct_filepath(config.POSTERIOR_FILE,
+                              get_path(config, config.FIT_FOLDER),
+                              iR=iR, label=label,
+                              filepath=filepath, extension=extension)
+
+
+def train_simres_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return simres_filepath(config, config.SIM_RES_FILE, folder=config.TRAIN_SIMS_FOLDER,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
+def train_simfigs_filepath(config, filename, iR=None, label="", filepath=None, extension=None):
+    return figs_filepath(config, filename, folder=config.TRAIN_SIMS_FOLDER,
+                         iR=iR, label=label,
+                         filepath=filepath, extension=extension)
+
+def posterior_samples_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return samples_filepath(config, config.SAMPLES_FILE,
+                            folder=config.FIT_FOLDER,
+                            iR=iR, label=label, filepath=filepath, extension=extension)
+
+
+def PPC_samples_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return samples_filepath(config, config.SAMPLES_FILE,
+                            folder=config.PPC_FOLDER,
+                            iR=iR, label=label, filepath=filepath, extension=extension)
+
+
+def PPC_simres_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return simres_filepath(config, config.SIM_RES_FILE, folder=config.PPC_FOLDER,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
+def PPC_simfigs_filepath(config, filename="", iR=None, label="", filepath=None, extension=None):
+    return figs_filepath(config, filename, folder=config.PPC_FOLDER,
+                         iR=iR, label=label,
+                         filepath=filepath, extension=extension)
+
+
+def params_pairplot(samples, points=None, metric=None, config=None, figname=None, figpath=None):
     config = assert_config(config, return_plotter=False)
-    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config, file, recurse=1)
+    limits = []
+    ticks = []
+    labels = []
+    if points is not None:
+        for pmin, point, pmax in zip(config.prior_min, points, config.prior_max):
+            limits.append([pmin, pmax])
+            ticks.append(np.sort([pmin, point, pmax]).tolist())
+        if metric is None:
+            metric = config.OPT_RES_MODE
+        for p, point in zip(config.PRIORS_PARAMS_NAMES, points):
+            try:
+                labels.append("%s %s = %g" % (p, metric, point))
+            except Exception as e:
+                print(p)
+                print(metric)
+                print(point)
+                print(point.shape)
+                raise e
+    else:
+        for pmin, pmax in zip(config.prior_min, config.prior_max):
+            limits.append([pmin, pmax])
+        ticks = deepcopy(limits)
+        for p in config.PRIORS_PARAMS_NAMES:
+            try:
+                labels.append("%s" % p)
+            except Exception as e:
+                print(p)
+                raise e
+    if config.figures.SAVE_FLAG:
+        if figpath is None:
+            if figname is None:
+                figname = "params_pairplot.png"
+            figpath = os.path.join(config.figures.FOLDER_FIGURES, figname)
+    return sbi_pairplot(samples, figpath=figpath,
+                        save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG,
+                        limits=limits, ticks=ticks, points=points, labels=labels)
+
+
+def sample_train_params_for_sbi(config=None, iR=None, label="", write_to_files=True, **kwargs):
+    MODE = kwargs.pop("MODE",  "TRAIN_PARAMS")
+    config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
     dummy_sim = lambda priors: priors
     priors = build_priors(config)
     simulator, priors = prepare_for_sbi(dummy_sim, priors)
-    priors_samples, sim_res = simulate_for_sbi(dummy_sim, proposal=priors,
-                                               num_simulations=config.N_SIMULATIONS,
-                                               num_workers=config.SBI_NUM_WORKERS)
-    return priors_samples, sim_res
+    samples, _ = simulate_for_sbi(dummy_sim, proposal=priors,
+                                  num_simulations=config.N_SIMULATIONS,
+                                  num_workers=config.SBI_NUM_WORKERS)
+    samples_numpy = samples.numpy()
+    print("samples.shape=%s" % str(samples.shape))
+    stats = OrderedDict()
+    for p in ["min", "max", "mean", "std"]:
+        stats[p] = []
+        stats[p] = getattr(samples_numpy, p)(axis=0)
+        print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
+
+    params_pairplot(samples_numpy, points=stats["mean"], metric="mean", config=config,
+                    figpath=figs_filepath("train_params_pairplot.png", config, iR=iR, label=label))
+    if write_to_files:
+        path = train_params_filepath(config, iR=iR, label=label)
+        torch.save(samples, path)
+        filepath, extension = path.split(".")
+        dump_pickled_dict(stats, filepath + "_stats.pkl")
+        dump_pickled_dict(config, filepath + "_config.pkl")
+    return samples, stats
 
 
-def write_posterior(posterior, iG=None, iR=None, label="", config=None):
-    config = assert_config(config, return_plotter=False)
-    filepath = posterior_filepath(config, iG, iR, label)
-    with open(filepath, "wb") as handle:
-        pickle.dump(posterior, handle)
+def load_train_params_samples(config=None, iR=None, label="", filepath=None, **kwargs):
+    MODE = kwargs.pop("MODE", "TRAIN_PARAMS")
+    config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
+    return torch.load(train_params_filepath(config, iR=iR, label=label, filepath=filepath))
 
 
 def compute_diagnostics(samples, config, priors=None, map=None, ground_truth=None):
@@ -99,70 +219,49 @@ def safely_append_item_iR(d, iR, key, val):
     return d
 
 
-def write_posterior_samples(results, config,
-                            iG=None, iR=None, label="",
-                            samples_fit=None, save_samples=True):
+def write_posterior(posterior, iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
-    filepath = posterior_samples_filepath(config, iG, iR, label)
-    if samples_fit is None:
+    filepath = posterior_filepath(config, iR, label)
+    with open(filepath, "wb") as handle:
+        pickle.dump(posterior, handle)
+
+
+def write_posterior_samples(results_i, config,
+                            iR=None, label="",
+                            results=None, save_samples=True):
+    config = assert_config(config, return_plotter=False)
+    filepath = posterior_samples_filepath(config, iR=None, label=label)  # Write all runs to the same file
+    if results is None:
         if os.path.isfile(filepath):
             with open(filepath, "rb") as handle:
-                samples_fit = pickle.load(handle)
+                results = pickle.load(handle)
         else:
-            samples_fit = {}
+            results = {}
     if iR is None:
         iR = -1
-    # Get G for this run:
-    if iG is not None:
-        samples_fit["G"] = config.Gs[iG]
-    for key, val in results.items():
-        samples_fit = safely_append_item_iR(samples_fit, iR, key, val)
+    for key, val in results_i.items():
+        results = safely_append_item_iR(results, iR, key, val)
     if not save_samples:
-        del samples_fit["samples"]
+        del results["samples"]
     with open(filepath, "wb") as handle:
-        pickle.dump(samples_fit, handle)
-    return samples_fit
+        pickle.dump(results, handle)
+    return results
 
 
-def filepath_prefixes(filepath, iG=None, iR=None, label=""):
-    if iG is not None:
-        filepath += "_iG%02d" % iG
-    if iR is not None:
-        filepath += "_iR%02d" % iR
-    if len(label):
-        filepath += "_%s" % label
-    return filepath
-
-
-def construct_filepath(default_filepath, config, iG=None, iR=None, label="", filepath=None, extension=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, default_filepath))
-    filepath = filepath_prefixes(filepath, iG, iR, label)
-    return "%s%s" % (filepath, extension)
-
-
-def posterior_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.POSTERIOR_PATH, config, iG, iR, label, filepath, extension)
-
-
-def posterior_samples_filepath(config, iG=None, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.POSTERIOR_SAMPLES_PATH, config, iG, iR, label, filepath, extension)
-
-
-def load_posterior(iG=None, iR=None, label="", config=None):
+def load_posterior(iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
-    filepath = posterior_filepath(config, iG, iR, label)
+    filepath = posterior_filepath(config, iR, label)
     with open(filepath, "rb") as handle:
         posterior = pickle.load(handle)
     return posterior
 
 
-def load_posterior_samples(iG=None, iR=None, label="", config=None):
+def load_posterior_samples(iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
-    filepath = posterior_samples_filepath(config, iG, iR, label)
+    filepath = posterior_samples_filepath(config, iR, label)
     with open(filepath, "rb") as handle:
-        samples_fit = pickle.load(handle)
-    return samples_fit
+        results = pickle.load(handle)
+    return results
 
 
 def add_posterior_samples_iR(all_samples, samples_iR):
@@ -182,7 +281,7 @@ def add_posterior_samples_iR(all_samples, samples_iR):
     return all_samples
 
 
-def load_posterior_samples_all_runs(iG, runs=None, label="", samples=None, config=None):
+def load_posterior_samples_all_runs(runs=None, label="", samples=None, config=None):
     config = assert_config(config, return_plotter=False)
     if samples is None:
         samples = OrderedDict()
@@ -190,19 +289,19 @@ def load_posterior_samples_all_runs(iG, runs=None, label="", samples=None, confi
         runs = list(range(config.N_FIT_RUNS))
     for iR in runs:
         try:
-            samples_iR = load_posterior_samples(iG, iR, label, config)
+            samples_iR = load_posterior_samples(iR, label, config)
             samples = add_posterior_samples_iR(samples, samples_iR)
         except Exception as e:
-            warnings.warn("Failed to load posterior samples for iG=%d, G=%g, iR=%d!\n%s" % (iG, config.Gs[iG], iR, str(e)))
+            warnings.warn("Failed to load posterior samples for run iR=%d!\n%s" % (iR, str(e)))
     return samples
 
 
-def sbi_train(priors, priors_samples, sim_res, verbosity):
+def sbi_train(priors, train_params_samples, sim_res, verbosity):
     # Initialize the inference algorithm class instance:
     inference = SNPE(prior=priors)
-    # Append to the inference the priors samples and simulations results
+    # Append to the inference the training parameter samples and simulations results
     # and train the network:
-    density_estimator = inference.append_simulations(priors_samples, sim_res).train()
+    density_estimator = inference.append_simulations(train_params_samples, sim_res).train()
     keep_building = -10
     posterior = None
     exception = "None"
@@ -219,6 +318,33 @@ def sbi_train(priors, priors_samples, sim_res, verbosity):
             keep_building += 1
     if posterior is None:
         raise Exception(exception)
+    return posterior
+
+
+def plot_training_params_samples(params, label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    if len(label):
+        label = "_" + label
+    label = label + "." + config.figures.FIG_FORMAT
+    fig, axes = params_pairplot(params, points=params.mean(axis=0), metric="mean", config=config,
+                                figpath=os.path.join(config.figures.FOLDER_FIGURES, 'train_params_pairplot' + label))
+    return fig, axes
+
+
+def train_posterior(train_params_samples, measures, label="", config=None, verbosity=None, plot_flag=True):
+    config = assert_config(config, return_plotter=False)
+    if verbosity is None:
+        verbosity = config.VERBOSITY
+    if plot_flag:
+        fig, axes = \
+            plot_training_params_samples(config, train_params_samples, label=label)
+
+    priors = build_priors(config)
+    posterior = sbi_train(priors,
+                          torch.Tensor(train_params_samples),
+                          torch.Tensor(measures),
+                          verbosity)
+
     return posterior
 
 
@@ -247,7 +373,143 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     return posterior, samples, MAP
 
 
-def sbi_infer(priors, priors_samples, sim_res, n_samples_per_run, target, verbosity):
+def plot_samples_measures_and_targets(measures, target=None,
+                                      label="", measure_labels=None, config=None):
+    config = assert_config(config, return_plotter=False)
+    if len(label):
+        label = "_" + label
+    label = label + "." + config.figures.FIG_FORMAT
+    metric = "target"
+    points = target
+    if points is None:
+        metric = "mean"
+        points = measures.mean(axis=0)
+    fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
+                             figpath=os.path.join(config.figures.FOLDER_FIGURES, 'measures_pairplot' + label),
+                             save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+    return fig, axes
+
+
+def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="", measure_labels=None,
+                               config=None, verbosity=None, plot_flag=True):
+    config = assert_config(config, return_plotter=False)
+    if verbosity is None:
+        verbosity = config.VERBOSITY
+    if n_samples_per_run is None:
+        n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
+    if plot_flag:
+        plot_samples_measures_and_targets(measures, target=target,
+                                          label=label, measure_labels=measure_labels, config=config)
+    return sbi_estimate(posterior, target, n_samples_per_run, verbosity)
+
+
+def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target, verbosity):
     # Train the neural network to approximate the posterior and return the posterior estimation:
-    return sbi_estimate(sbi_train(priors, priors_samples, sim_res, verbosity),
+    return sbi_estimate(sbi_train(priors, train_params_samples, sim_res, verbosity),
                         target, n_samples_per_run, verbosity)
+
+
+def plot_infer(samples=None, results=None, points=None, metric=None, iR=slice(None), label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    if samples is None:
+        if results is None:
+            raise ValueError("Either samples or results dict must be given to plot_infer()!")
+        samples = np.hstack(np.array(results['samples'])[iR].tolist()).squeeze()
+    if metric is None:
+        metric = config.OPT_RES_MODE
+    try:
+        if points is None:
+            if samples_it is not None:
+                points = \
+                    np.concatenate(np.array(results[config.OPT_RES_MODE])[iR].tolist()).mean(axis=0).squeeze()
+    except Exception as e:
+        warning.warn("Failed to get metric %s!\n%s" % str(e))
+        metric = None
+        points = None
+    if config.figures.SAVE_FLAG:
+        figname = 'posterior_samples_pairplot'
+        if len(label):
+            figname += label
+        figname += "." + config.figures.FIG_FORMAT
+    else:
+        figname=None
+    return params_pairplot(samples, points=points, metric=metric, config=config, figname=figname)
+
+
+def infer_workflow(train_params_samples, sim_res, target=None, groung_truth=None, config=None,
+                   label="", n_samples_per_run=None, measure_labels=None,
+                   results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
+    config = assert_config(config, return_plotter=False)
+    if verbosity is None:
+        verbosity = config.VERBOSITY
+    if n_samples_per_run is None:
+        n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
+    if iR is None:
+        iRinds = slice(None)
+        labeliR = label
+    else:
+        iRinds = iR
+        labeliR = label + iRstr(iR)
+    posterior = train_posterior(train_params_samples, sim_res, label=labeliR,
+                                config=config, verbosity=verbosity, plot_flag=plot_flag)
+    write_posterior(posterior, iR=iR, label=label, config=config)
+    posterior, samples, MAP = estimate_posterior_samples(target, posterior,
+                                                         n_samples_per_run=n_samples_per_run, label=labeliR,
+                                                         measure_labels=measure_labels,
+                                                         config=config, verbosity=verbosity, plot_flag=plot_flag)
+    results_i = compute_diagnostics(samples, config, priors=priors, map=MAP, ground_truth=ground_truth)
+    results_i["params"] = train_params_samples
+    results_i["measures"] = sim_res
+    results = write_posterior_samples(results_i, config,
+                                      iR=iR, label=label,
+                                      results=results, save_samples=save_samples)
+    if plot_flag:
+        plot_infer(samples, results=results, points=MAP, metric="MAP",
+                   iR=iRinds, label=labeliR, config=config)
+    return posterior, results, MAP
+
+
+def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, config=None,
+                label="", n_samples_per_run=None, measure_labels=None,
+                save_samples=True, plot_flag=True, verbosity=None):
+    config = assert_config(config, return_plotter=False)
+    if verbosity is None:
+        verbosity = config.VERBOSITY
+    if n_samples_per_run is None:
+        n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
+    results_i = None
+    if config.N_FIT_RUNS:
+        n_samples = train_params_samples.shape[0]
+        all_inds = list(range(n_samples))
+        n_train_samples = int(np.ceil(1.0 * n_samples / config.SPLIT_RUN_SAMPLES))
+        for iR in range(config.N_FIT_RUNS):
+            if verbosity:
+                print("\n\nFitting run %d!..\n" % iR)
+            ticR = time.time()
+            # Choose a subsample of the whole set of samples:
+            sampl_inds = random.sample(all_inds, n_train_samples)
+            path = params_filepath(config, iR=iR, label=label)
+            torch.save(train_params_samples[sampl_inds], path)
+            filepath, extension = path.split(".")
+            np.save(filepath + "_inds.npy", sampl_inds)
+            # For every fitting run...
+            results_i = infer_for_iR(train_params_samples[sampl_inds], sim_res[sampl_inds],
+                                     target=target, groung_truth=groung_truth, config=config,  label=label,
+                                     n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
+                                     results=results_i, iR=iR, save_samples=save_samples,
+                                     plot_flag=plot_flag, verbosity=verbosity)
+            if verbosity:
+                print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
+        # Plot with samples from all runs!:
+        if verbosity:
+            print("Plotting samples from all %d runs together..." % config.N_FIT_RUNS)
+        plot_infer(samples=None, results=results_i, points=None, metric="MAP",
+                   iR=slice(None), label=label+"_allruns", config=config)
+    if verbosity:
+        print("\n\nFitting with all samples!..\n")
+    results = infer_for_iR(train_params_samples, sim_res,
+                           target=target, groung_truth=groung_truth, config=config,  label=label+"_allsamples",
+                           n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
+                           results=None, iR=None, save_samples=save_samples,
+                           plot_flag=plot_flag, verbosity=verbosity)
+    return results, results_i
