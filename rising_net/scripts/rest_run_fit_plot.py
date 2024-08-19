@@ -13,19 +13,17 @@ import dill
 import numpy
 from matplotlib import pyplot
 
-from rising_net.scripts.base import assert_config
-from rising_net.scripts.nest_script import build_NEST_network
-from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
+from rising_net.scripts.base import assert_config, configure
+from rising_net.scripts.filepaths import simres_filepath
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series
-from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
-from rising_net.scripts.tvb_nest_script import *
-from rising_net.scripts.sbi_script import sample_priors_for_sbi, build_priors, load_posterior_samples, \
-    load_posterior_samples_all_runs, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
-    load_posterior, sbi_estimate, sbi_train
+from rising_net.scripts.nest_script import build_NEST_network
+from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
+from rising_net.scripts.sbi_script import build_priors, \
+    sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
+    load_posterior, load_posterior_samples, load_posterior_samples_all_runs
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
-from rising_net.scripts.utils import compute_selected_spectra_coherence
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from examples.plot_write_results import plot_write_spiking_network_results
@@ -83,14 +81,8 @@ def get_config(iR=None, **kwargs):
     return config, plotter
 
 
-def sim_filepath(iR, config, filepath=None, extension=None, filename=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
-    return config.SIM_FILE_FORMAT % (filepath, iR, extension)
-
-
-def sim_res_filepath(iR, config, filepath=None, extension=None):
-    return sim_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
+def simres_filepath(iR, config, filepath=None, extension=None):
+    return construct_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
 
 
 def cosim_run_plot(iR=None, **kwargs):
@@ -177,171 +169,111 @@ def cosim_run_plot(iR=None, **kwargs):
 
     # else:
 
-    if isinstance(results, (list, tuple)):
-        results = tvb_res_to_time_series(results, simulator, config=config, write_files=False)
+    if "REST" in config.MODE:
+        # Return only the M1<-> PSD fitting target
+        if isinstance(results, (list, tuple)):
+            PSD, PSD_target = compute_PSD_target_and_data(config, results[0], inds, transient,
+                                                          write_files=True, plotter=None)
+            results = {"PSD": PSD, "f": PSD_target['f'],
+                       "regions": simulator.connectivity.regions[inds["m1s1brl"]]}
+            dump_pickled_dict(results, simres_filepath(iR, config))
+    else:
+        # Return PSD and COH along the task pathay fitting targets:
+        if isinstance(results, (list, tuple)):
+            results = tvb_res_to_time_series(results, simulator, config=config, write_files=False)
 
-    n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
+        n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
 
-    source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
-    results["source_ts"] = source_ts
-    taskinds = np.arange(source_ts.shape[2]).astype("i")
+        source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
+        taskinds = np.arange(source_ts.shape[2]).astype("i")
 
-    # Power Spectra and Coherence for M1 - S1 barrel field
-    PSD, COH, f, pairs = \
-        compute_selected_spectra_coherence(results["source_ts"], taskinds, results["source_ts"].sample_period,
-                                           transient=0, nperseg=1024, ftarg=config.FREQS)
-    results["PSD"] = PSD
-    results["f"] = f
-    results["COH"] = COH
-    results["pairs"] = pairs
+        # Power Spectra and Coherence for M1 - S1 barrel field
+        PSD, COH, f, pairs = \
+            compute_selected_spectra_coherence(source_ts, taskinds, source_ts.sample_period,
+                                               transient=0, nperseg=1024, ftarg=config.FREQS)
+        results["PSD"] = PSD
+        results["f"] = f
+        results["COH"] = COH
+        results["pairs"] = pairs
+        results["regions"] = simulator.connectivity.regions[config.TASKINDS]
+        del results["source_ts"]
 
-    # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
-    #                                             simulator.connectivity.region_labels[taskinds],
-    #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
-    #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
-    # results["TaskMetrics"] = TaskMetrics
+        # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
+        #                                             simulator.connectivity.region_labels[taskinds],
+        #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
+        #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
+        # results["TaskMetrics"] = TaskMetrics
 
-    dump_pickled_dict(results, sim_res_filepath(iR, config))
+        dump_pickled_dict(results, simres_filepath(iR, config))
 
     return results, simulator, nest_network, config, inds
 
 
-def batch_filepath(iB, config, iG=None, filepath=None, extension=None, filename=None):
-    if filepath is None or extension is None:
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, filename))
-    if iG is None:
-        return config.BATCH_FILE_FORMAT % (filepath, iB, extension)
-    else:
-        return config.BATCH_FILE_FORMAT_G % (filepath, iG, iB, extension)
+def loadsim_to_xarrays_fun(path):
+    res = load_pickled_dict(path)
+    return DataArray(res["PSD"], dims=["Region", "f"],
+                     coords={"Region": res["regions"],
+                             "f": res["f"]},
+                     name="PSD")
 
 
-def batch_priors_filepath(iB, config, iG=None, filepath=None, extension=None):
-    return batch_filepath(iB, config, iG, filepath, extension, config.BATCH_PRIORS_SAMPLES_FILE)
+def load_allsims_to_xarrays(config, **kwargs):
+    config = assert_config(config, return_plotter=False, **kwargs)
+    res_files = glob.glob(path)
+    # TODO: Make this temporary hack more robust!!!:
+    sims = []
+    for res_file in res_files:
+        sims.append(int(res_file.split("_")[-1].split(".pkl")[0]))
+    sims = np.sort(sims)
+    res = []
+    failed = []
+    ifailed = []
+    for iiR, iR in enumerate(sims):
+        try:
+            res.append(loadsim_to_xarrays(simres_filepath(iR, config)))
+        except Exception as e:
+            failed.append(iR)
+            ifailed.append(iiR)
+            warnings.warn(str(e))
+            continue
+    sims = np.delete(sims, ifailed)
+    res = concat(res, dim=Index(sims, name="Simulation"))
+
+    nFailed = len(failed)
+    if nFailed:
+        warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
+
+    return PSDs, failed
 
 
-def priors_samples_per_batch(priors_samples=None, iG=None, config=None, write_to_files=True):
-    config = assert_config(config, return_plotter=False)
-    if priors_samples is None:
-        priors_samples = sample_priors_for_sbi(config)[0]
-    batch_samples = []
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.BATCH_PRIORS_SAMPLES_FILE))
-    for iB in range(config.N_SIM_BATCHES):
-        batch_samples.append(priors_samples[iB::config.N_SIM_BATCHES])
-        if write_to_files:
-            torch.save(batch_samples[-1], batch_priors_filepath(iB, config, iG, filepath, extension))
-    return batch_samples
+def target_PSD_fun(config, target=None):
+    # Load the target
+    PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
+    # If we are fitting for a connected network...
+    # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
+    #                                        right                       left
+    return np.concatenate([PSD_target["PSD_M1_target"], PSD_target["PSD_M1_target"],  # M1
+                           PSD_target["PSD_S1_target"], PSD_target["PSD_S1_target"]])  # S1
 
 
-def priors_samples_per_batch_for_iG(iG, priors_samples=None, config=None, write_to_files=True):
-    return priors_samples_per_batch(priors_samples, iG, config, write_to_files)
+def sim_res_PSD_fun(sim_res, config):
+    return sim_res.stack(Regions=("Region", "f")).values
 
 
-def load_priors_samples_per_batch(iB, iG=None, config=None):
-    config = assert_config(config, return_plotter=False)
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.BATCH_PRIORS_SAMPLES_FILE))
-    return torch.load(batch_priors_filepath(iB, config, iG, filepath, extension))
-
-
-def load_priors_samples_per_batch_per_iG(iB, iG, config=None):
-    return load_priors_samples_per_batch(iB, iG, config)
-
-
-def batch_sim_res_filepath(iB, config, iG=None, filepath=None, extension=None):
-    return batch_filepath(iB, config, iG, filepath, extension, config.BATCH_SIM_RES_FILE)
-
-
-def write_batch_sim_res_to_file(sim_res, iB, iG=None, config=None):
-    np.save(batch_sim_res_filepath(iB, assert_config(config, return_plotter=False), iG), sim_res, allow_pickle=True)
-
-
-def write_batch_sim_res_to_file_per_iG(sim_res, iB, iG, config=None):
-    write_batch_sim_res_to_file(sim_res, iB, iG, config)
-
-
-def simulate_batch(iB, iG, batch_samples, run_workflow, write_to_file=None, config=None):
-    config = assert_config(config, return_plotter=False)
-    sim_res = []
-    for iS in range(batch_samples.shape[0]):
-        priors_params = OrderedDict(config.model_params.copy())
-        priors_params["G"] = config.Gs[iG]
-        for prior_name, prior in zip(config.PRIORS_PARAMS_NAMES, batch_samples[iS]):
-            try:
-                numpy_prior = prior.numpy()
-            except:
-                numpy_prior = prior
-            if prior_name == "FIC":
-                config.FIC = numpy_prior
-            elif prior_name == "FIC_SPLIT":
-                config.FIC_SPLIT = numpy_prior
-            else:
-                priors_params[prior_name] = numpy_prior
-        if config.VERBOSITY:
-            print("\n\nSimulation %d/%d for iG=%d, iB=%d" % (iS + 1, batch_samples.shape[0], iG, iB))
-            print("Simulating for parameters:\n%s" % str(priors_params))
-        sim_res.append(
-            run_workflow(model_params=priors_params, config=config, plot_flag=False, write_files=False)["PSD"])
-        if write_to_file:
-            write_to_file(sim_res, iB, iG, config)
-    return sim_res
-
-
-def simulate_TVB_for_sbi_batch(iB, iG=None, config=None, write_to_file=True):
-    config = assert_config(config, return_plotter=False)
-    # Get the default values for the parameter except for G
-    batch_samples = load_priors_samples_per_batch_per_iG(iB, iG, config)
-    if write_to_file:
-        write_to_file = write_batch_sim_res_to_file_per_iG
-    return simulate_batch(iB, iG, batch_samples, run_workflow, write_to_file, config)
-
-
-def generate_priors_samples(config=None):
-    from collections import OrderedDict
-    from scripts.sbi_script import configure, priors_samples_per_batch_for_iG
-
-    if config is None:
-        config = configure()[0]
-
-    print("Gs = %s" % str(config.Gs))
-    print("len(Gs)=%d" % len(config.Gs))
-    samples = []
-    for iG, G in enumerate(config.Gs):
-        print('\nG[%d]=%g' % (iG, G))
-        samples.append(priors_samples_per_batch_for_iG(iG, config=config, write_to_files=True))
-        nBs = len(samples[iG])
-        print("len(samples[%d]=%d" % (iG, nBs))
-        print("samples[%d][0].shape=%s" % (iG, str(samples[iG][0].shape)))
-        print("samples[%d][%d].shape=%s" % (iG, nBs - 1, str(samples[iG][nBs - 1].shape)))
-        stats = OrderedDict()
-        for p in ["min", "max", "mean", "std"]:
-            stats[p] = []
-            for iB in range(nBs):
-                stats[p].append(getattr(samples[iG][iB], p)(axis=0))
-            print("\nsamples[%d][:].%s =\n%s" % (iG, p, str(stats[p])))
-
-        print("\nlen(samples)=%d" % len(samples))
-
-    return samples
-
-
-def load_priors_and_simulations_for_sbi(iG=None, priors=None, priors_samples=None, sim_res=None, config=None):
+def load_priors_and_simulations_for_sbi(iG=None, priors=None, priors_samples=None, sim_res=None, config=None, label=""):
     config = assert_config(config, return_plotter=False)
     if priors is None:
         priors = build_priors(config)
     # Load priors' samples if not given in the input:
     if priors_samples is None:
         # Load priors' samples
-        priors_samples = []
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.BATCH_PRIORS_SAMPLES_FILE))
-        for iB in range(config.N_SIM_BATCHES):
-            priors_samples.append(torch.load(batch_priors_filepath(iB, config, iG, filepath, extension)))
-        priors_samples = torch.concat(priors_samples)
+        priors_samples = load_priors_samples(config=config, iR=None, iG=iG, label=label)
     # Load priors' samples if not given in the input:
     if sim_res is None:
         # Load priors' samples
         sim_res = []
-        filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.BATCH_SIM_RES_FILE))
-        for iB in range(config.N_SIM_BATCHES):
-            sim_res.append(np.load(batch_sim_res_filepath(iB, config, iG, filepath, extension)))
+        for iR in range(config.N_SIMULATIONS):
+            sim_res.append(load_pickled_dict(simres_filepath(iR, config))["PSD"])
         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
     return priors, priors_samples, sim_res
 
@@ -361,184 +293,6 @@ def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
         except Exception as e:
             warnings.warn("Failed to load posterior samples for iG=%d, G=%g!\n%s" % (iG, G, str(e)))
     return samples
-
-
-def plot_infer_for_iG(iG, iR=None, samples=None, label="", config=None):
-    config = assert_config(config, return_plotter=False)
-
-    if samples is None:
-        samples = load_posterior_samples_all_runs(iG, iR, label, config)
-
-    if iR is None:
-        iR = slice(None)
-    # Get the default values for the parameter except for G
-    pvals = np.concatenate(samples[config.OPT_RES_MODE][iR]).mean(axis=0)
-    samples_points = np.concatenate(samples['samples'][iR])
-
-    if not isinstance(pvals, np.ndarray):
-        pvals = pvals.numpy()
-    limits = []
-    for pmin, pmax in zip(config.prior_min, config.prior_max):
-        limits.append([pmin, pmax])
-    if config.VERBOSITY:
-        print("\nPlotting posterior for G[%d]=%g..." % (iG, samples['G']))
-    labels = []
-    for p, pval in zip(config.PRIORS_PARAMS_NAMES, pvals):
-        labels.append("%s %s = %g" % (p, config.OPT_RES_MODE, pval))
-    fig, axes = analysis.pairplot(samples_points,
-                                  limits=limits,
-                                  ticks=limits,
-                                  figsize=(10, 10),
-                                  labels=labels,
-                                  points=pvals,
-                                  points_offdiag={'markersize': 6},
-                                  points_colors=['r'] * config.n_priors)
-    if config.figures.SAVE_FLAG:
-        if len(label):
-            filename = 'sbi_pairplot_G%g_%s.png' % (samples['G'], label)
-        else:
-            filename = 'sbi_pairplot_G%g.png' % samples['G']
-        plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, filename))
-    if config.figures.SHOW_FLAG:
-        plt.show()
-    else:
-        plt.close(fig)
-    return fig, axes
-
-
-def sbi_infer_for_iG(iG, label="", config=None):
-    tic = time.time()
-    config = assert_config(config, return_plotter=False)
-    # Get G for this run:
-    G = config.Gs[iG]
-    if len(label):
-        lblmsg = ", for %s" % label
-    else:
-        lblmsg = ""
-    if config.VERBOSITY:
-        print("\n\nFitting for G=%g%s!\n" % (G, lblmsg))
-    # Load the target
-    PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
-    if G > 0.0:
-        # If we are fitting for a connected network...
-        # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
-        #                                        right                       left
-        psd_targ = np.concatenate([PSD_target["PSD_M1_target"], PSD_target["PSD_M1_target"],  # M1
-                                   PSD_target["PSD_S1_target"], PSD_target["PSD_S1_target"]]) # S1
-    else:
-        psd_targ = PSD_target['PSD_target']
-    priors, priors_samples, sim_res = load_priors_and_simulations_for_sbi(iG, config=config)
-    n_samples = sim_res.shape[0]
-    if priors_samples.shape[0] > n_samples:
-        warnings.warn("We have only %d simulations for iG=%d, less than priors' samples (=%d)!"
-                      % (n_samples, iG, priors_samples.shape[0]))
-    samples_fit = None
-    if config.N_FIT_RUNS > 0:
-        all_inds = list(range(n_samples))
-        n_train_samples = int(np.ceil(1.0*n_samples / config.SPLIT_RUN_SAMPLES))
-        for iR in range(config.N_FIT_RUNS):
-            # For every fitting run...
-            if config.VERBOSITY:
-                print("\n\nFitting run %d!..\n" % iR)
-            ticR = time.time()
-            # Choose a subsample of the whole set of samples:
-            sampl_inds = random.sample(all_inds, n_train_samples)
-            # Train the network, build the posterior and sample it:
-            posterior, posterior_samples, map = sbi_infer(priors, priors_samples[sampl_inds], sim_res[sampl_inds],
-                                                          config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSITY)
-            # Write posterior and samples to files:
-            write_posterior(posterior, iG, iR, label, config=config)
-            diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
-            samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label)
-            if config.VERBOSITY:
-                print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
-
-    # Fit once more using all samples!
-    if config.VERBOSITY:
-        print("\n\nFitting with all samples!..\n")
-    ticR = time.time()
-    # Train the network, build the posterior and sample it:
-    posterior, posterior_samples, map = sbi_infer(priors, priors_samples[:n_samples], sim_res,
-                                                  config.N_POSTERIOR_SAMPLES_PER_RUN, psd_targ, config.VERBOSITY)
-    # Write posterior and samples to files:
-    write_posterior(posterior, iG, iR=None, label=label, config=config)
-    diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
-    samples_fit = write_posterior_samples(diagnostics, config, iG, label, samples_fit=samples_fit)
-    if config.VERBOSITY:
-        print("Done with fitting with all samples in %g sec!" % (time.time() - ticR))
-
-    # Plot posterior:
-    plot_infer_for_iG(iG, iR=None, samples=samples_fit, config=config);
-
-    if config.VERBOSITY:
-        print("\n\nFinished after %g sec!" % (time.time() - tic))
-        print("\n\nFind results in %s!" % config.out.FOLDER_RES)
-
-    return posterior_samples  # , samples_fit, results, fig, simulator, output_config
-
-
-def sbi_estimate_for_iG(iG, label="", config=None):
-    tic = time.time()
-    config = assert_config(config, return_plotter=False)
-    # Get G for this run:
-    G = config.Gs[iG]
-    if len(label):
-        lblmsg = ", for %s" % label
-    else:
-        lblmsg = ""
-    if config.VERBOSITY:
-        print("\n\nFitting for G=%g%s!\n" % (G, lblmsg))
-    # Build priors:
-    priors = build_priors(config)
-    # Load the target
-    PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
-    if G > 0.0:
-        # If we are fitting for a connected network...
-        # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
-        #                                        right                       left
-        psd_targ = np.concatenate([PSD_target["PSD_M1_target"], PSD_target["PSD_M1_target"],  # M1
-                                   PSD_target["PSD_S1_target"], PSD_target["PSD_S1_target"]]) # S1
-    else:
-        psd_targ = PSD_target['PSD_target']
-    samples_fit = None
-    if config.N_FIT_RUNS > 0:
-        for iR in range(config.N_FIT_RUNS):
-            # For every fitting run...
-            if config.VERBOSITY:
-                print("\n\nEstimating run %d!..\n" % iR)
-            ticR = time.time()
-            posterior = load_posterior(iG, iR=iR, label=label, config=config)
-            posterior, posterior_samples, map = sbi_estimate(posterior, psd_targ,
-                                                             config.N_POSTERIOR_SAMPLES_PER_RUN,
-                                                             config.VERBOSITY)
-            # Write posterior and samples to files:
-            write_posterior(posterior, iG, iR, label, config=config)
-            diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
-            samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label)
-            if config.VERBOSITY:
-                print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
-    else:
-        if config.VERBOSITY:
-            print("\n\nEstimating!..\n")
-        ticR = time.time()
-        posterior = load_posterior(iG, iR=None, label=label, config=config)
-        posterior, posterior_samples, map = sbi_estimate(posterior, PSD_target, config.N_POSTERIOR_SAMPLES_PER_RUN,
-                                                         config.VERBOSITY)
-        # Write posterior and samples to files:
-        write_posterior(posterior, iG, None, label, config=config)
-        diagnostics = compute_diagnostics(posterior_samples, config, priors=priors, map=map, ground_truth=None)
-        samples_fit = write_posterior_samples(diagnostics, config, iG, None, label)
-        if config.VERBOSITY:
-            print("Done in %g sec!" % (time.time() - ticR))
-
-        # Plot posterior:
-        plot_infer_for_iG(iG, iR=None, samples=samples_fit, config=config);
-
-    if config.VERBOSITY:
-        print("\n\nFinished after %g sec!" % (time.time() - tic))
-        print("\n\nFind results in %s!" % config.out.FOLDER_RES)
-
-    return samples_fit
 
 
 def get_train_test_samples_for_iG(iG, config, n_train_samples=None):
