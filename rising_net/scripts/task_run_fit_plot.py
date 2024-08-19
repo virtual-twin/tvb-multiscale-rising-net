@@ -14,18 +14,20 @@ from xarray import DataArray, concat
 from pandas import Index
 from scipy.interpolate import interp1d
 
+from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
+from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.rest_run_fit_plot import cosim_run_plot, sim_filepath
-from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import \
-    build_priors, sample_priors_for_sbi, prepare_for_sbi, simulate_for_sbi, sbi_train, sbi_estimate, \
-    write_posterior, write_posterior_samples, add_posterior_samples_iR, load_posterior_samples, compute_diagnostics
-from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
+    build_priors, priors_filepath, sample_priors_for_sbi, prepare_for_sbi, load_priors_samples_for_iR, \
+    simulate_for_sbi, sbi_train, sbi_estimate, \
+    write_posterior, write_posterior_samples, add_posterior_samples_iR, load_posterior_samples, compute_diagnostics, \
+    params_pairplot, params_pairplot_from_samples_fit_dict, plot_samples_measures_and_targets, \
+    posterior_predictive_check_simulations
+from rising_net.scripts.rest_run_fit_plot import cosim_run_plot
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
-from rising_net.scripts.utils import compute_selected_spectra_coherence
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import load_pickled_dict, dump_pickled_dict
@@ -68,7 +70,7 @@ def get_config(iR=None, **kwargs):
     # Get configuration
     if "PRIORS" in kwargs.get("MODE", "") and iR is not None:
         config = configure(MODE="PRIORS", plot_flag=False, verbosity=0)[0]
-        priors = dict(zip(config.PRIORS_PARAMS_NAMES, load_priors_samples(iR, config).numpy().squeeze()))
+        priors = dict(zip(config.PRIORS_PARAMS_NAMES, load_priors_samples_for_iR(iR, config).numpy().squeeze()))
         print("PRIORS_%05d:\n%s" % (iR, str(priors)))
         kwargs.update(priors)
         kwargs["plot_flag"] = False
@@ -207,45 +209,6 @@ def plot_comparison(tests, **kwargs):
     if plotter.config.SAVE_FLAG:
         plt.figure(figCOH.number)
         plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "COHs.png"))
-
-
-def priors_filepath(iR, config, filepath=None, extension=None):
-    return sim_filepath(iR, config, filepath, extension, config.PRIORS_SAMPLES_FILE)
-
-
-def priors_samples(iR, priors_samples=None, config=None, write_to_files=True):
-    config = assert_config(config, return_plotter=False)
-    if priors_samples is None:
-        priors_samples = sample_priors_for_sbi(config)[0]
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
-    if write_to_files:
-        torch.save(priors_samples, priors_filepath(iR, config, filepath, extension))
-    return priors_samples
-
-
-def generate_priors_samples(config=None):
-    from collections import OrderedDict
-
-    config = assert_config(config, return_plotter=False, MODE="PRIORS")
-
-    samples = []
-    for iR in range(config.N_SIMULATIONS):
-        samples.append(priors_samples(iR, config=config, write_to_files=True).numpy())
-    samples = np.array(samples).squeeze()
-    print("samples.shape=%s" % str(samples.shape))
-    stats = OrderedDict()
-    for p in ["min", "max", "mean", "std"]:
-        stats[p] = []
-        stats[p] = getattr(samples, p)(axis=0)
-        print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
-
-    return samples, stats
-
-
-def load_priors_samples(iR, config=None):
-    config = assert_config(config, return_plotter=False, MODE="PRIORS")
-    filepath, extension = os.path.splitext(os.path.join(config.out.FOLDER_RES, config.PRIORS_SAMPLES_FILE))
-    return torch.load(priors_filepath(iR, config, filepath, extension))
 
 
 def params_path_fun(iR=None, path=None):
@@ -623,87 +586,6 @@ def get_sim_res_COHM1S1diffratioDistRatioDist2_params_from_path(config, Nsims=No
     return get_sim_res_COHM1S1diffratioDistRatioDist2(COHs, config), params.values
 
 
-def params_pairplot(samples, points=None, metric=None, config=None, figname=None, figpath=None):
-    config = assert_config(config, return_plotter=False)
-    limits = []
-    ticks = []
-    labels = []
-    if points is not None:
-        for pmin, point, pmax in zip(config.prior_min, points, config.prior_max):
-            limits.append([pmin, pmax])
-            ticks.append(np.sort([pmin, point, pmax]).tolist())
-        if metric is None:
-            metric = config.OPT_RES_MODE
-        for p, point in zip(config.PRIORS_PARAMS_NAMES, points):
-            try:
-                labels.append("%s %s = %g" % (p, metric, point))
-            except Exception as e:
-                print(p)
-                print(metric)
-                print(point)
-                print(point.shape)
-                raise e
-    else:
-        for pmin, pmax in zip(config.prior_min, config.prior_max):
-            limits.append([pmin, pmax])
-        ticks = deepcopy(limits)
-        for p in config.PRIORS_PARAMS_NAMES:
-            try:
-                labels.append("%s" % p)
-            except Exception as e:
-                print(p)
-                raise e
-    if config.figures.SAVE_FLAG:
-        if figpath is None:
-            if figname is None:
-                figname = "params_pairplot.png"
-            figpath = os.path.join(config.figures.FOLDER_FIGURES, figname)
-    return sbi_pairplot(samples, figpath=figpath,
-                        save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG,
-                        limits=limits, ticks=ticks, points=points, labels=labels)
-
-
-def params_pairplot_from_samples_fit_dict(samples_fit, points=None, metric=None, inds=slice(None),
-                                          config=None, figname=None, figpath=None):
-    config = assert_config(config, return_plotter=False)
-    samples = np.hstack(np.array(samples_fit['samples'])[inds].tolist()).squeeze()
-    if metric is None:
-        metric = config.OPT_RES_MODE
-    try:
-        if points is None:
-            points = np.concatenate(np.array(samples_fit[config.OPT_RES_MODE])[inds].tolist()).mean(axis=0).squeeze()
-    except Exception as e:
-        warning.warn("Failed to get metric %s!\n%s" % str(e))
-        metric = None
-        points = None
-    return params_pairplot(samples, points=points, metric=metric, config=config, figname=figname, figpath=figpath)
-
-
-def plot_samples_measures_and_targets(config, params=None, COHs=None,
-                                      Nsims=None, path=None, assert_params=True,
-                                      sim_res_fun=None, target_fun=None, target=None,
-                                      label="", measure_labels=None):
-    if params is None or COHs is None:
-        COHs, params = sim_res_fun(config, Nsims=Nsims, path=path, assert_params=assert_params)
-        params = params.T
-    fig1, axes1 = params_pairplot(params, points=params.mean(axis=0), metric="mean",
-                                  config=config, figname="%s_%s" % (label, 'priors_pairplot.png'),
-                                  figpath=None)
-    metric = "target"
-    points = target
-    if points is None:
-        if target_fun is not None:
-            points = target_fun(config, target)
-        else:
-            metric = "mean"
-            points = COHs.mean(axis=0)
-    fig2, axes2 = sbi_pairplot(COHs, points=points, metric=metric, labels=measure_labels,
-                              figpath=os.path.join(config.figures.FOLDER_FIGURES,
-                                                   "%s_%s" % (label, 'measures_pairplot.png')),
-                              save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
-    return fig1, axes1, fig2, axes2
-
-
 def train_posterior(sim_res_fun, config,
                     Nsims=None, path=None, assert_params=True, target_fun=None, target=None,
                     label="", measure_labels=None, plot_flag=True):
@@ -941,34 +823,6 @@ def infer(sim_res_fun, target_fun, target=None, path=None, assert_params=True,
                                   config=config, plot_flag=plot_flag)
 
     return samples_fit_all, samples_fit
-
-
-def posterior_predictive_check_simulations(label="", config=None, **kwargs):
-    config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
-    samples_fit = load_posterior_samples_all_runs(None, label, None, config)
-    samples = np.hstack(samples_fit["samples"])[0].copy()
-    n_samples = samples.shape[0]
-    sampleslist = list(range(n_samples))
-    del samples_fit
-    basepath = config.out.FOLDER_RES.split("/res")[0]
-    ppcpath = os.path.join(basepath, "PPC", label)
-    paths = glob.glob(os.path.join(ppcpath, "TVB_[0-9]*"))
-    runs = []
-    for path in paths:
-        runs.append(int(path.split("_")[-1]))
-    iR = len(runs)
-    sampleslist = np.delete(sampleslist, runs).tolist()
-    sampl_ind = random.sample(sampleslist, 1)[0]
-    # Now choose N_PPT_SIMS_PER_BATCH randomly among the samples meant for this batch
-    samples = samples[sampl_ind].squeeze()
-    kwargs.update(dict(zip(config.PRIORS_PARAMS_NAMES, samples)))
-    results = {}
-    for mode in ["TVB", "TVB_CEREBOFF"]:
-        results[mode] = cosim_run_plot(iR=iR,
-                                       MODE="FIT/PPC/%s/%s_%05d" % (label, mode, sampl_ind),
-                                       plot_flag=False,
-                                       **kwargs)
-    return results
 
 
 def load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config,
