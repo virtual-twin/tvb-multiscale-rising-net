@@ -81,13 +81,10 @@ def configure(**ARGS):
     TASK = PATHWAY_GAIN * WHISKERS  # (STIMULUS + )
     MODE = args["MODE"]
     BASENAME = MODE
-    # if TASK:
-    #     if WHISKERS > 0:
-    #         BASENAME = os.path.join(BASENAME, "WHISKERS")
-    #     elif STIMULUS > 0:
-    #         BASENAME = os.path.join(BASENAME, "STIMULUS")
-    # else:
-    #     BASENAME = os.path.join(BASENAME, "REST")
+    if TASK:
+        BASENAME += "_TASK"
+    else:
+        BASENAME += "_REST"
 
     # Flags that affect the result's path:
     # Files:
@@ -263,21 +260,26 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.POSTERIOR_PATH = os.path.join(config.out.FOLDER_RES, "posterior.pkl")
-    config.POSTERIOR_SAMPLES_PATH = os.path.join(config.out.FOLDER_RES, "samples_fit.pkl")
     config.N_FIT_RUNS = 3  # 3 - 10
-    config.N_SIMULATIONS = 1000  # 1200
+    config.N_SIMULATIONS = 5  # 1000, 1200
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 1
-    config.N_TRAIN_SAMPLES = 1000
+    config.N_TRAIN_SAMPLES = 5  #  1000
     config.TEST_SAMPLES_RATIO = 0.25
-    config.N_POSTERIOR_SAMPLES_PER_RUN = 100  # 0
-    config.N_TRAINING_SAMPLES_PER_RUN = 500   # 0
+    config.N_POSTERIOR_SAMPLES_PER_RUN = 3  # 100  # 0
+    config.N_TRAINING_SAMPLES_PER_RUN = 3  # 500   # 0
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(1.0, 11.0)
     config.FILE_FORMAT = "%s_%05d%s"  # "%s_%03d%s"
-    config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"  # e.g., ps_00100.pt
     config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
+    config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"
+    config.TRAIN_SIMS_FOLDER = "train_sims"
+    config.FIT_FOLDER = "fit"
+    config.POSTERIOR_FILE = "posterior.pkl"
+    config.SAMPLES_FILE = "samples.pkl"
+    config.PPC_FOLDER = "PPC"
+    config.MEAN_FOLDER = "mean"
+    config.MODE_FOLDER = "mode"
     if TASK:
         DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
                                    "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
