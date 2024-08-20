@@ -2,6 +2,8 @@
 
 import os
 
+from tvb.contrib.scripts.utils.file_utils import safe_makedirs
+
 
 def get_path(config, folder="", mode=""):
     if mode == "figs":
@@ -38,7 +40,11 @@ def construct_filepath(default_filename, original_path, iR=None, label="", filep
     if filepath is None or extension is None:
         filepath, extension = os.path.splitext(os.path.join(original_path, default_filename))
     filepath = filepath_prefixes(filepath, iR, label)
-    return "%s%s" % (filepath, extension)
+    filepath = "%s%s" % (filepath, extension)
+    dirname = os.path.dirname(filepath)
+    if not os.path.isdir(dirname):
+        safe_makedirs(dirname)
+    return filepath
 
 
 def simres_filepath(config, default_filename="", folder="", iR=None, label="", filepath=None, extension=None):
