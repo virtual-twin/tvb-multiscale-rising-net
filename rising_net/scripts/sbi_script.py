@@ -47,18 +47,22 @@ def samples_filepath(config, default_filename="", folder="", iR=None, label="", 
                               filepath=filepath, extension=extension)
 
 
-def params_filepath(config, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.TRAIN_PARAMS_SAMPLES_FILE,
-                              get_path(config),
-                              iR=iR, label=label,
-                              filepath=filepath, extension=extension)
+def fitres_filepath(config, filename, iR=None, label="", filepath=None, extension=None):
+    return simres_filepath(config, filename, folder=config.FIT_FOLDER,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
 
 
-def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(config.POSTERIOR_FILE,
-                              get_path(config, config.FIT_FOLDER),
-                              iR=iR, label=label,
-                              filepath=filepath, extension=extension)
+def train_params_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return fitres_filepath(config, config.TRAIN_PARAMS_SAMPLES_FILE,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
+def fitfigs_filepath(config, filename, iR=None, label="", filepath=None, extension=None):
+    return figs_filepath(config, filename, folder=config.FIT_FOLDER,
+                         iR=iR, label=label,
+                         filepath=filepath, extension=extension)
 
 
 def train_simres_filepath(config, iR=None, label="", filepath=None, extension=None):
@@ -71,6 +75,13 @@ def train_simfigs_filepath(config, filename, iR=None, label="", filepath=None, e
     return figs_filepath(config, filename, folder=config.TRAIN_SIMS_FOLDER,
                          iR=iR, label=label,
                          filepath=filepath, extension=extension)
+
+
+def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return fitres_filepath(config, config.POSTERIOR_FILE,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
 
 def posterior_samples_filepath(config, iR=None, label="", filepath=None, extension=None):
     return samples_filepath(config, config.SAMPLES_FILE,
@@ -154,7 +165,7 @@ def sample_train_params_for_sbi(config=None, iR=None, label="", write_to_files=T
         print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
 
     params_pairplot(samples_numpy, points=stats["mean"], metric="mean", config=config,
-                    figpath=figs_filepath("train_params_pairplot.png", config, iR=iR, label=label))
+                    figpath=fitfigs_filepath(config, "train_params_pairplot.png", iR=iR, label=label))
     if write_to_files:
         path = train_params_filepath(config, iR=iR, label=label)
         torch.save(samples, path)
@@ -327,7 +338,7 @@ def plot_training_params_samples(params, label="", config=None):
         label = "_" + label
     label = label + "." + config.figures.FIG_FORMAT
     fig, axes = params_pairplot(params, points=params.mean(axis=0), metric="mean", config=config,
-                                figpath=os.path.join(config.figures.FOLDER_FIGURES, 'train_params_pairplot' + label))
+                                figpath=fitfigs_filepath(config, "train_params_pairplot.png", iR=iR, label=label))
     return fig, axes
 
 
@@ -385,7 +396,7 @@ def plot_samples_measures_and_targets(measures, target=None,
         metric = "mean"
         points = measures.mean(axis=0)
     fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
-                             figpath=os.path.join(config.figures.FOLDER_FIGURES, 'measures_pairplot' + label),
+                             figpath=fitfigs_filepath(config, "measures_pairplot.png", label=label),
                              save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
     return fig, axes
 
@@ -431,12 +442,13 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=slice(No
         if len(label):
             figname += label
         figname += "." + config.figures.FIG_FORMAT
+        figpath = fitfigs_filepath(config, figname, iR=iR, label=label)
     else:
-        figname=None
-    return params_pairplot(samples, points=points, metric=metric, config=config, figname=figname)
+        figpath=None
+    return params_pairplot(samples, points=points, metric=metric, config=config, figpath=figpath)
 
 
-def infer_workflow(train_params_samples, sim_res, target=None, groung_truth=None, config=None,
+def infer_workflow(train_params_samples, sim_res, target=None, ground_truth=None, config=None,
                    label="", n_samples_per_run=None, measure_labels=None,
                    results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
@@ -488,7 +500,7 @@ def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, c
             ticR = time.time()
             # Choose a subsample of the whole set of samples:
             sampl_inds = random.sample(all_inds, n_train_samples)
-            path = params_filepath(config, iR=iR, label=label)
+            path = train_params_filepath(config, iR=iR, label=label)
             torch.save(train_params_samples[sampl_inds], path)
             filepath, extension = path.split(".")
             np.save(filepath + "_inds.npy", sampl_inds)
