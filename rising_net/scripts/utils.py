@@ -570,3 +570,17 @@ def load_pickled_time_series(filepath, connectivity=None):
                                 labels_ordering=dimensions,
                                 labels_dimensions=labels_dimensions,
                                 sample_period=sample_period)
+
+
+def joinstr(lst, connstr="_"):
+    if len(lst):
+        if len(lst[0]):
+            outstr = lst[0]
+            for lstr in lst[1:]:
+                if len(lstr):
+                    outstr += "_%s" % lstr
+        else:
+            return joinstr(lst[1:], connstr)
+    else:
+        return ""
+    return outstr
