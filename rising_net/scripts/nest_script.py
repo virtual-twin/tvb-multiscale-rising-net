@@ -743,9 +743,9 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
 
 if __name__ == "__main__":
     parser = args_parser("nest_script")
-    args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-    VERBOSITY = args.get('VERBOSITY', DEFAULT_ARGS['VERBOSITY'])
-    if VERBOSITY:
-        print("Running %s with arguments:\n" % parser.description)
+    args, parser_args, parser = parse_args(parser, argsnames=list(DEFAULT_ARGS.keys()))
+    verbosity = args.get('verbosity', DEFAULT_ARGS['verbosity'])
+    if verbosity:
+        print("Running %s with user provided arguments:\n" % parser.description)
         print(args, "\n")
     run_nest_workflow(**args)
