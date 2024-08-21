@@ -1623,9 +1623,9 @@ def run_workflow(PSD_target=None, model_params={}, config=None, write_files=True
 
 if __name__ == "__main__":
     parser = args_parser("tvb_script")
-    args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
+    args, parser_args, parser = parse_args(parser, argsnames=list(DEFAULT_ARGS.keys()))
     verbosity = args.get('verbosity', DEFAULT_ARGS['verbosity'])
     if verbosity:
-        print("Running %s with arguments:\n" % parser.description)
+        print("Running run_workflow with user provided arguments:\n" % parser.description)
         print(args, "\n")
     run_workflow(**args)
