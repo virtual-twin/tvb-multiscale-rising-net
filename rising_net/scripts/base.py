@@ -19,6 +19,17 @@ TvbProfile.set_profile(TvbProfile.LIBRARY_PROFILE)
 
 from tvb.simulator.integrators import EulerStochastic
 
+from rising_net.scripts.utils import joinstr
+
+
+PATHWAY_GAINS = {"TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
+                 "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
+                 "CNM1_GAIN": 50.0,
+                 "M1S1_GAIN": 10.0,
+                 "M1FACIAL_GAIN": 50.0,   # 50.0,
+                 "FACIALTRIG_GAIN": 1.0,  # 50.0,
+                 "WHISKERS_GAIN": 50.0}
+
 
 DEFAULT_ARGS = {# TVB model:
                 'I_s': 0.1,  # 0.085,
@@ -34,22 +45,19 @@ DEFAULT_ARGS = {# TVB model:
                 'FIC_SPLIT': 0.31,  # 0.0,
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
-                "TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
-                "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
-                "CNM1_GAIN": 50.0,
-                "M1S1_GAIN": 10.0,
-                "M1FACIAL_GAIN": 50.0,   # 50.0,
-                "FACIALTRIG_GAIN": 1.0,  # 50.0,
-                "WHISKERS_GAIN": 50.0,
                 # TVB <-> NEST Interface:
-                "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
-                "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
-                              "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
+                # "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
+                # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
+                #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
-                "NOISE": 1e-6,
+                "NOISE": 1e-6, "NOISE_SEED": 0,
                 "SIMULATION_LENGTH": 2 ** 10 + 1.0,
                 "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
-                'output_folder': "", 'verbosity': 1, 'plot_flag': True}
+                "BASENAME": "", 'output_folder': "", 'verbosity': 1, 'plot_flag': True}
+
+
+for pg, pgdef in PATHWAY_GAINS.items():
+    DEFAULT_ARGS[pg] = pgdef
 
 
 def create_plotter(config):
@@ -68,23 +76,28 @@ def configure(**ARGS):
     args = deepcopy(DEFAULT_ARGS)
     args.update(**ARGS)
 
-    # STIMULUS = args.get("STIMULUS", 0)
+    # STIMULUS = defargs.get("STIMULUS", 0)
     G_w = args.get("G_w", 0)
-    WHISKERS_GAIN = args.get("WHISKERS_GAIN", 10.0)
+    WHISKERS_GAIN = args.get("WHISKERS_GAIN", 50.0)
     if G_w * WHISKERS_GAIN > 0.0:
         WHISKERS = 1
     else:
         WHISKERS = 0
         WHISKERS_GAIN = 0
         G_w = 0
+    args["WHISKERS_GAIN"] = WHISKERS_GAIN
     PATHWAY_GAIN = args.get("PATHWAY_GAIN", 0)
     TASK = PATHWAY_GAIN * WHISKERS  # (STIMULUS + )
+
     MODE = args["MODE"]
-    BASENAME = MODE
-    if TASK:
-        BASENAME += "_TASK"
-    else:
-        BASENAME += "_REST"
+    if TASK and "TASK" not in MODE:
+        MODE = joinstr(["TASK", MODE])
+    elif "REST" not in MODE:
+        MODE = joinstr(["REST", MODE])
+
+    BASENAME = ARGS.get("BASENAME", "")
+    if len(BASENAME) == 0:
+        BASENAME = MODE
 
     # Flags that affect the result's path:
     # Files:
@@ -109,12 +122,6 @@ def configure(**ARGS):
         outputs_path = os.path.join(outputs_path, args['output_folder'])
     else:
         outputs_path = os.path.join(outputs_path, BASENAME)
-    SEED = args.get("SEED", None)
-    if SEED is not None:
-        SEED = int(SEED)
-        outputs_path = os.path.join(outputs_path, "nsd%05d" % SEED)
-    else:
-        SEED = 0
 
     if args['verbosity']:
         print("Outputs' path: %s" % outputs_path)
@@ -140,12 +147,12 @@ def configure(**ARGS):
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
     config.AFFERENT_TS_PATH = os.path.join(config.out.FOLDER_RES, "afferent_ts.pkl")
     config.BOLD_TS_PATH = os.path.join(config.out.FOLDER_RES, "bold_ts.pkl")
-
     # Integration
     config.DEFAULT_DT = 0.1
     config.DEFAULT_NSIG = args.get("NOISE", 1e-6)  # NOISE strength
-    config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + SEED
-    config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + SEED
+    config.NOISE_SEED = int(args.get("NOISE_SEED", 0))
+    config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + config.NOISE_SEED
+    config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + config.NOISE_SEED
     config.DEFAULT_STOCHASTIC_INTEGRATOR = EulerStochastic
     config.DEFAULT_INTEGRATOR = config.DEFAULT_STOCHASTIC_INTEGRATOR
 
@@ -158,7 +165,7 @@ def configure(**ARGS):
     config.INDS_FILE = inds_filepath
     config.CEREB_SCAFFOLD_PATH = cereb_scaffold_path
     # Fix Cortex <-> Spec Thal connections according to Griffiths et al model:
-    # config.THAL_CRTX_FIX = args.get("THAL_CRTX_FIX", "wd")
+    # config.THAL_CRTX_FIX = defargs.get("THAL_CRTX_FIX", "wd")
     config.CONN_NORM_PERCENTILE = 99
     # Task connectivity:
     config.TASK_LATERALITY = -1   # -1: contralatterally, 0: bilaterally, 1: ipsilaterall
@@ -168,17 +175,8 @@ def configure(**ARGS):
     config.FIC_SPLIT = args.get('FIC_SPLIT', 0.0)  # 0.31 with FIC = 1.11
     # Pathway gains:
     config.PATHWAY_GAIN = args["PATHWAY_GAIN"]
-    config.TRIG_GAIN = args["PATHWAY_GAIN"] * args["TRIG_GAIN"]
-    config.MEDULLA_GAIN = args["PATHWAY_GAIN"] * args["MEDULLA_GAIN"]
-    config.CEREB_GAIN = args["PATHWAY_GAIN"] * args["CEREB_GAIN"]
-    config.TRIGS1_GAIN = args["PATHWAY_GAIN"] * args["TRIGS1_GAIN"]
-    config.MEDULLAS1_GAIN = args["PATHWAY_GAIN"] * args["MEDULLAS1_GAIN"]
-    config.CNS1_GAIN = args["PATHWAY_GAIN"] * args["CNS1_GAIN"]
-    config.CNM1_GAIN = args["PATHWAY_GAIN"] * args["CNM1_GAIN"]
-    config.M1S1_GAIN = args["PATHWAY_GAIN"] * args["M1S1_GAIN"]
-    config.M1FACIAL_GAIN = args["PATHWAY_GAIN"] * args["M1FACIAL_GAIN"]
-    config.FACIALTRIG_GAIN = args["PATHWAY_GAIN"] * args["FACIALTRIG_GAIN"]
-    config.WHISKERS_GAIN = args["PATHWAY_GAIN"] * WHISKERS_GAIN
+    for pg, pgdef in PATHWAY_GAINS.items():
+        setattr(config, pg, args[pg] * config.PATHWAY_GAIN)
     # TVB Monitors:
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
@@ -199,7 +197,7 @@ def configure(**ARGS):
     # elif STIMULUS > 0:
     #     config.model_params['STIMULUS'] = STIMULUS  # 0.25
     # config.STIMULUS_RATE = 8.0  # Hz
-    # config.STIMULUS_BASELINE = args.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
+    # config.STIMULUS_BASELINE = defargs.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
 
     # NEST model parameters:
     config.NEST_STIMULUS = 15.0  # Hz
@@ -215,8 +213,8 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = True  # Not existing in NEST only model, but part of the task pathway
     config.ANSILOB_INTERFACE = True   # Not existing in NEST only model, but part of the task pathway
     config.IO_INTERFACE = False       # Not existing in NEST only model
-    config.w_TVB_to_NEST_rest = args["w_TVB_to_NEST_rest"]  # Old tuned value = 0.04
-    config.w_TVB_to_NEST = {"parrot_medulla": args["w_TVB_to_NEST"]}
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 0.15)  # Old tuned value = 0.04
+    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 35.0)}
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
     if config.IO_INTERFACE:
@@ -260,18 +258,17 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 3  # 3 - 10
+    config.N_FIT_RUNS = 2  # 3 - 10
     config.N_SIMULATIONS = 5  # 1000, 1200
-    config.N_SIMS_PER_PARAM = 3
-    config.SPLIT_RUN_SAMPLES = 1
+    config.N_SIMS_PER_PARAM = 2
+    config.SPLIT_RUN_SAMPLES = 0.6
     config.N_TRAIN_SAMPLES = 5  #  1000
     config.TEST_SAMPLES_RATIO = 0.25
-    config.N_POSTERIOR_SAMPLES_PER_RUN = 3  # 100  # 0
-    config.N_TRAINING_SAMPLES_PER_RUN = 3  # 500   # 0
+    config.N_POSTERIOR_SAMPLES_PER_RUN = 5  # 100  # 0
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(1.0, 11.0)
-    config.FILE_FORMAT = "%s_%05d%s"  # "%s_%03d%s"
-    config.SIM_RES_FILE = "res.pkl"  # e.g., res_00100.pkl
+    config.FILE_FORMAT = "%s_%02d%s"  # "%s_%03d%s"
+    config.SIM_RES_FILE = "res.pkl"  # e.g., res_01.pkl
     config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"
     config.TRAIN_SIMS_FOLDER = "train_sims"
     config.FIT_FOLDER = "fit"
@@ -279,7 +276,7 @@ def configure(**ARGS):
     config.SAMPLES_FILE = "samples.pkl"
     config.PPC_FOLDER = "PPC"
     config.MEAN_FOLDER = "mean"
-    config.MODE_FOLDER = "mode"
+    config.MAP_FOLDER = "MAP"
     if TASK:
         DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
                                    "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
@@ -332,47 +329,69 @@ def assert_config(config=None, return_plotter=False, **config_args):
             return config
 
 
-def args_parser(funname, args=DEFAULT_ARGS):
+def args_parser(funname, defargs=DEFAULT_ARGS):
 
     def FICtype(FIC):
         if FIC == 'fit':
             return FIC
         return float(FIC)
 
-    arguments = {'I_s': ['is', float, 'Thalamic relay excitatory population baseline current'],
+    args = deepcopy(defargs)
+    arguments = {# TVB model:
+                 'I_s': ['is', float, 'Thalamic relay excitatory population baseline current'],
                  'I_e': ['ie', float, 'Cortical excitatory population baseline current'],
+                 # 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
+                 # 'STIMULUS_BASELINE': ['sb', float, 'Whisking stimulus baseline'],
+                 'G_w': ['gw', float, "Whiskers' scaling"],
+                 'tau_w': ['tw', float, "Whiskers' time constant"],
+                 'I_w': ['iw', float, "Whiskers'  baseline"],
+                  # TVB network:
                  'G': ['g', float, 'Global connectivity scaling'],
                  'FIC': ['fic', FICtype, 'Indegree FIC weight'],
                  'FIC_SPLIT': ['ficsplt', float, 'FIC splitting parameter'],
-                 # 'STIMULUS': ['st', float, 'Whisking stimulus amplitude'],
-                 # 'STIMULUS_BASELINE': ['sb', float, 'Whisking stimulus baseline'],
-                 'G_w': ['gw', float, "Whiskers' gain"],
-                 'tau_w': ['tw', float, "Whiskers' time constant"],
-                 'I_w': ['iw', float, "Whiskers'  baseline"],
+                 'PATHWAY_GAIN': ['pg', float, "Pathway gain"],
+                  # WORKFLOW:
                  'SIMULATION_LENGTH': ['sl', float, "Simulation length"],
                  "NOISE": ['ns', float, "Noise amplitude"],
-                 "SEED": ['sd', int, "Noise seed additive"],
+                 "NOISE_SEED": ['nsd', int, "Noise seed additive"],
+                 'MODE': ['md', str, 'Mode name'],
+                 'BASENAME': ['bsnm', str, 'Base folder name'],
                  'output_folder': ['o', str, 'Output folder name'],
                  'verbosity': ['v', int,
                              'Integer flag to print output messages (when > 0) or not (when == 0). Default = 1.0'],
                  'plot_flag': ['pf', bool, 'Boolean flag to plot or not']
                  }
+
+    PATHWAY_GAINS_SHORTS = \
+        {"TRIG_GAIN": "trg", "MEDULLA_GAIN": "mdg", "CEREB_GAIN": "cbg",
+         "TRIGS1_GAIN": "trs1g", "MEDULLAS1_GAIN": "mds1g", "CNS1_GAIN": "cnsg",
+         "CNM1_GAIN": "cnmg",
+         "M1S1_GAIN": "msg",
+         "M1FACIAL_GAIN": "mfg",  # 50.0,
+         "FACIALTRIG_GAIN": "ftg",  # 50.0,
+         "WHISKERS_GAIN": "wsg"}
+    for pg in PATHWAY_GAINS:
+        arguments[pg] = [PATHWAY_GAINS_SHORTS[pg], float, pg.replace("_", " ").capitalize()]
+
     parser = argparse.ArgumentParser(description='%s.py' % funname)
     for arg, vals in arguments.items():
         parser.add_argument('--%s' % arg,
                             '-%s' % vals[0],
                             dest=arg, metavar=arg,
                             type=vals[1],
-                            default=args[arg], required=False,  # nargs=1,
+                            # default=args[arg],
+                            required=False,  # nargs=1,
                             help=vals[2])
     return parser
 
 
-def parse_args(parser, def_args=DEFAULT_ARGS):
-    args = deepcopy(def_args)
+def parse_args(parser, argsnames=list(DEFAULT_ARGS.keys())):
+    args = dict()
     parser_args = parser.parse_args()
-    for arg, val in def_args.items():
-        args[arg] = getattr(parser_args, arg)
+    for arg in argsnames:
+        val = getattr(parser_args, arg)
+        if val is not None:
+            args[arg] = val
     return args, parser_args, parser
 
 

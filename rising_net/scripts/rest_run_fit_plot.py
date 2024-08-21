@@ -1,4 +1,6 @@
 # coding: utf-8
+
+import sys
 import random
 import time
 
@@ -13,27 +15,58 @@ import dill
 import numpy
 from matplotlib import pyplot
 
-from rising_net.scripts.base import assert_config, configure
-from rising_net.scripts.filepaths import simres_filepath
+from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
+from rising_net.scripts.filepaths import istr, simres_filepath
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
-    build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series
+    build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, compute_PSD_target_and_data
 from rising_net.scripts.nest_script import build_NEST_network
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
-from rising_net.scripts.sbi_script import build_priors, \
+from rising_net.scripts.sbi_script import build_priors, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_posterior, load_posterior_samples, load_posterior_samples_all_runs
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
+from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
 from examples.plot_write_results import plot_write_spiking_network_results
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
-from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
+
+def simres_folder(config, iP=None, iR=None, FUNCMODE="TRAIN"):
+    if FUNCMODE.upper() == "TRAIN":
+        folder = config.TRAIN_SIMS_FOLDER
+    elif FUNCMODE.upper() == "PPC":
+        folder = config.PPC_FOLDER
+    elif FUNCMODE.upper() == "MEAN":
+        folder = config.MEAN_FOLDER
+    elif FUNCMODE.upper() == "MAP":
+        folder = config.MAP_FOLDER
+    else:
+        folder = "res"
+    if iP is not None:
+        folder = os.path.join(folder,
+                              "res" + istr(iP, Ns=config.N_SIMULATIONS))
+    if iR is not None:
+        folder = os.path.join(folder,
+                              "nsd" + istr(iR, Ns=config.N_SIMS_PER_PARAM))
+    return folder
 
 
-def get_config(iR=None, **kwargs):
+def rest_simres_filepath(config, iP=None, iR=None, FUNCMODE="TRAIN",
+                         label="", filepath=None, extension=None):
+    folder = simres_folder(config, iP, iR, FUNCMODE)
+    return simres_filepath(config, config.SIM_RES_FILE, folder,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
+# iP: parameter sample index
+# iR: simulation repetition and noise seed index
+def get_config(iP=None, iR=None, FUNCMODE="SIM",
+               # parameters_iR=None, parameters_label="", parameters_filepath=None, parameters_filepath_ext=None,
+               **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
     #     'I_s': 0.1,
@@ -66,13 +99,51 @@ def get_config(iR=None, **kwargs):
 
     # Get configuration
     verbosity = kwargs.pop("verbosity", 1)
+
+    # Make sure we work in REST condition:
     kwargs['PATHWAY_GAIN'] = 0
     kwargs['WHISKER'] = 0.0
     kwargs["G_w"] = 5.0
-    if iR is not None:
-        config, plotter = configure(verbosity=0, SEED=int(iR), **kwargs)
+    MODE = kwargs.pop("MODE", "")  # make sure we don't overshadow MODE
+    if "REST" not in MODE.upper():
+        MODE = joinstr(["REST", MODE])
+
+    if FUNCMODE == "SAMPLING":  # this is only for sampling parameters
+        config, plotter = configure(MODE="SAMPLING", verbosity=0, **kwargs)
     else:
-        config, plotter = configure(verbosity=0, **kwargs)
+        if iP is not None:  # simulations for fitting
+            kwargs["plot_flag"] = kwargs.get("plot_flag", False)
+            config = configure(MODE="SAMPLING", verbosity=0, **kwargs)[0]
+            priors = dict(zip(config.PRIORS_PARAMS_NAMES,
+                              load_train_params_samples_selection(iP, config,
+                                                                  # iR=parameters_iR,
+                                                                  # label=parameters_label,
+                                                                  # filepath=parameters_filepath,
+                                                                  # extension=parameters_filepath_ext
+                                                                  ).numpy().squeeze()))
+            if verbosity:
+                print("PARAMETERS%s:\n%s" % (istr(iP, Ns=config.N_SIMULATIONS), str(priors)))
+            kwargs.update(priors)
+            if iR is None:
+                iR = iP
+                iRpath = None
+            else:
+                iRpath = iR
+            kwargs["output_folder"] = os.path.dirname(
+                os.path.dirname(
+                    rest_simres_filepath(config, iP, iRpath, FUNCMODE)))
+            config, plotter = configure(MODE=MODE, verbosity=0, SEED=int(iR), **kwargs)
+        else:
+            FUNCMODE = "SIM"
+            if iR is not None:  # repetitive simulations without fitting
+                config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
+                kwargs["output_folder"] = os.path.dirname(
+                    os.path.dirname(
+                        rest_simres_filepath(config, iP, iR, FUNCMODE)))
+                config, plotter = configure(MODE=MODE, verbosity=0, SEED=int(iR), **kwargs)
+            else:  # single simulation without fitting
+                config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
+
     config.VERBOSITY = verbosity
 
     print(config.model_params)
@@ -81,13 +152,9 @@ def get_config(iR=None, **kwargs):
     return config, plotter
 
 
-def simres_filepath(iR, config, filepath=None, extension=None):
-    return construct_filepath(iR, config, filepath, extension, config.SIM_RES_FILE)
+def cosim_run_plot(iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs):
 
-
-def cosim_run_plot(iR=None, **kwargs):
-
-    config, plotter = get_config(iR, **kwargs)
+    config, plotter = get_config(iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
@@ -173,14 +240,15 @@ def cosim_run_plot(iR=None, **kwargs):
         # Return only the M1<-> PSD fitting target
         if isinstance(results, (list, tuple)):
             PSD, PSD_target = compute_PSD_target_and_data(config, results[0], inds, transient,
-                                                          write_files=True, plotter=None)
+                                                          write_files=FUNCMODE.upper()=="SIM",
+                                                          plotter=None)
             results = {"PSD": PSD, "f": PSD_target['f'],
-                       "regions": simulator.connectivity.regions[inds["m1s1brl"]]}
-            dump_pickled_dict(results, simres_filepath(iR, config))
+                       "regions": simulator.connectivity.region_labels[inds["m1s1brl"]]}
+            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
     else:
-        # Return PSD and COH along the task pathay fitting targets:
+        # Return PSD and COH along the task pathway fitting targets:
         if isinstance(results, (list, tuple)):
-            results = tvb_res_to_time_series(results, simulator, config=config, write_files=False)
+            results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper()=="SIM")
 
         n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
 
@@ -195,7 +263,7 @@ def cosim_run_plot(iR=None, **kwargs):
         results["f"] = f
         results["COH"] = COH
         results["pairs"] = pairs
-        results["regions"] = simulator.connectivity.regions[config.TASKINDS]
+        results["regions"] = simulator.connectivity.region_labels[config.TASKINDS]
         del results["source_ts"]
 
         # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
@@ -204,7 +272,7 @@ def cosim_run_plot(iR=None, **kwargs):
         #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
         # results["TaskMetrics"] = TaskMetrics
 
-        dump_pickled_dict(results, simres_filepath(iR, config))
+        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
 
     return results, simulator, nest_network, config, inds
 
@@ -230,7 +298,7 @@ def load_allsims_to_xarrays(config, **kwargs):
     ifailed = []
     for iiR, iR in enumerate(sims):
         try:
-            res.append(loadsim_to_xarrays(simres_filepath(iR, config)))
+            res.append(loadsim_to_xarrays(rest_simres_filepath(iR, config)))
         except Exception as e:
             failed.append(iR)
             ifailed.append(iiR)
@@ -273,7 +341,7 @@ def load_priors_and_simulations_for_sbi(iG=None, priors=None, priors_samples=Non
         # Load priors' samples
         sim_res = []
         for iR in range(config.N_SIMULATIONS):
-            sim_res.append(load_pickled_dict(simres_filepath(iR, config))["PSD"])
+            sim_res.append(load_pickled_dict(rest_simres_filepath(iR, config))["PSD"])
         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
     return priors, priors_samples, sim_res
 
@@ -750,36 +818,75 @@ def plot_all_together(config, iGs=None, diagnostics=["diff", "accuracy", "zscore
     return fig, axes
 
 
-# TODO: Figure this out!:
-if __name__ == '__main__':
-    # Example use:
-    # $ python tuning_tvb_nest.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
-    # Called tuning_tvb_nest.py with:
-    # keyword argument: w_TVB_to_NEST=world
-    # keyword argument: simulation_length=300.0
+def rest_args_parser(funname, defargs=DEFAULT_ARGS):
 
-    import sys
+    parser = args_parser(funname, defargs)
 
-    kwargs = {}
-    ntests = 0
-    for arg in sys.argv[1:]:
-        keyval = arg.split("=")
-        if keyval[0] not in ["MODE", "plot_flag"]:
-            key = float(keyval[1])
-        else:
-            key = keyval[1].split(" ")
-            if keyval[0] == "MODE":
-                ntests = len(key)
-                if ntests == 1:
-                    key = key[0]
-            elif keyval[0] == "plot_flag":
-                if keyval[1] == "False":
-                    key = False
-                else:
-                    key = True
-        kwargs[keyval[0]] = key
+    arguments = {'function': ['func', str, 'Function name to run', "cosim_run_plot"],
+                 'iR': ['ir', int, 'Repetition index', None],
+                 'iP': ['ip', int, 'Parameter sample index', None],
+                 'FUNCMODE': ['fnmd', str, 'Functionality mode name', "SIM"],
+                 'label': ['lbl', str, 'Specific label name', ""]
+                 }
+    args = deepcopy(defargs)
+    for arg, vals in arguments.items():
+        args[arg] = vals[-1]
+        parser.add_argument('--%s' % arg,
+                            '-%s' % vals[0],
+                            dest=arg, metavar=arg,
+                            type=vals[1],
+                            #default=args[arg],
+                            required=False,  # nargs=1,
+                            help=vals[2])
+    return parser, args
 
-    cosim_run_plot(**kwargs)
+
+if __name__ == "__main__":
+    parser, defargs = rest_args_parser("rest_run_fit_plot")
+    args, parser_args, parser = parse_args(parser, argsnames=list(defargs.keys()))
+    funcname = args.pop("function", "cosim_run_plot")
+    verbosity = args.get('verbosity', defargs['verbosity'])
+    if verbosity:
+        print("Running function %s of script %s with user provided arguments:\n" % (funcname, parser.description))
+        print(args, "\n")
+    globals()[funcname](**args)
+
+
+# # TODO: Figure this out!:
+# if __name__ == '__main__':
+#     # Example use:
+#     # $ python tuning_tvb_nest.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+#     # Called tuning_tvb_nest.py with:
+#     # keyword argument: w_TVB_to_NEST=world
+#     # keyword argument: simulation_length=300.0
+#
+#     STRING_ARGS = {"MODE": "SIM",
+#                    "MODE": "TVB_REST",
+#                    "BASENAME": "",
+#                    "parameters_label": "",
+#                    "parameters_filepath": None,
+#                    "parameters_filepath_ext": None}
+#     INT_ARGS = {"iP": None, "iR": None, }
+#     kwargs = {}
+#     ntests = 0
+#     for arg in sys.argv[1:]:
+#         keyval = arg.split("=")
+#         if keyval[0] not in ["MODE", "plot_flag"]:
+#             key = float(keyval[1])
+#         else:
+#             key = keyval[1].split(" ")
+#             if keyval[0] == "MODE":
+#                 ntests = len(key)
+#                 if ntests == 1:
+#                     key = key[0]
+#             elif keyval[0] == "plot_flag":
+#                 if keyval[1] == "False":
+#                     key = False
+#                 else:
+#                     key = True
+#         kwargs[keyval[0]] = key
+#
+#     cosim_run_plot(**kwargs)
 
 
 # if __name__ == "__main__":
@@ -806,13 +913,13 @@ if __name__ == '__main__':
 #                         type=int, required=False, default=-1,  # nargs=1,
 #                         help="Number of training samples. Default = -1 will be interpreted as None.")
 #
-#     args, parser_args, parser = parse_args(parser, def_args=DEFAULT_ARGS)
-#     verbosity = args.get('verbosity', DEFAULT_ARGS['verbosity'])
+#     defargs, parser_args, parser = parse_args(parser, defargs=DEFAULT_ARGS)
+#     verbosity = defargs.get('verbosity', DEFAULT_ARGS['verbosity'])
 #     if verbosity:
 #         print("Running %s with arguments:\n" % parser.description)
 #         print(parser_args, "\n")
-#         print(args, "\n")
-#     config = configure(**args)[0]
+#         print(defargs, "\n")
+#     config = configure(**defargs)[0]
 #     iR = parser_args.iR
 #     if iR == -1:
 #         iR = None

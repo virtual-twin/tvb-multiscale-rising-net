@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import numpy as np
 
 from tvb.contrib.scripts.utils.file_utils import safe_makedirs
 
@@ -27,11 +28,12 @@ def filepath_prefixes(filepath, iR=None, label=""):
     if len(label):
         filepath += "_%s" % label
     if iR is not None:
-        filepath += iRstr(iR)
+        filepath += istr(iR)
     return filepath
 
 
-def iRstr(iR, n=2):
+def istr(iR, nmin=1, Ns=100):
+    n = np.maximum(nmin, int(np.ceil(np.log10(np.maximum(iR+1, Ns)))))
     format = "_%0" + "%d" % n + "d"
     return format % iR
 
