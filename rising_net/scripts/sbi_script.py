@@ -18,7 +18,7 @@ from sbi import analysis as analysis
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
 from rising_net.scripts.base import *
-from rising_net.scripts.filepaths import get_path, get_res_path, iRstr, construct_filepath, simres_filepath, \
+from rising_net.scripts.filepaths import get_path, get_res_path, istr, construct_filepath, simres_filepath, \
     figs_filepath
 from rising_net.scripts.plot_utils import sbi_pairplot
 from rising_net.scripts.tvb_script import run_workflow, load_connectome
@@ -65,18 +65,6 @@ def fitfigs_filepath(config, filename, iR=None, label="", filepath=None, extensi
                          filepath=filepath, extension=extension)
 
 
-def train_simres_filepath(config, iR=None, label="", filepath=None, extension=None):
-    return simres_filepath(config, config.SIM_RES_FILE, folder=config.TRAIN_SIMS_FOLDER,
-                           iR=iR, label=label,
-                           filepath=filepath, extension=extension)
-
-
-def train_simfigs_filepath(config, filename, iR=None, label="", filepath=None, extension=None):
-    return figs_filepath(config, filename, folder=config.TRAIN_SIMS_FOLDER,
-                         iR=iR, label=label,
-                         filepath=filepath, extension=extension)
-
-
 def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
     return fitres_filepath(config, config.POSTERIOR_FILE,
                            iR=iR, label=label,
@@ -93,18 +81,6 @@ def PPC_samples_filepath(config, iR=None, label="", filepath=None, extension=Non
     return samples_filepath(config, config.SAMPLES_FILE,
                             folder=config.PPC_FOLDER,
                             iR=iR, label=label, filepath=filepath, extension=extension)
-
-
-def PPC_simres_filepath(config, iR=None, label="", filepath=None, extension=None):
-    return simres_filepath(config, config.SIM_RES_FILE, folder=config.PPC_FOLDER,
-                           iR=iR, label=label,
-                           filepath=filepath, extension=extension)
-
-
-def PPC_simfigs_filepath(config, filename="", iR=None, label="", filepath=None, extension=None):
-    return figs_filepath(config, filename, folder=config.PPC_FOLDER,
-                         iR=iR, label=label,
-                         filepath=filepath, extension=extension)
 
 
 def params_pairplot(samples, points=None, metric=None, config=None, figname=None, figpath=None):
@@ -147,7 +123,7 @@ def params_pairplot(samples, points=None, metric=None, config=None, figname=None
                         limits=limits, ticks=ticks, points=points, labels=labels)
 
 
-def sample_train_params_for_sbi(config=None, iR=None, label="", write_to_files=True, **kwargs):
+def sample_train_params_for_sbi(config=None, label="", write_to_files=True, **kwargs):
     MODE = kwargs.pop("MODE",  "TRAIN_PARAMS")
     config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
     dummy_sim = lambda priors: priors
@@ -165,9 +141,9 @@ def sample_train_params_for_sbi(config=None, iR=None, label="", write_to_files=T
         print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
 
     params_pairplot(samples_numpy, points=stats["mean"], metric="mean", config=config,
-                    figpath=fitfigs_filepath(config, "train_params_pairplot.png", iR=iR, label=label))
+                    figpath=fitfigs_filepath(config, "train_params_pairplot.png", label=label))
     if write_to_files:
-        path = train_params_filepath(config, iR=iR, label=label)
+        path = train_params_filepath(config, label=label)
         torch.save(samples, path)
         filepath, extension = path.split(".")
         dump_pickled_dict(stats, filepath + "_stats.pkl")
@@ -175,10 +151,15 @@ def sample_train_params_for_sbi(config=None, iR=None, label="", write_to_files=T
     return samples, stats
 
 
-def load_train_params_samples(config=None, iR=None, label="", filepath=None, **kwargs):
-    MODE = kwargs.pop("MODE", "TRAIN_PARAMS")
-    config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
-    return torch.load(train_params_filepath(config, iR=iR, label=label, filepath=filepath))
+def load_train_params_samples(config, iR=None, label="", filepath=None, extension=None, **kwargs):
+    config = assert_config(config, return_plotter=False, **kwargs)
+    return torch.load(train_params_filepath(config, iR=iR, label=label, filepath=filepath, extension=extension))
+
+
+def load_train_params_samples_selection(inds, config, iR=None, label="", filepath=None, extension=None, **kwargs):
+    return load_train_params_samples(config,
+                                      iR=iR, label=label, filepath=filepath, extension=extension,
+                                     **kwargs)[inds]
 
 
 def compute_diagnostics(samples, config, priors=None, map=None, ground_truth=None):
@@ -461,7 +442,7 @@ def infer_workflow(train_params_samples, sim_res, target=None, ground_truth=None
         labeliR = label
     else:
         iRinds = iR
-        labeliR = label + iRstr(iR)
+        labeliR = label + istr(iR)
     posterior = train_posterior(train_params_samples, sim_res, label=labeliR,
                                 config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
@@ -493,7 +474,7 @@ def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, c
     if config.N_FIT_RUNS:
         n_samples = train_params_samples.shape[0]
         all_inds = list(range(n_samples))
-        n_train_samples = int(np.ceil(1.0 * n_samples / config.SPLIT_RUN_SAMPLES))
+        n_train_samples = int(np.ceil(1.0 * n_samples * config.SPLIT_RUN_SAMPLES))
         for iR in range(config.N_FIT_RUNS):
             if verbosity:
                 print("\n\nFitting run %d!..\n" % iR)

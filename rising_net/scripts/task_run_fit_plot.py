@@ -32,8 +32,8 @@ from rising_net.scripts.plot_utils import *
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import load_pickled_dict, dump_pickled_dict
 
-from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 from examples.plot_write_results import plot_write_spiking_network_results
+from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
 def get_config(iR=None, **kwargs):
