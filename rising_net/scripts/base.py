@@ -266,7 +266,8 @@ def configure(**ARGS):
     config.TEST_SAMPLES_RATIO = 0.25
     config.N_POSTERIOR_SAMPLES_PER_RUN = 5  # 100  # 0
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
-    config.Gs = np.arange(1.0, 11.0)
+    config.Gs = np.arange(0.0, 11.0)
+    config.Gs[config.Gs == 0.0] = 0.1
     config.FILE_FORMAT = "%s_%02d%s"  # "%s_%03d%s"
     config.SIM_RES_FILE = "res.pkl"  # e.g., res_01.pkl
     config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"
