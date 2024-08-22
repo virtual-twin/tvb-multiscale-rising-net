@@ -34,7 +34,7 @@ from examples.plot_write_results import plot_write_spiking_network_results
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-def simres_folder(config, iP=None, iR=None, FUNCMODE="TRAIN"):
+def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN"):
     if FUNCMODE.upper() == "TRAIN":
         folder = config.TRAIN_SIMS_FOLDER
     elif FUNCMODE.upper() == "PPC":
@@ -45,18 +45,21 @@ def simres_folder(config, iP=None, iR=None, FUNCMODE="TRAIN"):
         folder = config.MAP_FOLDER
     else:
         folder = "res"
+    if iG is not None:
+        folder = os.path.join(folder,
+                              "iG" + istr(int(iG), Ns=100))
     if iP is not None:
         folder = os.path.join(folder,
-                              "res" + istr(iP, Ns=config.N_SIMULATIONS))
+                              "res" + istr(int(iP), Ns=config.N_SIMULATIONS))
     if iR is not None:
         folder = os.path.join(folder,
-                              "nsd" + istr(iR, Ns=config.N_SIMS_PER_PARAM))
+                              "nsd" + istr(int(iR), Ns=config.N_SIMS_PER_PARAM))
     return folder
 
 
-def rest_simres_filepath(config, iP=None, iR=None, FUNCMODE="TRAIN",
+def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN",
                          label="", filepath=None, extension=None):
-    folder = simres_folder(config, iP, iR, FUNCMODE)
+    folder = simres_folder(config, iG, iP, iR, FUNCMODE)
     return simres_filepath(config, config.SIM_RES_FILE, folder,
                            iR=iR, label=label,
                            filepath=filepath, extension=extension)
@@ -64,7 +67,7 @@ def rest_simres_filepath(config, iP=None, iR=None, FUNCMODE="TRAIN",
 
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
-def get_config(iP=None, iR=None, FUNCMODE="SIM",
+def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM",
                # parameters_iR=None, parameters_label="", parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
@@ -108,12 +111,17 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM",
     if "REST" not in MODE.upper():
         MODE = joinstr(["REST", MODE])
 
-    if FUNCMODE == "SAMPLING":  # this is only for sampling parameters
-        config, plotter = configure(MODE="SAMPLING", verbosity=0, **kwargs)
+    if FUNCMODE == "SAMPLING":
+        this_verbosity = verbosity
     else:
+        this_verbosity = 0
+    config, plotter = configure(MODE=MODE, verbosity=this_verbosity, **kwargs)
+
+    if FUNCMODE != "SAMPLING":  # this is only for sampling parameters
+        if iG is not None:
+            kwargs["G"] = config.Gs[int(iG)]
         if iP is not None:  # simulations for fitting
             kwargs["plot_flag"] = kwargs.get("plot_flag", False)
-            config = configure(MODE="SAMPLING", verbosity=0, **kwargs)[0]
             priors = dict(zip(config.PRIORS_PARAMS_NAMES,
                               load_train_params_samples_selection(iP, config,
                                                                   # iR=parameters_iR,
@@ -131,30 +139,24 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM",
                 iRpath = iR
             kwargs["output_folder"] = os.path.dirname(
                 os.path.dirname(
-                    rest_simres_filepath(config, iP, iRpath, FUNCMODE)))
-            config, plotter = configure(MODE=MODE, verbosity=0, SEED=int(iR), **kwargs)
+                    rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE)))
         else:
             FUNCMODE = "SIM"
-            if iR is not None:  # repetitive simulations without fitting
-                config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
-                kwargs["output_folder"] = os.path.dirname(
-                    os.path.dirname(
-                        rest_simres_filepath(config, iP, iR, FUNCMODE)))
-                config, plotter = configure(MODE=MODE, verbosity=0, SEED=int(iR), **kwargs)
-            else:  # single simulation without fitting
-                config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
-
-    config.VERBOSITY = verbosity
+            kwargs["output_folder"] = os.path.dirname(
+                os.path.dirname(
+                    rest_simres_filepath(config, iG, iP, iR, FUNCMODE)))
+        if iR is None:
+            iR = 0
+        config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
 
     print(config.model_params)
-    print(config)
 
     return config, plotter
 
 
-def cosim_run_plot(iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs):
+def cosim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs):
 
-    config, plotter = get_config(iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
+    config, plotter = get_config(iG=iG ,iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
@@ -823,6 +825,7 @@ def rest_args_parser(funname, defargs=DEFAULT_ARGS):
     parser = args_parser(funname, defargs)
 
     arguments = {'function': ['func', str, 'Function name to run', "cosim_run_plot"],
+                 'iG': ['ig', int, "G values' index", None],
                  'iR': ['ir', int, 'Repetition index', None],
                  'iP': ['ip', int, 'Parameter sample index', None],
                  'FUNCMODE': ['fnmd', str, 'Functionality mode name', "SIM"],
