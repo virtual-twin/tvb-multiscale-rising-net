@@ -38,7 +38,7 @@ def istr(iR, nmin=1, Ns=100):
     return format % iR
 
 
-def construct_filepath(default_filename, original_path, iR=None, label="", filepath=None, extension=None):
+def construct_filepath(original_path, default_filename="", iR=None, label="", filepath=None, extension=None):
     if filepath is None or extension is None:
         filepath, extension = os.path.splitext(os.path.join(original_path, default_filename))
     filepath = filepath_prefixes(filepath, iR, label)
@@ -52,14 +52,14 @@ def construct_filepath(default_filename, original_path, iR=None, label="", filep
 def simres_filepath(config, default_filename="", folder="", iR=None, label="", filepath=None, extension=None):
     if len(default_filename) == 0:
         default_filename = config.SIM_RES_FILE
-    return construct_filepath(default_filename,
-                              get_res_path(config, folder),
+    return construct_filepath(get_res_path(config, folder),
+                              default_filename,
                               iR=iR, label=label,
                               filepath=filepath, extension=extension)
 
 
 def figs_filepath(config, default_filename, folder="", iR=None, label="", filepath=None, extension=None):
-    return construct_filepath(default_filename,
-                              get_fig_path(config, folder),
+    return construct_filepath(get_fig_path(config, folder),
+                              default_filename,
                               iR=iR, label=label,
                               filepath=filepath, extension=extension)
