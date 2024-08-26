@@ -41,8 +41,8 @@ def build_priors(config):
 def samples_filepath(config, default_filename="", folder="", iR=None, label="", filepath=None, extension=None):
     if len(default_filename) == 0:
         default_filename = config.SAMPLES_FILE
-    return construct_filepath(default_filename,
-                              get_res_path(config, folder),
+    return construct_filepath(get_res_path(config, folder),
+                              default_filename,
                               iR=iR, label=label,
                               filepath=filepath, extension=extension)
 
