@@ -578,7 +578,7 @@ def joinstr(lst, connstr="_"):
             outstr = lst[0]
             for lstr in lst[1:]:
                 if len(lstr):
-                    outstr += "_%s" % lstr
+                    outstr += "%s%s" % (connstr, lstr)
         else:
             return joinstr(lst[1:], connstr)
     else:
