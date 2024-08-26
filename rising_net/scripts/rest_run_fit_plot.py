@@ -13,10 +13,12 @@ from collections import OrderedDict
 
 import dill
 import numpy
+import pandas as pd
+import xarray as xr
 from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import istr, simres_filepath
+from rising_net.scripts.filepaths import istr, simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, compute_PSD_target_and_data
 from rising_net.scripts.nest_script import build_NEST_network
@@ -28,10 +30,28 @@ from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
-from tvb_multiscale.core.utils.file_utils import dump_pickled_dict
+from tvb_multiscale.core.utils.data_structures_utils import narray_summary_info
+from tvb_multiscale.core.utils.file_utils import dump_pickled_dict, load_pickled_dict
 from examples.plot_write_results import plot_write_spiking_network_results
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
+
+
+GSTR = "iG"
+RESSTR = "res"
+NSDSTR = "nsd"
+
+
+def iGstr(iG, Ngs=100):
+    return GSTR + istr(int(iG), Ns=Ngs)
+
+
+def iPstr(iP, Nsims=10000):
+    return RESSTR + istr(int(iP), Ns=Nsims)
+
+
+def iRstr(iR, Nreps=10):
+    return NSDSTR + istr(int(iR), Ns=Nreps)
 
 
 def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN"):
@@ -47,13 +67,13 @@ def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN"):
         folder = "res"
     if iG is not None:
         folder = os.path.join(folder,
-                              "iG" + istr(int(iG), Ns=100))
+                              iGstr(iG, Ngs=len(config.Gs)))
     if iP is not None:
         folder = os.path.join(folder,
-                              "res" + istr(int(iP), Ns=config.N_SIMULATIONS))
+                              iPstr(iP, Nsims=config.N_SIMULATIONS))
     if iR is not None:
         folder = os.path.join(folder,
-                              "nsd" + istr(int(iR), Ns=config.N_SIMS_PER_PARAM))
+                              iRstr(iR, Nreps=config.N_SIMS_PER_PARAM))
     return folder
 
 
@@ -279,41 +299,127 @@ def cosim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs
     return results, simulator, nest_network, config, inds
 
 
-def loadsim_to_xarrays_fun(path):
+def load_sim_to_xarrays(path):
     res = load_pickled_dict(path)
-    return DataArray(res["PSD"], dims=["Region", "f"],
-                     coords={"Region": res["regions"],
-                             "f": res["f"]},
-                     name="PSD")
+    indf = pd.Index(res["f"], name='f')
+    indr = pd.Index(res["regions"], name='Regions')
+    indPSD = pd.MultiIndex.from_product([indr, indf], names=[indf.name, indr.name])
+    name = joinstr(indPSD.names, " - ")
+    # To unravel index:
+    # PSD.unstack(PSD.dims[0]).shape = (nregs, nfreqs)
+    return xr.DataArray(res["PSD"], dims=[name], coords={name: indPSD},
+                        name="PSD: %s" % path)
 
 
-def load_allsims_to_xarrays(config, **kwargs):
-    config = assert_config(config, return_plotter=False, **kwargs)
-    res_files = glob.glob(path)
-    # TODO: Make this temporary hack more robust!!!:
-    sims = []
-    for res_file in res_files:
-        sims.append(int(res_file.split("_")[-1].split(".pkl")[0]))
-    sims = np.sort(sims)
+def find_all_folders(path, folderstr):
+    pathstr = os.path.join(path, folderstr + "_*", "")
+    ii = []
+    for p in ensure_list(np.sort(glob.glob(pathstr))):
+        ii.append(int(p[:-1].split("%s_" % folderstr)[-1]))
+    return ii
+
+
+def load_sims_to_xarrays_for_iR(path, config, iR=None, average=False, folderstr=NSDSTR, resstr=RESSTR):
+    if iR is None:
+        iR = find_all_folders(path, folderstr)
+    else:
+        iR = np.sort(ensure_list(iR)).tolist()
     res = []
-    failed = []
-    ifailed = []
-    for iiR, iR in enumerate(sims):
-        try:
-            res.append(loadsim_to_xarrays(rest_simres_filepath(iR, config)))
-        except Exception as e:
-            failed.append(iR)
-            ifailed.append(iiR)
-            warnings.warn(str(e))
-            continue
-    sims = np.delete(sims, ifailed)
-    res = concat(res, dim=Index(sims, name="Simulation"))
+    if len(iR):
+        for iiR in iR:
+            res.append(
+                load_sim_to_xarrays(
+                    construct_filepath(
+                        os.path.join(path, iRstr(iiR, config.N_SIMS_PER_PARAM), resstr),
+                        config.SIM_RES_FILE,  iR=iiR)))
+        res = xr.concat(res, dim=pd.Index(iR, name="Repetitions"))
+        if len(iR) == 1:
+            res = res.squeeze()
+            res.name = path + ", Repetition: %d" % iR[0]
+        else:
+            res.name = path + ", Repetitions: %s" % \
+                       list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
+            if average:
+                res = res.mean(axis=0).squeeze()
+    return res
 
-    nFailed = len(failed)
-    if nFailed:
-        warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
 
-    return PSDs, failed
+def load_sims_to_xarrays_for_iP(path, config, iP=None, iR=None,
+                                average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
+    if iP is None:
+        iP = find_all_folders(path, RESSTR)
+    else:
+        iP = np.sort(ensure_list(iP)).tolist()
+    res = []
+    if len(iP):
+        for iiP in iP:
+            res.append(
+                load_sims_to_xarrays_for_iR(
+                    os.path.join(path, iPstr(iiP, Nsims=config.N_SIMULATIONS)),
+                    config, iR=iR,average=average_repetitions,
+                    folderstr=folderstr, resstr=resstr))
+        res = xr.concat(res, dim=pd.Index(iP, name="Parameters' samples"))
+        if len(iP) == 1:
+            res = res.squeeze()
+            res.name = path + ", Parameter sample: %d" % iP[0]
+        else:
+            res.name = path + ", Parameters' samples: %s" % \
+                       list(narray_summary_info(np.array(iP), omit_shape=True).values())[0]
+    return res
+
+
+def load_sims_to_xarrays_for_iG(path, config, iG=None, iP=None, iR=None,
+                                average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+    if iG is None:
+        iG = find_all_folders(path, igstr)
+    else:
+        iG = np.sort(ensure_list(iG)).tolist()
+    res = []
+    if len(iG):
+        for iiG in iG:
+            res.append(
+                load_sims_to_xarrays_for_iP(
+                    os.path.join(path, iGstr(iiG, Ngs=len(config.Gs))),
+                    config, iP=iP, iR=iR,
+                    average_repetitions=average_repetitions,
+                    folderstr=folderstr, resstr=resstr))
+        res = xr.concat(res, dim=pd.Index(iG, name="iG"))
+        if len(iG) == 1:
+            res = res.squeeze()
+            res.name = path + ", G index: %d" % iG[0]
+        else:
+            res.name = path + ", G indices: %s" % \
+                       list(narray_summary_info(np.array(iG), omit_shape=True).values())[0]
+    return res
+
+
+# def load_allsims_to_xarrays(config, **kwargs):
+#     config = assert_config(config, return_plotter=False, **kwargs)
+#     res_files = glob.glob(path)
+#     # TODO: Make this temporary hack more robust!!!:
+#     sims = []
+#     for res_file in res_files:
+#         sims.append(int(res_file.split("_")[-1].split(".pkl")[0]))
+#     sims = np.sort(sims)
+#     res = []
+#     failed = []
+#     ifailed = []
+#     for iiR, iR in enumerate(sims):
+#         try:
+#             res.append(loadsim_to_xarrays(rest_simres_filepath(iR, config)))
+#         except Exception as e:
+#             failed.append(iR)
+#             ifailed.append(iiR)
+#             warnings.warn(str(e))
+#             continue
+#     sims = np.delete(sims, ifailed)
+#     res = concat(res, dim=Index(sims, name="Simulation"))
+#
+#     nFailed = len(failed)
+#     if nFailed:
+#         warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
+#
+#     return PSDs, failed
 
 
 def target_PSD_fun(config, target=None):
