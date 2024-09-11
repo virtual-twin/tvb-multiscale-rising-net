@@ -275,9 +275,9 @@ def configure(**ARGS):
     config.FIT_FOLDER = "fit"
     config.POSTERIOR_FILE = "posterior.pkl"
     config.SAMPLES_FILE = "samples.pkl"
-    config.PPC_FOLDER = "PPC"
-    config.MEAN_FOLDER = "mean"
-    config.MAP_FOLDER = "MAP"
+    config.PPC_FOLDER = "PPC_sims"
+    config.MEAN_FOLDER = "mean_sims"
+    config.MAP_FOLDER = "MAP_sims"
     if TASK:
         DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
                                    "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
