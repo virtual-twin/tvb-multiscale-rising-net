@@ -20,7 +20,7 @@ from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 from rising_net.scripts.base import *
 from rising_net.scripts.filepaths import get_path, get_res_path, istr, construct_filepath, simres_filepath, \
     figs_filepath
-from rising_net.scripts.plot_utils import sbi_pairplot
+from rising_net.scripts.plot_utils import sbi_pairplot, percent_plot
 from rising_net.scripts.tvb_script import run_workflow, load_connectome
 from rising_net.scripts.utils import dump_pickled_dict
 
@@ -158,7 +158,7 @@ def load_train_params_samples(config, iR=None, label="", filepath=None, extensio
 
 def load_train_params_samples_selection(inds, config, iR=None, label="", filepath=None, extension=None, **kwargs):
     return load_train_params_samples(config,
-                                      iR=iR, label=label, filepath=filepath, extension=extension,
+                                     iR=iR, label=label, filepath=filepath, extension=extension,
                                      **kwargs)[inds]
 
 
@@ -167,13 +167,15 @@ def compute_diagnostics(samples, config, priors=None, map=None, ground_truth=Non
         priors = build_priors(config)
     priors_std = priors.stddev.numpy()
     res = {}
-    res["samples"] = samples.numpy()
+    if not isinstance(samples, np.ndarray):
+        samples = samples.numpy()
+    res["samples"] = samples
     if map is not None:
         if not isinstance(map, np.ndarray):
             map = map.numpy()
         res['map'] = map
-    res['mean'] = samples.mean(axis=0).numpy()
-    res['std'] = samples.std(axis=0).numpy()
+    res['mean'] = samples.mean(axis=0).squeeze()
+    res['std'] = samples.std(axis=0).squeeze()
     if ground_truth is not None:
         res["diff"] = ground_truth - res['mean']
         res["accuracy"] = np.maximum(config.MIN_ACCURACY, 100*(1.0 - np.abs(res['diff']/ground_truth)))
@@ -315,23 +317,22 @@ def sbi_train(priors, train_params_samples, sim_res, verbosity):
 
 def plot_training_params_samples(params, label="", config=None):
     config = assert_config(config, return_plotter=False)
-    if len(label):
-        label = "_" + label
-    label = label + "." + config.figures.FIG_FORMAT
     fig, axes = params_pairplot(params, points=params.mean(axis=0), metric="mean", config=config,
-                                figpath=fitfigs_filepath(config, "train_params_pairplot.png", iR=iR, label=label))
+                                figpath=fitfigs_filepath(config, "train_params_pairplot.png", label=label))
     return fig, axes
 
 
-def train_posterior(train_params_samples, measures, label="", config=None, verbosity=None, plot_flag=True):
+def train_posterior(train_params_samples, measures, priors=None,
+                    label="", config=None, verbosity=None, plot_flag=True):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
     if plot_flag:
         fig, axes = \
-            plot_training_params_samples(config, train_params_samples, label=label)
+            plot_training_params_samples(train_params_samples, label=label, config=config)
 
-    priors = build_priors(config)
+    if priors is None:
+        priors = build_priors(config)
     posterior = sbi_train(priors,
                           torch.Tensor(train_params_samples),
                           torch.Tensor(measures),
@@ -349,7 +350,7 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     if verbosity:
         print("\nSampling %d samples from the posterior..." % n_samples_per_run)
         tic = time.time()
-    samples = posterior.sample((n_samples_per_run,), show_progress_bars=verbosity>0)
+    samples = posterior.sample((n_samples_per_run,), show_progress_bars=verbosity>0).numpy()
     if verbosity:
         print("\nDONE sampling in %g secs!" % (time.time() - tic))
         print("\nSampling to find MAP with %d initial samples and %d samples to optimize..." %
@@ -357,7 +358,7 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
         tic = time.time()
     MAP = posterior.map(num_init_samples=n_samples_per_run,
                         num_to_optimize=int(0.1 * n_samples_per_run),
-                        show_progress_bars=verbosity>0).numpy()
+                        show_progress_bars=verbosity>0).numpy().squeeze()
     if verbosity:
         print("\nDONE sampling for MAP in %g secs!" % (time.time() - tic))
         if verbosity > 1:
@@ -368,28 +369,42 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
 def plot_samples_measures_and_targets(measures, target=None,
                                       label="", measure_labels=None, config=None):
     config = assert_config(config, return_plotter=False)
-    if len(label):
-        label = "_" + label
-    label = label + "." + config.figures.FIG_FORMAT
     metric = "target"
-    points = target
-    if points is None:
-        metric = "mean"
-        points = measures.mean(axis=0)
-    fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
-                             figpath=fitfigs_filepath(config, "measures_pairplot.png", label=label),
-                             save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+    if measures.shape[1] <= 10:
+        points = target
+        if points is None:
+            metric = "mean"
+            points = measures.mean(axis=0)
+        fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
+                                 figpath=fitfigs_filepath(config, "measures_pairplot.png", label=label),
+                                 save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+    else:
+        x = np.arange(measures.shape[1])
+        axes = percent_plot(x, measures,
+                            percentile_min=10, percentile_max=90, n=5,
+                            plot_mean=True, plot_median=False,
+                            color='b', alpha=0.5, ax=None, mode="linear")
+        if target is not None:
+            axes.plot(x, target, color='r', linewidth=2)
+        fig = plt.gcf()
+        if config.figures.SAVE_FLAG:
+            plt.savefig(fitfigs_filepath(config, "measure_vs_target_plot.png", label=label))
+        if config.figures.SHOW_FLAG:
+            plt.show()
+        else:
+            plt.close(fig)
     return fig, axes
 
 
-def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="", measure_labels=None,
+def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="",
+                               measures=None, measure_labels=None,
                                config=None, verbosity=None, plot_flag=True):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
-    if plot_flag:
+    if plot_flag and measures is not None:
         plot_samples_measures_and_targets(measures, target=target,
                                           label=label, measure_labels=measure_labels, config=config)
     return sbi_estimate(posterior, target, n_samples_per_run, verbosity)
@@ -401,27 +416,29 @@ def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target, 
                         target, n_samples_per_run, verbosity)
 
 
-def plot_infer(samples=None, results=None, points=None, metric=None, iR=slice(None), label="", config=None):
+def plot_infer(samples=None, results=None, points=None, metric=None, iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
+    if iR is None:
+        iRinds = slice(None)
+    else:
+        iRinds = iR
     if samples is None:
         if results is None:
             raise ValueError("Either samples or results dict must be given to plot_infer()!")
-        samples = np.hstack(np.array(results['samples'])[iR].tolist()).squeeze()
+        samples = np.hstack(np.array(results['samples'])[iRinds].tolist()).squeeze()
     if metric is None:
         metric = config.OPT_RES_MODE
     try:
         if points is None:
-            if samples_it is not None:
+            if results is not None:
                 points = \
-                    np.concatenate(np.array(results[config.OPT_RES_MODE])[iR].tolist()).mean(axis=0).squeeze()
+                    np.concatenate(np.array(results[config.OPT_RES_MODE])[iRinds].tolist()).mean(axis=0).squeeze()
     except Exception as e:
-        warning.warn("Failed to get metric %s!\n%s" % str(e))
+        warnings.warn("Failed to get metric %s!\n%s" % str(e))
         metric = None
         points = None
     if config.figures.SAVE_FLAG:
         figname = 'posterior_samples_pairplot'
-        if len(label):
-            figname += label
         figname += "." + config.figures.FIG_FORMAT
         figpath = fitfigs_filepath(config, figname, iR=iR, label=label)
     else:
@@ -429,7 +446,7 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=slice(No
     return params_pairplot(samples, points=points, metric=metric, config=config, figpath=figpath)
 
 
-def infer_workflow(train_params_samples, sim_res, target=None, ground_truth=None, config=None,
+def infer_workflow(train_params_samples, sim_res, priors=None, target=None, ground_truth=None, config=None,
                    label="", n_samples_per_run=None, measure_labels=None,
                    results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
@@ -437,18 +454,17 @@ def infer_workflow(train_params_samples, sim_res, target=None, ground_truth=None
         verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
-    if iR is None:
-        iRinds = slice(None)
-        labeliR = label
-    else:
-        iRinds = iR
-        labeliR = label + istr(iR)
-    posterior = train_posterior(train_params_samples, sim_res, label=labeliR,
+    labeliR = str(label)
+    if iR is not None:
+        labeliR = joinstr([labeliR, istr(iR)[1:]])
+    if priors is None:
+        priors = build_priors(config)
+    posterior = train_posterior(train_params_samples, sim_res, priors=priors, label=labeliR,
                                 config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
     posterior, samples, MAP = estimate_posterior_samples(target, posterior,
                                                          n_samples_per_run=n_samples_per_run, label=labeliR,
-                                                         measure_labels=measure_labels,
+                                                         measures=sim_res, measure_labels=measure_labels,
                                                          config=config, verbosity=verbosity, plot_flag=plot_flag)
     results_i = compute_diagnostics(samples, config, priors=priors, map=MAP, ground_truth=ground_truth)
     results_i["params"] = train_params_samples
@@ -458,11 +474,11 @@ def infer_workflow(train_params_samples, sim_res, target=None, ground_truth=None
                                       results=results, save_samples=save_samples)
     if plot_flag:
         plot_infer(samples, results=results, points=MAP, metric="MAP",
-                   iR=iRinds, label=labeliR, config=config)
+                   iR=iR, label=label, config=config)
     return posterior, results, MAP
 
 
-def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, config=None,
+def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_truth=None, config=None,
                 label="", n_samples_per_run=None, measure_labels=None,
                 save_samples=True, plot_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
@@ -470,6 +486,8 @@ def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, c
         verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
+    if priors is None:
+        priors = build_priors(config)
     results_i = None
     if config.N_FIT_RUNS:
         n_samples = train_params_samples.shape[0]
@@ -477,7 +495,8 @@ def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, c
         n_train_samples = int(np.ceil(1.0 * n_samples * config.SPLIT_RUN_SAMPLES))
         for iR in range(config.N_FIT_RUNS):
             if verbosity:
-                print("\n\nFitting run %d!..\n" % iR)
+                print("\n\nFitting run %d / %d with %d training samples!..\n" %
+                      (iR, config.N_FIT_RUNS, n_train_samples))
             ticR = time.time()
             # Choose a subsample of the whole set of samples:
             sampl_inds = random.sample(all_inds, n_train_samples)
@@ -486,23 +505,24 @@ def infer_nRuns(train_params_samples, sim_res, target=None, groung_truth=None, c
             filepath, extension = path.split(".")
             np.save(filepath + "_inds.npy", sampl_inds)
             # For every fitting run...
-            results_i = infer_for_iR(train_params_samples[sampl_inds], sim_res[sampl_inds],
-                                     target=target, groung_truth=groung_truth, config=config,  label=label,
-                                     n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
-                                     results=results_i, iR=iR, save_samples=save_samples,
-                                     plot_flag=plot_flag, verbosity=verbosity)
+            results_i = infer_workflow(train_params_samples[sampl_inds], sim_res[sampl_inds], priors=priors,
+                                       target=target, ground_truth=groung_truth, config=config,  label=label,
+                                       n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
+                                       results=results_i, iR=iR, save_samples=save_samples,
+                                       plot_flag=plot_flag, verbosity=verbosity)[1]
             if verbosity:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
         # Plot with samples from all runs!:
         if verbosity:
             print("Plotting samples from all %d runs together..." % config.N_FIT_RUNS)
         plot_infer(samples=None, results=results_i, points=None, metric="MAP",
-                   iR=slice(None), label=label+"_allruns", config=config)
+                   iR=None, label=joinstr([label, "allruns"]), config=config)
     if verbosity:
         print("\n\nFitting with all samples!..\n")
-    results = infer_for_iR(train_params_samples, sim_res,
-                           target=target, groung_truth=groung_truth, config=config,  label=label+"_allsamples",
-                           n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
-                           results=None, iR=None, save_samples=save_samples,
-                           plot_flag=plot_flag, verbosity=verbosity)
+    results = infer_workflow(train_params_samples, sim_res, priors=priors,
+                             target=target, ground_truth=groung_truth, config=config,
+                             label=joinstr([label, "allsamples"]),
+                             n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
+                             results=None, iR=None, save_samples=save_samples,
+                             plot_flag=plot_flag, verbosity=verbosity)[1]
     return results, results_i
