@@ -18,12 +18,14 @@ import xarray as xr
 from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import istr, simres_filepath, construct_filepath
+from rising_net.scripts.filepaths import istr, get_path, simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
-    build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, compute_PSD_target_and_data
+    build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, \
+    compute_target_PSDs, compute_PSD_target_and_data
 from rising_net.scripts.nest_script import build_NEST_network
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
-from rising_net.scripts.sbi_script import build_priors, load_train_params_samples_selection, \
+from rising_net.scripts.sbi_script import build_priors, \
+    load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_posterior, load_posterior_samples, load_posterior_samples_all_runs
 from rising_net.scripts.utils import *
@@ -54,16 +56,17 @@ def iRstr(iR, Nreps=10):
     return NSDSTR + istr(int(iR), Ns=Nreps)
 
 
-def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN"):
-    if FUNCMODE.upper() == "TRAIN":
+def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM"):
+    folder = ""
+    if FUNCMODE.upper() == "TRAINSIM":
         folder = config.TRAIN_SIMS_FOLDER
-    elif FUNCMODE.upper() == "PPC":
+    elif FUNCMODE.upper() == "PPCSIM":
         folder = config.PPC_FOLDER
-    elif FUNCMODE.upper() == "MEAN":
+    elif FUNCMODE.upper() == "MEANSIM":
         folder = config.MEAN_FOLDER
-    elif FUNCMODE.upper() == "MAP":
+    elif FUNCMODE.upper() == "MAPSIM":
         folder = config.MAP_FOLDER
-    else:
+    elif FUNCMODE.upper() == "MAPSIM":
         folder = "res"
     if iG is not None:
         folder = os.path.join(folder,
@@ -77,7 +80,7 @@ def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN"):
     return folder
 
 
-def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAIN",
+def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
                          label="", filepath=None, extension=None):
     folder = simres_folder(config, iG, iP, iR, FUNCMODE)
     return simres_filepath(config, config.SIM_RES_FILE, folder,
@@ -137,34 +140,30 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM",
         this_verbosity = 0
     config, plotter = configure(MODE=MODE, verbosity=this_verbosity, **kwargs)
 
-    if FUNCMODE != "SAMPLING":  # this is only for sampling parameters
+    if FUNCMODE in ["SIM", "TRAINSIM", "PPCSIM", "MEANSIM", "MAPSIM"]:  # this is only for sampling parameters
         if iG is not None:
             kwargs["G"] = config.Gs[int(iG)]
-        if iP is not None:  # simulations for fitting
-            kwargs["plot_flag"] = kwargs.get("plot_flag", False)
-            priors = dict(zip(config.PRIORS_PARAMS_NAMES,
-                              load_train_params_samples_selection(iP, config,
-                                                                  # iR=parameters_iR,
-                                                                  # label=parameters_label,
-                                                                  # filepath=parameters_filepath,
-                                                                  # extension=parameters_filepath_ext
-                                                                  ).numpy().squeeze()))
-            if verbosity:
-                print("PARAMETERS%s:\n%s" % (istr(iP, Ns=config.N_SIMULATIONS), str(priors)))
-            kwargs.update(priors)
-            if iR is None:
-                iR = iP
-                iRpath = None
-            else:
-                iRpath = iR
-            kwargs["output_folder"] = os.path.dirname(
-                os.path.dirname(
-                    rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE)))
-        else:
-            FUNCMODE = "SIM"
-            kwargs["output_folder"] = os.path.dirname(
-                os.path.dirname(
-                    rest_simres_filepath(config, iG, iP, iR, FUNCMODE)))
+        iRpath = None
+        if FUNCMODE == "TRAINSIM":
+            if iP is not None:  # simulations for fitting
+                kwargs["plot_flag"] = kwargs.get("plot_flag", False)
+                priors = dict(zip(config.PRIORS_PARAMS_NAMES,
+                                  load_train_params_samples_selection(iP, config,
+                                                                      # iR=parameters_iR,
+                                                                      # label=parameters_label,
+                                                                      # filepath=parameters_filepath,
+                                                                      # extension=parameters_filepath_ext
+                                                                      ).numpy().squeeze()))
+                if verbosity:
+                    print("PARAMETERS%s:\n%s" % (istr(iP, Ns=config.N_SIMULATIONS), str(priors)))
+                kwargs.update(priors)
+                if iR is None:
+                    iR = iP
+                else:
+                    iRpath = iR
+        kwargs["output_folder"] = os.path.dirname(
+            os.path.dirname(
+                rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE)))
         if iR is None:
             iR = 0
         config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
@@ -319,7 +318,10 @@ def find_all_folders(path, folderstr):
     return ii
 
 
-def load_sims_to_xarrays_for_iR(path, config, iR=None, average=False, folderstr=NSDSTR, resstr=RESSTR):
+def load_sims_to_xarrays_for_iR(path=None, config=None, iR=None, average=False, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if path is None:
+        path = config.out.FOLDER_RES
     if iR is None:
         iR = find_all_folders(path, folderstr)
     else:
@@ -344,8 +346,11 @@ def load_sims_to_xarrays_for_iR(path, config, iR=None, average=False, folderstr=
     return res
 
 
-def load_sims_to_xarrays_for_iP(path, config, iP=None, iR=None,
+def load_sims_to_xarrays_for_iP(path=None, config=None, iP=None, iR=None,
                                 average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if path is None:
+        path = config.out.FOLDER_RES
     if iP is None:
         iP = find_all_folders(path, RESSTR)
     else:
@@ -368,8 +373,11 @@ def load_sims_to_xarrays_for_iP(path, config, iP=None, iR=None,
     return res
 
 
-def load_sims_to_xarrays_for_iG(path, config, iG=None, iP=None, iR=None,
+def load_sims_to_xarrays_for_iG(path=None, config=None, iG=None, iP=None, iR=None,
                                 average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if path is None:
+        path = config.out.FOLDER_RES
     if iG is None:
         iG = find_all_folders(path, igstr)
     else:
@@ -393,6 +401,50 @@ def load_sims_to_xarrays_for_iG(path, config, iG=None, iP=None, iR=None,
     return res
 
 
+def target_PSD_fun(config, target=None):
+    # Load, interpolate and normalize Popa 2013 m1 and s1 power spectra:
+    psd_m1_target, psd_s1_target = compute_target_PSDs(config)
+    # If we are fitting for a connected network...
+    # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
+    #                                        right                       left
+    return np.concatenate([psd_m1_target, psd_m1_target,  # M1
+                           psd_s1_target, psd_s1_target])  # S1
+
+
+def load_priors_target_and_sims_for_sbi_for_iG(iG,
+                                               priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                                               target=None,
+                                               config=None,
+                                               igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if sim_res_path is None:
+        sim_res_path = get_path(config, folder="train_sims")
+    # Rebuild priors if not provided in the input:
+    if priors is None:
+        priors = build_priors(config)
+    # Load training parameters' samples if not provided in the input:
+    if train_params_samples is None:
+        train_params_samples = load_train_params_samples(config,
+                                                         # iR=parameters_iR,
+                                                         # label=parameters_label,
+                                                         # filepath=parameters_filepath,
+                                                         # extension=parameters_filepath_ext
+                                                         ).numpy().squeeze().astype('float32')
+    # Load training simulation results if not provided in the input:
+    if sim_res is None:
+        # Load priors' samples
+        # By default, we load all parameters and all simulation repetitions and we average across repetitions.
+        sim_res = \
+            load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
+                                        iG=iG, iP=None, iR=None, average_repetitions=True,
+                                        igstr=igstr, folderstr=folderstr, resstr=resstr).values.astype('float32')
+    if target is None:
+        target = target_PSD_fun(config)
+    return priors, train_params_samples, sim_res, target
+
+
+# -------------------------------------------- TODO: REMOVE THIS!: ----------------------------------------------------
+#
 # def load_allsims_to_xarrays(config, **kwargs):
 #     config = assert_config(config, return_plotter=False, **kwargs)
 #     res_files = glob.glob(path)
@@ -422,36 +474,29 @@ def load_sims_to_xarrays_for_iG(path, config, iG=None, iP=None, iR=None,
 #     return PSDs, failed
 
 
-def target_PSD_fun(config, target=None):
-    # Load the target
-    PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
-    # If we are fitting for a connected network...
-    # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
-    #                                        right                       left
-    return np.concatenate([PSD_target["PSD_M1_target"], PSD_target["PSD_M1_target"],  # M1
-                           PSD_target["PSD_S1_target"], PSD_target["PSD_S1_target"]])  # S1
+
+#
+#
+# def sim_res_PSD_fun(sim_res, config):
+#     return sim_res.stack(Regions=("Region", "f")).values
 
 
-def sim_res_PSD_fun(sim_res, config):
-    return sim_res.stack(Regions=("Region", "f")).values
-
-
-def load_priors_and_simulations_for_sbi(iG=None, priors=None, priors_samples=None, sim_res=None, config=None, label=""):
-    config = assert_config(config, return_plotter=False)
-    if priors is None:
-        priors = build_priors(config)
-    # Load priors' samples if not given in the input:
-    if priors_samples is None:
-        # Load priors' samples
-        priors_samples = load_priors_samples(config=config, iR=None, iG=iG, label=label)
-    # Load priors' samples if not given in the input:
-    if sim_res is None:
-        # Load priors' samples
-        sim_res = []
-        for iR in range(config.N_SIMULATIONS):
-            sim_res.append(load_pickled_dict(rest_simres_filepath(iR, config))["PSD"])
-        sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
-    return priors, priors_samples, sim_res
+# def load_priors_and_simulations_for_sbi(iG=None, priors=None, train_params_samples=None, sim_res=None, config=None, label=""):
+#     config = assert_config(config, return_plotter=False)
+#     if priors is None:
+#         priors = build_priors(config)
+#     # Load priors' samples if not given in the input:
+#     if train_params_samples is None:
+#         # Load priors' samples
+#         train_params_samples = load_priors_samples(config=config, iR=None, iG=iG, label=label)
+#     # Load priors' samples if not given in the input:
+#     if sim_res is None:
+#         # Load priors' samples
+#         sim_res = []
+#         for iR in range(config.N_SIMULATIONS):
+#             sim_res.append(load_pickled_dict(rest_simres_filepath(iR, config))["PSD"])
+#         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
+#     return priors, train_params_samples, sim_res
 
 
 def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
