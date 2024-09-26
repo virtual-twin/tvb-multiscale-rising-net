@@ -13,6 +13,7 @@ from collections import OrderedDict
 
 import dill
 import numpy
+import numpy as np
 import pandas as pd
 import xarray as xr
 from matplotlib import pyplot
@@ -27,7 +28,8 @@ from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simula
 from rising_net.scripts.sbi_script import build_priors, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
-    load_posterior, load_posterior_samples, load_posterior_samples_all_runs
+    load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
+    plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
@@ -56,18 +58,23 @@ def iRstr(iR, Nreps=10):
     return NSDSTR + istr(int(iR), Ns=Nreps)
 
 
-def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM"):
-    folder = ""
+def get_simres_folder_name(config, FUNCMODE="TRAINSIM"):
     if FUNCMODE.upper() == "TRAINSIM":
-        folder = config.TRAIN_SIMS_FOLDER
+        return config.TRAIN_SIMS_FOLDER
     elif FUNCMODE.upper() == "PPCSIM":
-        folder = config.PPC_FOLDER
+        return config.PPC_FOLDER
     elif FUNCMODE.upper() == "MEANSIM":
-        folder = config.MEAN_FOLDER
+        return config.MEAN_FOLDER
     elif FUNCMODE.upper() == "MAPSIM":
-        folder = config.MAP_FOLDER
-    elif FUNCMODE.upper() == "MAPSIM":
-        folder = "res"
+        return config.MAP_FOLDER
+    else:
+        return ""
+
+
+def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM", label=""):
+    folder = get_simres_folder_name(config, FUNCMODE)
+    if len(label):
+        folder = os.path.join(folder, label)
     if iG is not None:
         folder = os.path.join(folder,
                               iGstr(iG, Ngs=len(config.Gs)))
@@ -77,21 +84,88 @@ def simres_folder(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM"):
     if iR is not None:
         folder = os.path.join(folder,
                               iRstr(iR, Nreps=config.N_SIMS_PER_PARAM))
+    # else:
+    #     folder = os.path.join(folder, "res")
     return folder
 
 
 def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
                          label="", filepath=None, extension=None):
-    folder = simres_folder(config, iG, iP, iR, FUNCMODE)
+    folder = simres_folder(config, iG, iP, iR, FUNCMODE, label)
     return simres_filepath(config, config.SIM_RES_FILE, folder,
-                           iR=iR, label=label,
+                           iR=iR, label="",
                            filepath=filepath, extension=extension)
+
+
+def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None, fitlabel="", verbosity=None):
+    if verbosity is None:
+        verbosity = config.VERBOSITY
+    if FUNCMODE is None:
+        if stat is not None:
+            FUNCMODE = "%sSIM" % stat.upper()
+        else:
+            FUNCMODE = "PPCSIM"
+    labeliG = joinstr([iGstr(iG, Ngs=len(config.Gs)), fitlabel])
+    samples = load_posterior_samples(label=labeliG, config=config)
+    # In these cases we need to load parameters from a samples.pkl file
+    # after sampling posterior distributions with SBI
+    if config.ALL_SAMPLES_LABEL in fitlabel and iF is not None:
+        warnings.warn("Setting iF = None (originally given %s), given the fitlabel '%s'!" % (str(iF), fitlabel))
+        iF = None
+    if iF is None or config.ALL_SAMPLES_LABEL in fitlabel:
+        if verbosity:
+            params_string = "%s PARAMETERS" % joinstr([FUNCMODE, labeliG])
+        iF = slice(None)  # Assuming all runs' samples fitting, and not from a specific fitting run
+        if config.ALL_SAMPLES_LABEL not in fitlabel and config.ALL_RUNS_LABEL not in fitlabel:
+            fitlabel = joinstr([fitlabel, config.ALL_RUNS_LABEL])
+    else:
+        Nf = len(ensure_list(iF))
+        if Nf > 1:
+            iFstr = "iF_%s" % str(iF)
+        else:
+            iFstr = "iF%s" % istr(iF, Ns=config.N_FIT_RUNS)
+        if verbosity:
+            params_string = "%s PARAMETERS_%s" % (joinstr([FUNCMODE, labeliG]), iFstr)
+        fitlabel = joinstr([fitlabel, iFstr])
+    if FUNCMODE == "PPCSIM":
+        if iP is None:  # simulations for fitting
+            raise ValueError("Parameter sample index iP is None for Post Predictive Check simulations!")
+        if verbosity:
+            Np = len(ensure_list(iP))
+            if Np > 1:
+                params_string += "_iP_%s" % str(iP)
+            else:
+                params_string += "_iP%s" % istr(iP, Ns=config.N_PPC_SIMS)
+        try:
+            # If iF is None, choose among the posterior samples of all runs:
+            #                                                [Run][param_set, params]
+            params_vals = np.vstack(np.squeeze(np.array(samples["samples"])[iF]))[iP].squeeze()
+        except Exception as e:
+            print("\nFailed to get sample for %s\n"
+                  "with iF = %s, iP = %s from samples of shape %s!"
+                  % (params_string, str(iF), str(iP), str(np.array(samples["samples"]).shape)))
+            raise e
+    else:
+        iP = 0  # MAP or mean is just one parameter set
+        if FUNCMODE == "MEANSIM":
+            stat = "mean"
+        else:
+            stat = "map"
+        try:
+            params_vals = np.array(samples[stat])[iF].squeeze()
+        except Exception as e:
+            print("\nFailed to get %s for %s\n"
+                  "with iF = %s from an array of shape %s!"
+                  % (stat, params_string, str(iF), str(np.array(samples[stat]).shape)))
+            raise e
+    params = dict(zip(config.PRIORS_PARAMS_NAMES, params_vals.T))
+    return params, fitlabel, params_string
 
 
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
-def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM",
-               # parameters_iR=None, parameters_label="", parameters_filepath=None, parameters_filepath_ext=None,
+def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
+               # parameters_iR=None, parameters_label, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
@@ -134,39 +208,107 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM",
     if "REST" not in MODE.upper():
         MODE = joinstr(["REST", MODE])
 
-    if FUNCMODE == "SAMPLING":
-        this_verbosity = verbosity
-    else:
-        this_verbosity = 0
-    config, plotter = configure(MODE=MODE, verbosity=this_verbosity, **kwargs)
+    config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
-    if FUNCMODE in ["SIM", "TRAINSIM", "PPCSIM", "MEANSIM", "MAPSIM"]:  # this is only for sampling parameters
-        if iG is not None:
-            kwargs["G"] = config.Gs[int(iG)]
-        iRpath = None
+    if iG is None:
+        G = kwargs.get("G", None)
+        if G is not None:
+            try:
+                iG = config.Gs.tolist().index(G)
+            except:
+                iG = None
+    else:
+        kwargs["G"] = config.Gs[int(iG)]
+
+    FUNCMODE = FUNCMODE.upper()
+    fitlabel = ""
+    if FUNCMODE in ["TRAINSIM", "PPCSIM", "MEANSIM", "MAPSIM"]:  # this is only for sampling parameters
+        # In all these cases we need to load parameters from files
+        params = {}
+        params_string = ""
+        if iG is None:
+            raise ValueError("G parameter index iG is None for %s simulations!" % FUNCMODE)
         if FUNCMODE == "TRAINSIM":
-            if iP is not None:  # simulations for fitting
-                kwargs["plot_flag"] = kwargs.get("plot_flag", False)
-                priors = dict(zip(config.PRIORS_PARAMS_NAMES,
-                                  load_train_params_samples_selection(iP, config,
-                                                                      # iR=parameters_iR,
-                                                                      # label=parameters_label,
-                                                                      # filepath=parameters_filepath,
-                                                                      # extension=parameters_filepath_ext
-                                                                      ).numpy().squeeze()))
-                if verbosity:
-                    print("PARAMETERS%s:\n%s" % (istr(iP, Ns=config.N_SIMULATIONS), str(priors)))
-                kwargs.update(priors)
-                if iR is None:
-                    iR = iP
-                else:
-                    iRpath = iR
+            # In this case we need to load parameters from a .pt file after sampling prior distributions with torch
+            if iP is None:  # simulations for fitting
+                raise ValueError("Parameter sample index iP is None for training simulations!")
+            params = dict(zip(config.PRIORS_PARAMS_NAMES,
+                              load_train_params_samples_selection(iP, config,
+                                                                  # iR=parameters_iR,
+                                                                  # label=parameters_label,
+                                                                  # filepath=parameters_filepath,
+                                                                  # extension=parameters_filepath_ext
+                                                                  ).numpy().squeeze()))
+            if verbosity:
+                params_string = "%s PARAMETERS%s" % (FUNCMODE, istr(iP, Ns=config.N_SIMULATIONS))
+        elif FUNCMODE in ["PPCSIM", "MEANSIM", "MAPSIM"]:
+            # labeliG = joinstr([iGstr(iG, Ngs=len(config.Gs)), fitlabel])
+            # samples = load_posterior_samples(label=labeliG, config=config)
+            # # In these cases we need to load parameters from a samples.pkl file
+            # # after sampling posterior distributions with SBI
+            # if iF is None or config.ALL_SAMPLES_LABEL in fitlabel:
+            #     if verbosity:
+            #         params_string = "%s PARAMETERS" % joinstr([FUNCMODE, labeliG])
+            #     iF = slice(None)  # Assuming all runs' samples fitting, and not from a specific fitting run
+            #     if config.ALL_SAMPLES_LABEL not in fitlabel and config.ALL_RUNS_LABEL not in fitlabel:
+            #         fitlabel = joinstr([fitlabel, config.ALL_RUNS_LABEL])
+            # else:
+            #     iFstr = "iF%s" % istr(iF, Ns=config.N_FIT_RUNS)
+            #     if verbosity:
+            #         params_string = "%s PARAMETERS_%s" % (joinstr([FUNCMODE, labeliG]), iFstr)
+            #     fitlabel = joinstr([fitlabel, iFstr])
+            # if FUNCMODE == "PPCSIM":
+            #     kwargs["plot_flag"] = kwargs.get("plot_flag", False)  # too many simulations, we can't plot them
+            #     if iP is None:  # simulations for fitting
+            #         raise ValueError("Parameter sample index iP is None for Post Predictive Check simulations!")
+            #     if verbosity:
+            #         params_string += "_iP%s" % istr(iP, Ns=config.N_PPC_SIMS)
+            #     try:
+            #         # If iF is None, choose among the posterior samples of all runs:
+            #         #                                                [Run][param_set, params]
+            #         params_vals = np.vstack(np.squeeze(samples["samples"][iF]))[iP]
+            #     except Exception as e:
+            #         print("\nFailed to get sample for %s\n"
+            #               "with iF = %s, iP = %s from samples of shape %s!"
+            #               % (params_string, str(iF), str(iP), str(np.array(samples["samples"]).shape)))
+            #         raise e
+            # else:
+            #     iP = 0  # MAP or mean is just one parameter set
+            #     if FUNCMODE == "MEANSIM":
+            #         stat = "mean"
+            #     else:
+            #         stat = "map"
+            #     try:
+            #         # If iF is None, average the statistic among the posterior samples of all runs:
+            #         params_vals = np.array(samples[stat])[iF].mean(axis=0).squeeze()
+            #     except Exception as e:
+            #         print("\nFailed to get %s for %s\n"
+            #               "with iF = %s from an array of shape %s!"
+            #               % (stat, params_string, str(iF), str(np.array(samples[stat]).shape)))
+            #         raise e
+            # params = dict(zip(config.PRIORS_PARAMS_NAMES, params_vals))
+            params, fitlabel, params_string = \
+                get_stats_params(config, stat=None, FUNCMODE=FUNCMODE, iG=iG, iP=iP, iF=iF,
+                                 fitlabel=fitlabel, verbosity=verbosity)
+        kwargs.update(params)
+        if verbosity:
+            print("%s:\n%s" % (params_string, str(params)))
+    if FUNCMODE in ["TRAINSIM", "PPCSIM"]:
+        kwargs["plot_flag"] = kwargs.get("plot_flag", False)  # too many simulations, we can't plot them
+        # Check for noise seed repetitions:
+        if iR is None:
+            if iP is not None:  # Follow the parameters' index if no iR is given
+                iR = iP
+    if iR is None:
+        iR = 0
+        iRpath = None
+    else:
+        iRpath = iR
+    if "SIM" in FUNCMODE:
         kwargs["output_folder"] = os.path.dirname(
             os.path.dirname(
-                rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE)))
-        if iR is None:
-            iR = 0
-        config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
+                rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE, fitlabel)))
+    config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
 
     print(config.model_params)
 
@@ -175,7 +317,7 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM",
 
 def cosim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs):
 
-    config, plotter = get_config(iG=iG ,iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
+    config, plotter = get_config(iG=iG, iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
 
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
@@ -232,45 +374,35 @@ def cosim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs
 
     if plotter:
         results = plot_tvb(transient, inds,
-                           results=results, simulator=simulator, plotter=plotter, config=config, write_files=True)
-
+                           results=results, simulator=simulator, plotter=plotter, config=config,
+                           write_files=FUNCMODE.upper()=="SIM")
         # if "COSIM" in config.MODE::
         #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
         #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
         #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
-
-        # results_path = os.path.join(config.out.FOLDER_RES, 'results.pkl')
-        # with open(results_path, 'wb') as handle:
-        #    pickle.dump(results, handle)
-        # print(results_path)
-        # # results = pickle.load(results_path, 'rb'))  # to load results
-        #
-        # coherence_path = os.path.join(config.out.FOLDER_RES, 'coherence.pkl')
-        # # Save coherence
-        # CxyR = results["CxyR_M1_S1"]
-        # fR = results["fR"]
-        # CxyL = results["Cxyl_M1_S1"]
-        # fL = results["fL"]
-        # with open(coherence_path, 'wb') as handle:
-        #     pickle.dump([CxyR, fR, fL, CxyL], handle)
-        # print(coherence_path)
-
-    # else:
+    else:
+        results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
+    results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
 
     if "REST" in config.MODE:
-        # Return only the M1<-> PSD fitting target
-        if isinstance(results, (list, tuple)):
+        # Return only the M1 <-> PSD fitting target
+        if "PSD" not in results.keys():
             PSD, PSD_target = compute_PSD_target_and_data(config, results[0], inds, transient,
                                                           write_files=FUNCMODE.upper()=="SIM",
                                                           plotter=None)
-            results = {"PSD": PSD, "f": PSD_target['f'],
-                       "regions": simulator.connectivity.region_labels[inds["m1s1brl"]]}
+            results = {"PSD": PSD, "f": PSD_target['f']}
+
+        if FUNCMODE.upper() != "SIM":
+            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+                for key in results.keys():
+                    if key not in ["PSD", "f", "regions"]:
+                        del results[key]
+            if config.VERBOSITY:
+                print("\nWriting results %s\nto file %s...\n" %
+                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
             dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
     else:
         # Return PSD and COH along the task pathway fitting targets:
-        if isinstance(results, (list, tuple)):
-            results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper()=="SIM")
-
         n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
 
         source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
@@ -284,24 +416,36 @@ def cosim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="", **kwargs
         results["f"] = f
         results["COH"] = COH
         results["pairs"] = pairs
-        results["regions"] = simulator.connectivity.region_labels[config.TASKINDS]
-        del results["source_ts"]
-
         # TaskMetrics = compute_task_transfer_metrics(results["source_ts"], 0,
         #                                             simulator.connectivity.region_labels[taskinds],
         #                                             taskinds, config.THETA, config.GAMMA, config.FREQS,
         #                                             Pxx_den=PSD, methods=(5, 2, 3), plot_flag=False)
         # results["TaskMetrics"] = TaskMetrics
 
-        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
+        if FUNCMODE.upper() != "SIM":
+            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+                for key in results.keys():
+                    if key not in ["PSD", "f", "COH", "pairs", "regions"]:
+                        del results[key]
+            if config.VERBOSITY:
+                print("\nWriting results %s\nto file %s...\n" %
+                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
+            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
 
     return results, simulator, nest_network, config, inds
 
 
 def load_sim_to_xarrays(path):
     res = load_pickled_dict(path)
-    indf = pd.Index(res["f"], name='f')
-    indr = pd.Index(res["regions"], name='Regions')
+    # TODO: Remove this transitory hack:
+    f = res.get("f", np.arange(5.0, 48.0, 1.0))
+    regions = res.get("regions",
+                      np.array(['Right Primary motor area',
+                                'Left Primary motor area',
+                                'Right Primary somatosensory area, barrel field',
+                                'Left Primary somatosensory area, barrel field']))
+    indf = pd.Index(f, name='f')
+    indr = pd.Index(regions, name='Regions')
     indPSD = pd.MultiIndex.from_product([indr, indf], names=[indf.name, indr.name])
     name = joinstr(indPSD.names, " - ")
     # To unravel index:
@@ -334,7 +478,7 @@ def load_sims_to_xarrays_for_iR(path=None, config=None, iR=None, average=False, 
                     construct_filepath(
                         os.path.join(path, iRstr(iiR, config.N_SIMS_PER_PARAM), resstr),
                         config.SIM_RES_FILE,  iR=iiR)))
-        res = xr.concat(res, dim=pd.Index(iR, name="Repetitions"))
+        res = xr.concat(res, dim=pd.Index(iR, name="Repetitions' index iR"))
         if len(iR) == 1:
             res = res.squeeze()
             res.name = path + ", Repetition: %d" % iR[0]
@@ -343,7 +487,12 @@ def load_sims_to_xarrays_for_iR(path=None, config=None, iR=None, average=False, 
                        list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
             if average:
                 res = res.mean(axis=0).squeeze()
-    return res
+    else:
+        iR = None
+        res = load_sim_to_xarrays(
+                construct_filepath(os.path.join(path, config.SIM_RES_FILE.split(".")[0]), config.SIM_RES_FILE, iR=iR)
+        )
+    return res, iR
 
 
 def load_sims_to_xarrays_for_iP(path=None, config=None, iP=None, iR=None,
@@ -361,16 +510,16 @@ def load_sims_to_xarrays_for_iP(path=None, config=None, iP=None, iR=None,
             res.append(
                 load_sims_to_xarrays_for_iR(
                     os.path.join(path, iPstr(iiP, Nsims=config.N_SIMULATIONS)),
-                    config, iR=iR,average=average_repetitions,
-                    folderstr=folderstr, resstr=resstr))
-        res = xr.concat(res, dim=pd.Index(iP, name="Parameters' samples"))
+                    config, iR=iR, average=average_repetitions,
+                    folderstr=folderstr, resstr=resstr)[0])
+        res = xr.concat(res, dim=pd.Index(iP, name="Parameters' samples' index iP"))
         if len(iP) == 1:
             res = res.squeeze()
             res.name = path + ", Parameter sample: %d" % iP[0]
         else:
             res.name = path + ", Parameters' samples: %s" % \
                        list(narray_summary_info(np.array(iP), omit_shape=True).values())[0]
-    return res
+    return res, iP
 
 
 def load_sims_to_xarrays_for_iG(path=None, config=None, iG=None, iP=None, iR=None,
@@ -383,22 +532,24 @@ def load_sims_to_xarrays_for_iG(path=None, config=None, iG=None, iP=None, iR=Non
     else:
         iG = np.sort(ensure_list(iG)).tolist()
     res = []
+    iPs = []
     if len(iG):
         for iiG in iG:
-            res.append(
-                load_sims_to_xarrays_for_iP(
+            res_ig, iP_ig = load_sims_to_xarrays_for_iP(
                     os.path.join(path, iGstr(iiG, Ngs=len(config.Gs))),
                     config, iP=iP, iR=iR,
                     average_repetitions=average_repetitions,
-                    folderstr=folderstr, resstr=resstr))
-        res = xr.concat(res, dim=pd.Index(iG, name="iG"))
+                    folderstr=folderstr, resstr=resstr)
+            res.append(res_ig)
+            iPs.append(iP_ig)
+        res = xr.concat(res, dim=pd.Index(iG, name="Global coupling scaling parameter (G) index iG"))
         if len(iG) == 1:
             res = res.squeeze()
             res.name = path + ", G index: %d" % iG[0]
         else:
             res.name = path + ", G indices: %s" % \
                        list(narray_summary_info(np.array(iG), omit_shape=True).values())[0]
-    return res
+    return res, iG, iPs
 
 
 def target_PSD_fun(config, target=None):
@@ -418,7 +569,7 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
-        sim_res_path = get_path(config, folder="train_sims")
+        sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
     # Rebuild priors if not provided in the input:
     if priors is None:
         priors = build_priors(config)
@@ -437,538 +588,575 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
         sim_res = \
             load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
                                         iG=iG, iP=None, iR=None, average_repetitions=True,
-                                        igstr=igstr, folderstr=folderstr, resstr=resstr).values.astype('float32')
+                                        igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
     if target is None:
         target = target_PSD_fun(config)
     return priors, train_params_samples, sim_res, target
 
 
-# -------------------------------------------- TODO: REMOVE THIS!: ----------------------------------------------------
-#
-# def load_allsims_to_xarrays(config, **kwargs):
-#     config = assert_config(config, return_plotter=False, **kwargs)
-#     res_files = glob.glob(path)
-#     # TODO: Make this temporary hack more robust!!!:
-#     sims = []
-#     for res_file in res_files:
-#         sims.append(int(res_file.split("_")[-1].split(".pkl")[0]))
-#     sims = np.sort(sims)
-#     res = []
-#     failed = []
-#     ifailed = []
-#     for iiR, iR in enumerate(sims):
-#         try:
-#             res.append(loadsim_to_xarrays(rest_simres_filepath(iR, config)))
-#         except Exception as e:
-#             failed.append(iR)
-#             ifailed.append(iiR)
-#             warnings.warn(str(e))
-#             continue
-#     sims = np.delete(sims, ifailed)
-#     res = concat(res, dim=Index(sims, name="Simulation"))
-#
-#     nFailed = len(failed)
-#     if nFailed:
-#         warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
-#
-#     return PSDs, failed
+def infer_workflow_for_iG(iG,
+                          priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                          target=None,
+                          config=None,
+                          igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                          ground_truth=None,
+                          label="", n_samples_per_run=None, measure_labels=None,
+                          results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
+    priors, train_params_samples, sim_res, target = \
+        load_priors_target_and_sims_for_sbi_for_iG(iG,
+                                                   priors, train_params_samples, sim_res, sim_res_path, target,
+                                                   config,
+                                                   igstr, folderstr, resstr)
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))])
+    return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth, config,
+                          label, n_samples_per_run, measure_labels,
+                          results, iR, save_samples, plot_flag, verbosity)
 
 
+def infer_nRuns_for_iG(iG,
+                       priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                       target=None,
+                       config=None,
+                       igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                       ground_truth=None,
+                       label="", n_samples_per_run=None, measure_labels=None,
+                       save_samples=True, plot_flag=True, verbosity=None):
+    priors, train_params_samples, sim_res, target = \
+        load_priors_target_and_sims_for_sbi_for_iG(iG,
+                                                   priors, train_params_samples, sim_res, sim_res_path, target,
+                                                   config,
+                                                   igstr, folderstr, resstr)
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))])
+    return infer_nRuns(train_params_samples, sim_res, priors, target,
+                       ground_truth, config,
+                       label, n_samples_per_run, measure_labels,
+                       save_samples, plot_flag, verbosity)
 
+
+def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None, config=None,
+                          igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if sim_res_path is None:
+        sim_res_path = get_path(config, folder=get_simres_folder_name(config, "%sSIM" % stat.upper()))
+    if len(label):
+        sim_res_path = os.path.join(sim_res_path, label)
+    # Load training simulation results:
+    # By default, we load all parameters and all simulation repetitions and we average across repetitions.
+    sim_res, iG, iPs = \
+        load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
+                                    iG=iG, iP=iP, iR=None, average_repetitions=True,
+                                    igstr=igstr, folderstr=folderstr, resstr=resstr)
+    if sim_res.ndim < 2:
+        sim_res = sim_res.expand_dims(dim=None, axis=0, create_index_for_new_dim=True, Simulations=np.array([0]))
+    if len(iG) == 1:
+        iG = iG[0]
+    if len(iPs) == 1:
+        iPs = iPs[0]
+    return sim_res, iG, iPs
+
+
+def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="", sim_res_path=None, config=None,
+                                        target=None,
+                                        igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    sim_res, iG, iP = load_stat_sims_for_iG(iG, stat=stat, label=label, sim_res_path=sim_res_path, iP=iP,
+                                            config=config,  igstr=igstr, folderstr=folderstr, resstr=resstr)
+    sim_res = sim_res.values.astype('float32')
+    params, fitlabel, params_string = \
+        get_stats_params(config, stat=stat, FUNCMODE=None, iG=iG, iP=iP, iF=iF, fitlabel=label)
+
+    if target is None:
+        target = target_PSD_fun(config)
+    return sim_res, iP, target, params
+
+
+def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
+                                                 sim_res_path=None, config=None,
+                                                 target=None,
+                                                 igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                                                 measure_labels=None):
+    config = assert_config(config, return_plotter=False)
+    sim_res, iP, target, params = \
+        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, config,
+                                            target, igstr, folderstr, resstr)
+    params_vals = np.array(list(params.values())).T
+    if params_vals.ndim < 2:
+        params_vals = params_vals[np.newaxis]
+    return plot_stats(sim_res, stat, target, params_vals,
+                      joinstr([iGstr(iG), label]), measure_labels, config)
+
+
+def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
+                                                      sim_res_path=None, config=None,
+                                                      target=None, target_dist_fun=correlation_distance, Nbest=None,
+                                                      igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                                                      measure_labels=None):
+    config = assert_config(config, return_plotter=False)
+    sim_res, iP, target, params = \
+        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, config,
+                                            target, igstr, folderstr, resstr)
+    return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
+                                             label=joinstr([iGstr(iG, Ngs=len(config.Gs)), label]),
+                                             target_dist_fun=target_dist_fun, Nbest=Nbest,
+                                             measure_labels=measure_labels, config=config)
+
+
+# -------------------------------------------- TODO: REMOVE THESE!: ----------------------------------------------------
 #
 #
-# def sim_res_PSD_fun(sim_res, config):
-#     return sim_res.stack(Regions=("Region", "f")).values
-
-
-# def load_priors_and_simulations_for_sbi(iG=None, priors=None, train_params_samples=None, sim_res=None, config=None, label=""):
-#     config = assert_config(config, return_plotter=False)
+# def get_train_test_samples_for_iG(iG, config, n_train_samples=None):
+#     priors, priors_samples, sim_res = load_priors_and_simulations_for_sbi(iG, config=config)
+#     n_samples = sim_res.shape[0]
+#     # Test samples are always going to be the LAST samples:
+#     n_test_samples = int(np.floor(config.TEST_SAMPLES_RATIO * n_samples))
+#     test_samples = priors_samples[-n_test_samples:]
+#     test_res = sim_res[-n_test_samples:]
+#     if n_train_samples is None:
+#         n_train_samples = n_samples - n_test_samples
+#     all_inds = list(range(n_samples))
+#     sampl_inds = random.sample(all_inds, n_train_samples)
+#     train_samples = priors_samples[sampl_inds]
+#     train_res = sim_res[sampl_inds]
+#     return train_samples, train_res, test_samples, test_res
+#
+#
+# def num_train_sample_to_label(nts, format="", config=None):
+#     if len(format) == 0:
+#         config = assert_config(config, return_plotter=False)
+#         format = config.N_TRAIN_SAMPLES_LABEL
+#     return format % nts
+#
+#
+# def sbi_train_for_iG(iG, config, iR=None, n_train_samples=None):
+#     tic = time.time()
+#     if config.VERBOSITY:
+#         if iR is None:
+#             run_str = ""
+#         else:
+#             run_str = ", iR=%d" % iR
+#         print("\nTraining network with %d samples for iG=%d%s!" % (n_train_samples, iG, run_str))
+#     train_samples, train_res, test_samples, test_res = get_train_test_samples_for_iG(iG, config, n_train_samples)
+#     label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
+#     # Train:
+#     priors = build_priors(config)
+#     posterior = sbi_train(priors, train_samples, train_res, config.VERBOSITY)
+#
+#     if config.VERBOSITY:
+#         print("\nDone with training with all samples in %g sec!" % (time.time() - tic))
+#         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
+#     return posterior, priors, train_samples, train_res, test_samples, test_res
+#
+#
+# def sbi_test_for_iG(iG, config,
+#                     iR=None, label="",
+#                     posterior=None, priors=None, test_samples=None, test_res=None):
+#     if posterior is None:
+#         posterior = load_posterior(iG, iR=iR, label=label, config=config)
+#     if test_samples is None or test_res is None:
+#         test_samples, test_res = get_train_test_samples_for_iG(iG, config)[-2:]
 #     if priors is None:
 #         priors = build_priors(config)
-#     # Load priors' samples if not given in the input:
-#     if train_params_samples is None:
-#         # Load priors' samples
-#         train_params_samples = load_priors_samples(config=config, iR=None, iG=iG, label=label)
-#     # Load priors' samples if not given in the input:
-#     if sim_res is None:
-#         # Load priors' samples
-#         sim_res = []
-#         for iR in range(config.N_SIMULATIONS):
-#             sim_res.append(load_pickled_dict(rest_simres_filepath(iR, config))["PSD"])
-#         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
-#     return priors, train_params_samples, sim_res
-
-
-def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
-    config = assert_config(config, return_plotter=False)
-    samples = OrderedDict()
-    if iGs is None:
-        iGs = range(len(config.Gs))
-    for iG in iGs:
-        G = config.Gs[iG]
-        try:
-            if runs is False:
-                samples[G] = load_posterior_samples(iG, None, label, config)
-            else:
-                samples[G] = load_posterior_samples_all_runs(iG, runs, label, config=config)
-        except Exception as e:
-            warnings.warn("Failed to load posterior samples for iG=%d, G=%g!\n%s" % (iG, G, str(e)))
-    return samples
-
-
-def get_train_test_samples_for_iG(iG, config, n_train_samples=None):
-    priors, priors_samples, sim_res = load_priors_and_simulations_for_sbi(iG, config=config)
-    n_samples = sim_res.shape[0]
-    # Test samples are always going to be the LAST samples:
-    n_test_samples = int(np.floor(config.TEST_SAMPLES_RATIO * n_samples))
-    test_samples = priors_samples[-n_test_samples:]
-    test_res = sim_res[-n_test_samples:]
-    if n_train_samples is None:
-        n_train_samples = n_samples - n_test_samples
-    all_inds = list(range(n_samples))
-    sampl_inds = random.sample(all_inds, n_train_samples)
-    train_samples = priors_samples[sampl_inds]
-    train_res = sim_res[sampl_inds]
-    return train_samples, train_res, test_samples, test_res
-
-
-def num_train_sample_to_label(nts, format="", config=None):
-    if len(format) == 0:
-        config = assert_config(config, return_plotter=False)
-        format = config.N_TRAIN_SAMPLES_LABEL
-    return format % nts
-
-
-def sbi_train_for_iG(iG, config, iR=None, n_train_samples=None):
-    tic = time.time()
-    if config.VERBOSITY:
-        if iR is None:
-            run_str = ""
-        else:
-            run_str = ", iR=%d" % iR
-        print("\nTraining network with %d samples for iG=%d%s!" % (n_train_samples, iG, run_str))
-    train_samples, train_res, test_samples, test_res = get_train_test_samples_for_iG(iG, config, n_train_samples)
-    label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
-    # Train:
-    priors = build_priors(config)
-    posterior = sbi_train(priors, train_samples, train_res, config.VERBOSITY)
-
-    if config.VERBOSITY:
-        print("\nDone with training with all samples in %g sec!" % (time.time() - tic))
-        print("\n\nFind results in %s!" % config.out.FOLDER_RES)
-    return posterior, priors, train_samples, train_res, test_samples, test_res
-
-
-def sbi_test_for_iG(iG, config,
-                    iR=None, label="",
-                    posterior=None, priors=None, test_samples=None, test_res=None):
-    if posterior is None:
-        posterior = load_posterior(iG, iR=iR, label=label, config=config)
-    if test_samples is None or test_res is None:
-        test_samples, test_res = get_train_test_samples_for_iG(iG, config)[-2:]
-    if priors is None:
-        priors = build_priors(config)
-    if config.VERBOSITY:
-        if iR is None:
-            run_str = ""
-        else:
-            run_str = ", iR=%d" % iR
-        print("\nTesting network for iG=%d%s by sampling %d posterior samples for %d testing samples!" %
-              (iG, run_str, config.N_POSTERIOR_SAMPLES_PER_RUN, test_samples.shape[0]))
-    samples_fit = None
-    nts = len(test_samples)
-    for iT, (ts, rs) in enumerate(zip(test_samples, test_res)):
-        if config.VERBOSITY:
-            print("\nTesting sample... %d/%d" % (iT+1, nts))
-        posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN,
-                                                         config.VERBOSITY)
-        # write_posterior(posterior, iG, iR=iR, label=label, config=config)
-        diagnostics = compute_diagnostics(posterior_samples, config, priors, map, ts.numpy())
-        samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label,
-                                              samples_fit=samples_fit, save_samples=False)
-    return samples_fit
-
-
-def sbi_train_and_test_for_iG(iG, config, iR=None, n_train_samples=None):
-    tic = time.time()
-    # Train:
-    posterior, priors, train_samples, train_res, test_samples, test_res = \
-        sbi_train_for_iG(iG, config, iR, n_train_samples)
-    label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
-    # Test:
-    samples_fit = sbi_test_for_iG(iG, config, iR, label, posterior, priors, test_samples, test_res)
-    if config.VERBOSITY:
-        print("Done with fitting with all samples in %g sec!"  % (time.time() - tic))
-    if config.VERBOSITY:
-        print("\n\nFinished after %g sec!" % (time.time() - tic))
-        print("\n\nFind results in %s!" % config.out.FOLDER_RES)
-    return samples_fit
-
-
-def plot_sbi_fit(config=None):
-    FIGWIDTH = 15
-    FIGHEIGHT_PER_PRIOR = 5
-    RUNS_COLOR = 'k'
-    LAST_RUN_COLOR = 'r'
-    SAMPLES_MARKER_SIZE = 0.1
-    MARKER_MEAN = 'o'
-    MARKER_MAP = 'x'
-    MARKER_SIZE = 5.0
-    SAMPLES_ALPHA = 0.1
-    RUNS_ALPHA = 0.5
-    PLOT_RUNS = True
-    PLOT_SAMPLES = True
-
-    def plot_run(ax, G, map, mean, std, samples=None, is_last=False):
-        color = RUNS_COLOR
-        alpha = 1.0
-        if is_last:
-            color = LAST_RUN_COLOR
-            alpha = RUNS_ALPHA
-        if samples is not None:
-            ax.plot([G] * len(samples), samples, marker=MARKER_MEAN,
-                    markersize=SAMPLES_MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
-                    linestyle='None', alpha=SAMPLES_ALPHA)
-        ax.plot(G, mean, marker=MARKER_MEAN,
-                markersize=MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
-                linestyle='None', alpha=alpha)
-        ax.plot(G, map, marker=MARKER_MAP,
-                markersize=MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
-                linestyle='None', alpha=alpha)
-        ax.plot([G] * 2, [mean - std, mean + std], color=color, linestyle='-', linewidth=1, alpha=alpha)
-        return ax
-
-    def plot_G(ax, samples, iP):
-        n_runs = len(samples['mean'])
-        if PLOT_RUNS:
-            iR_start = 0
-        else:
-            iR = n_runs - 1
-        for iR in range(iR_start, n_runs):
-            ax = plot_run(ax, samples['G'], samples['map'][iR][iP], samples['mean'][iR][iP], samples['std'][iR][iP],
-                          samples=samples['samples'][iR][:, iP] if PLOT_SAMPLES else None, is_last=iR == n_runs - 1)
-        return ax
-
-    def plot_parameter(ax, iP, pname, samples, is_last=False):
-        for G, sg in samples.items():
-            ax = plot_G(ax, sg, iP)
-        Gs = list(samples.keys())
-        if is_last:
-            ax.set_xticks(Gs)
-            ax.set_xticklabels(Gs)
-            ax.set_xlabel("G")
-        ax.set_ylabel(pname)
-        return ax
-
-    config = assert_config(config, return_plotter=False)
-    samples = load_posterior_samples_all_Gs(config)
-    fig, axes = plt.subplots(config.n_priors, 1, figsize=(FIGWIDTH, FIGHEIGHT_PER_PRIOR * config.n_priors))
-    axes = ensure_list(axes)
-    for iP, ax in enumerate(axes):
-        axes[iP] = plot_parameter(ax, iP, config.PRIORS_PARAMS_NAMES[iP], samples,
-                                  is_last=iP == config.n_priors - 1)
-    fig.tight_layout()
-    if config.figures.SHOW_FLAG:
-        fig.show()
-    if config.figures.SAVE_FLAG:
-        plt.savefig(config.SBI_FIT_PLOT_PATH)
-
-    return fig, axes
-
-
-def simulate_after_fitting_for_iG(iG, iR=None, label="", config=None,
-                                  workflow_fun=None, model_params={}, FIC=None, FIC_SPLIT=None,
-                                  plot_flag=True, **config_args):
-
-    config = assert_config(config, return_plotter=False)
-    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config, file, recurse=1)
-
-    samples_fit = load_posterior_samples_all_runs(iG, iR, label, config=config)
-    if iR is None:
-        iR = slice(None)
-    # Get the default values for the parameter except for G
-    pvals = np.concatenate(samples_fit[config.OPT_RES_MODE][iR]).mean(axis=0)
-
-    # Get G for this run:
-    G = samples_fit.get("G", config.Gs[iG])
-
-    # Get the default values for the parameter except for G
-    params = config.model_params.copy()
-    params['G'] = G
-    # Set the posterior means or maps of the parameters:
-    for pname, pval in zip(config.PRIORS_PARAMS_NAMES, pvals):
-        if isinstance(pval, np.floating):
-            np_pval = pval
-        else:
-            np_pval = pval.numpy()
-        if pname == "FIC":
-            config.FIC = np_pval
-        elif pname == "FIC_SPLIT":
-            config.FIC_SPLIT = np_pval
-        else:
-            params[pname] = np_pval
-    if FIC is not None:
-        config.FIC = FIC
-    if FIC_SPLIT is not None:
-        config.FIC_SPLIT = FIC_SPLIT
-    # Run one simulation with the posterior means:
-    if config.VERBOSITY:
-        print("Simulating using the estimate of the %s of the parameters' posterior distribution!"
-              % config.OPT_RES_MODE)
-        print("params =\n", params)
-        print("FIC=%g" % config.FIC)
-        print("FIC_SPLIT=%g" % config.FIC_SPLIT)
-    if workflow_fun is None:
-        workflow_fun = run_workflow
-    # Specify other parameters or overwrite some:
-    params.update(model_params)
-    if len(label):
-        label = "_%s" % label
-    outputs = workflow_fun(model_params=params, config=config,
-                           output_folder="%s/G%g/STIM%0.2f_Is%0.2f_FIC%0.2f_FIC_SPLIT%0.2f%s" %
-                                         (config.output_base, params['G'], params["STIMULUS"],
-                                          params['I_s'], config.FIC, config.FIC_SPLIT, label),
-                           plot_flag=plot_flag, **config_args)
-    outputs["samples_fit"] = samples_fit
-    return outputs
-
-
-def ppt_batch_sim_res_filepath(iB, config, iG=None, filepath=None, extension=None):
-    return batch_filepath(iB, config, iG, filepath, extension, config.PPT_BATCH_SIM_RES_FILE)
-
-
-def write_ppt_batch_sim_res_to_file(sim_res, iB, iG=None, config=None):
-    np.save(ppt_batch_sim_res_filepath(iB, assert_config(config, return_plotter=False), iG), sim_res, allow_pickle=True)
-
-
-def write_ppt_batch_sim_res_to_file_per_iG(sim_res, iB, iG, config=None):
-    write_ppt_batch_sim_res_to_file(sim_res, iB, iG, config)
-
-
-def posterior_predictive_check_simulations_for_iG_iB(iB, iG, num_train_samples=None, iR=None,
-                                                     workflow_fun=run_workflow, write_to_file=True, config=None):
-    config = assert_config(config, return_plotter=False)
-    if num_train_samples is not None:
-        label = num_train_sample_to_label(num_train_samples, config.N_TRAIN_SAMPLES_LABEL)
-    else:
-        label = ""
-    if iR is not None:
-        iR = ensure_list(iR)
-    samples_fit = load_posterior_samples_all_runs(iG, runs=iR, label=label, samples=None, config=config)
-    samples = np.hstack(samples_fit["samples"])[0].copy()
-    del samples_fit
-    n_samples = samples.shape[0]
-    # Split the total number of samples into N_PPT_SIM_BATCHES consecutive segments...
-    n_possible_samples_per_batch = int(n_samples / config.N_PPT_SIM_BATCHES)
-    # ...and choose the segment that corresponds to this batch iB:
-    samples = samples[iB*n_possible_samples_per_batch:(iB+1)*n_possible_samples_per_batch]
-    # Now choose N_PPT_SIMS_PER_BATCH randomly among the samples meant for this batch
-    sampl_inds = random.sample(list(range(n_possible_samples_per_batch)), config.N_PPT_SIMS_PER_BATCH)
-    samples = samples[sampl_inds]
-    if write_to_file:
-        write_to_file = write_ppt_batch_sim_res_to_file_per_iG
-    return simulate_batch(iB, iG, samples, workflow_fun, write_to_file, config)
-
-
-def read_ppt_batch_sim_res_from_file(iB, iG=None, config=None):
-    return np.load(ppt_batch_sim_res_filepath(iB, assert_config(config, return_plotter=False), iG))
-
-
-def read_ppt_batch_sim_res_from_file_for_iG(iB, iG, config=None):
-    return read_ppt_batch_sim_res_from_file(iB, iG, config)
-
-
-def read_all_ppt_batch_sim_res_files_for_iG(iG, config=None):
-    config = assert_config(config, return_plotter=False)
-    pptPSDs = []
-    for iB in range(config.N_PPT_SIM_BATCHES):
-        pptPSDs.append(read_ppt_batch_sim_res_from_file_for_iG(iB, iG, config))
-    return pptPSDs
-
-
-def plot_ppt_PSDs(iGs=None, config=None, confidence="5%", figsize=None):
-    config = assert_config(config, return_plotter=False)
-
-    if figsize is None:
-        figsize = config.figures.DEFAULT_SIZE
-
-    connectome, _, _, inds = load_connectome(config)
-    inds = inds['m1s1brl']
-    region_labels = connectome["region_labels"][inds]
-    del connectome, inds
-
-    PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
-    f = PSD_target["f"]
-    nfs = f.size
-    PSD_target = [PSD_target["PSD_M1_target"], PSD_target["PSD_S1_target"]]*2
-
-    if iGs is None:
-        iGs = np.arange(len(config.Gs))
-
-    def plot_ax(plot_fun, axes, axi, axj, finds, f, PSDs, PSDtarg, reg_lbl, conf=None):
-        pfun = getattr(axes[axi, axj], plot_fun)
-        pfun(f, PSDs[finds, 0], color='b', linewidth=1, linestyle='-', alpha=0.1, label="PSD samples")
-        pfun(f, PSDs[finds, 1:], color='b', linewidth=1, linestyle='-', alpha=0.1)
-        pfun(f, PSDtarg, color='r', linewidth=2, linestyle='-', label="PSD target")
-        if conf is not None:
-            pfun(f, conf[0][finds], color='k', linewidth=2, linestyle='-')
-            pfun(f, conf[1][finds], color='k', linewidth=2, linestyle='-')
-        if axi == 1:
-            axes[axi, axj].set_xlabel('f (Hz)', fontsize=12)
-        if axi == 1 and axj == 1:
-            axes[axi, axj].legend(prop={'size': 12})
-        axes[axi, axj].set_title(reg_lbl, fontsize=12)
-        return axes
-
-    conf = None
-    for iG in ensure_list(iGs):
-        PSDs = np.vstack(read_all_ppt_batch_sim_res_files_for_iG(iG, config)).T
-        if confidence:
-            if confidence == "std":
-                conf = np.std(PSDs, axis=1)
-                mean = np.mean(PSDs, axis=1)
-                conf = np.array([mean-conf, mean+conf])
-                del mean
-            else:
-                percent = float(confidence.split("%")[0])
-                conf = np.percentile(PSDs, [percent, 100-percent], axis=1)
-                del percent
-        fig_lin, axes_lin = plt.subplots(nrows=2, ncols=2, figsize=figsize)
-        fig_lin.suptitle('Power spectral densities', fontsize=14)
-        fig_semilog, axes_semilog = plt.subplots(nrows=2, ncols=2, figsize=figsize)
-        fig_semilog.suptitle('Logpower spectral densities', fontsize=14)
-        for iR in range(4):
-            finds = np.arange(nfs*iR, nfs*(iR+1)).astype("i")
-            axi = int(iR > 1)
-            axj = 1-np.mod(iR, 2)
-            axes_lin = plot_ax("plot", axes_lin, axi, axj, finds, f, PSDs, PSD_target[iR],
-                               region_labels[iR], conf=conf)
-            axes_semilog = plot_ax("semilogy", axes_semilog, axi, axj,  finds, f, PSDs, PSD_target[iR],
-                                    region_labels[iR], conf=conf)
-
-    for fig, figname in zip([fig_lin, fig_semilog], ["pptPSDlin", "pptPSDsemilog"]):
-        plt.figure(fig.number)
-        if config.figures.SAVE_FLAG:
-            plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, figname+".png"))
-        if config.figures.SHOW_FLAG:
-            plt.show()
-    return fig_lin, axes_lin, fig_semilog, axes_semilog
-
-
-def plot_diagnostic_for_iG(iG, diagnostic, config, num_train_samples=None, params=None, runs=None, confidence=True,
-                           colors=['b', "g", "m"], marker='.', linestyle='-', title=True, xlabel=True, ylabel=True,
-                           ax=None, figsize=None):
-
-    if num_train_samples is None:
-        num_train_samples = config.N_TRAIN_SAMPLES_LIST
-
-    if params is None:
-        params = config.PRIORS_PARAMS_NAMES
-
-    if figsize is None:
-        figsize = config.figures.DEFAULT_SIZE
-
-    if ax is None:
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
-    else:
-        fig = None
-
-    res = []
-    for nts in num_train_samples:
-        samples_fit = \
-            load_posterior_samples_all_runs(iG, runs,
-                                            label=num_train_sample_to_label(nts,
-                                                                            format=config.N_TRAIN_SAMPLES_LABEL),
-                                            config=config)
-        res.append(np.concatenate(samples_fit[diagnostic]))
-    res = np.stack(res)
-    mean = np.mean(res, axis=1)
-    err = None
-    if confidence:
-        if confidence == "std":
-            std = np.std(res, axis=1)
-            err = np.array([std]*2)
-        else:
-            percent = float(confidence.split("%")[0])
-            err = np.percentile(res, [percent, 100-percent], axis=1)
-            err[0] = mean - err[0]
-            err[1] = err[1] - mean
-
-    for iP, (param, col) in enumerate(zip(params, colors)):
-        if err is not None:
-            ax.errorbar(num_train_samples, mean[:, iP], yerr=err[:, :, iP], capsize=5,
-                        color=col, marker=marker, markersize=5, linestyle=linestyle, linewidth=2,
-                        label="%s" % param)
-        else:
-            ax.plot(num_train_samples, mean[:, iP],
-                    color=col, marker=marker, markersize=5, linestyle=linestyle, linewidth=2,
-                    label="%s" % param)
-        if title:
-            ax.set_title("G=%g" % config.Gs[iG], fontsize=14)
-        if xlabel:
-            ax.set_xlabel("N training samples", fontsize=14)
-        if ylabel:
-            ax.set_ylabel(diagnostic, fontsize=14)
-        ax.legend(prop={'size': 14})
-
-    if fig is None:
-        return ax
-    else:
-        return ax, fig
-
-
-def plot_all_together(config, iGs=None, diagnostics=["diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
-                      params=None, num_train_samples=None, runs=None, confidence="5%",
-                      colors=['b', "g", "m"], marker='.', linestyle='-', figsize=None):
-
-    if iGs is None:
-        iGs = list(range(len(config.Gs)))
-
-    if num_train_samples is None:
-        num_train_samples = config.N_TRAIN_SAMPLES_LIST
-
-    if params is None:
-        params = config.PRIORS_PARAMS_NAMES
-
-    if figsize is None:
-        figsize = config.figures.DEFAULT_SIZE
-
-    figsize = np.array(figsize)
-    nGs = len(iGs)
-    nDs = len(diagnostics)
-    figsize[0] = figsize[1] * nDs
-    figsize[1] = figsize[0] * nGs
-    figsize = tuple(figsize.tolist())
-
-    fig, axes = plt.subplots(nrows=nDs, ncols=nGs, figsize=figsize)
-    if nGs == 1 and nDs == 1:
-        axes = np.array([[axes]])
-    elif nDs == 1:
-        axes = axes[np.newaxis]
-    elif nGs == 1:
-        axes = axes[:, np.newaxis]
-
-    for iD, diagnostic in enumerate(diagnostics):
-        for iiG, iG in enumerate(iGs):
-            axes[iD, iiG] = plot_diagnostic_for_iG(iG, diagnostic, config, num_train_samples, params, runs,
-                                                   confidence, colors, marker, linestyle,
-                                                   title=False, xlabel=False, ylabel=False,
-                                                   ax=axes[iD, iiG])
-        if iD == 0:
-            axes[iD, iiG].set_title("G=%g" % config.Gs[iG], fontsize=14)
-        if iD == nDs-1:
-            axes[iD, iiG].set_xlabel("N training samples", fontsize=14)
-        if iiG == 0:
-            axes[iD, iiG].set_ylabel(diagnostic, fontsize=14)
-
-    plt.figure(fig.number)
-    if config.figures.SAVE_FLAG:
-        plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, "Diagnostics_%s.png" % "_".join(diagnostics)))
-    if config.figures.SHOW_FLAG:
-        plt.show()
-
-    return fig, axes
+#     if config.VERBOSITY:
+#         if iR is None:
+#             run_str = ""
+#         else:
+#             run_str = ", iR=%d" % iR
+#         print("\nTesting network for iG=%d%s by sampling %d posterior samples for %d testing samples!" %
+#               (iG, run_str, config.N_POSTERIOR_SAMPLES_PER_RUN, test_samples.shape[0]))
+#     samples_fit = None
+#     nts = len(test_samples)
+#     for iT, (ts, rs) in enumerate(zip(test_samples, test_res)):
+#         if config.VERBOSITY:
+#             print("\nTesting sample... %d/%d" % (iT+1, nts))
+#         posterior, posterior_samples, map = sbi_estimate(posterior, rs.numpy(), config.N_POSTERIOR_SAMPLES_PER_RUN,
+#                                                          config.VERBOSITY)
+#         # write_posterior(posterior, iG, iR=iR, label=label, config=config)
+#         diagnostics = compute_diagnostics(posterior_samples, config, priors, map, ts.numpy())
+#         samples_fit = write_posterior_samples(diagnostics, config, iG, iR, label,
+#                                               samples_fit=samples_fit, save_samples=False)
+#     return samples_fit
+#
+#
+# def sbi_train_and_test_for_iG(iG, config, iR=None, n_train_samples=None):
+#     tic = time.time()
+#     # Train:
+#     posterior, priors, train_samples, train_res, test_samples, test_res = \
+#         sbi_train_for_iG(iG, config, iR, n_train_samples)
+#     label = num_train_sample_to_label(train_res.shape[0], format=config.N_TRAIN_SAMPLES_LABEL)
+#     # Test:
+#     samples_fit = sbi_test_for_iG(iG, config, iR, label, posterior, priors, test_samples, test_res)
+#     if config.VERBOSITY:
+#         print("Done with fitting with all samples in %g sec!"  % (time.time() - tic))
+#     if config.VERBOSITY:
+#         print("\n\nFinished after %g sec!" % (time.time() - tic))
+#         print("\n\nFind results in %s!" % config.out.FOLDER_RES)
+#     return samples_fit
+#
+#
+# def plot_sbi_fit(config=None):
+#     FIGWIDTH = 15
+#     FIGHEIGHT_PER_PRIOR = 5
+#     RUNS_COLOR = 'k'
+#     LAST_RUN_COLOR = 'r'
+#     SAMPLES_MARKER_SIZE = 0.1
+#     MARKER_MEAN = 'o'
+#     MARKER_MAP = 'x'
+#     MARKER_SIZE = 5.0
+#     SAMPLES_ALPHA = 0.1
+#     RUNS_ALPHA = 0.5
+#     PLOT_RUNS = True
+#     PLOT_SAMPLES = True
+#
+#     def plot_run(ax, G, map, mean, std, samples=None, is_last=False):
+#         color = RUNS_COLOR
+#         alpha = 1.0
+#         if is_last:
+#             color = LAST_RUN_COLOR
+#             alpha = RUNS_ALPHA
+#         if samples is not None:
+#             ax.plot([G] * len(samples), samples, marker=MARKER_MEAN,
+#                     markersize=SAMPLES_MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
+#                     linestyle='None', alpha=SAMPLES_ALPHA)
+#         ax.plot(G, mean, marker=MARKER_MEAN,
+#                 markersize=MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
+#                 linestyle='None', alpha=alpha)
+#         ax.plot(G, map, marker=MARKER_MAP,
+#                 markersize=MARKER_SIZE, markeredgecolor=color, markerfacecolor=color,
+#                 linestyle='None', alpha=alpha)
+#         ax.plot([G] * 2, [mean - std, mean + std], color=color, linestyle='-', linewidth=1, alpha=alpha)
+#         return ax
+#
+#     def plot_G(ax, samples, iP):
+#         n_runs = len(samples['mean'])
+#         if PLOT_RUNS:
+#             iR_start = 0
+#         else:
+#             iR = n_runs - 1
+#         for iR in range(iR_start, n_runs):
+#             ax = plot_run(ax, samples['G'], samples['map'][iR][iP], samples['mean'][iR][iP], samples['std'][iR][iP],
+#                           samples=samples['samples'][iR][:, iP] if PLOT_SAMPLES else None, is_last=iR == n_runs - 1)
+#         return ax
+#
+#     def plot_parameter(ax, iP, pname, samples, is_last=False):
+#         for G, sg in samples.items():
+#             ax = plot_G(ax, sg, iP)
+#         Gs = list(samples.keys())
+#         if is_last:
+#             ax.set_xticks(Gs)
+#             ax.set_xticklabels(Gs)
+#             ax.set_xlabel("G")
+#         ax.set_ylabel(pname)
+#         return ax
+#
+#     config = assert_config(config, return_plotter=False)
+#     samples = load_posterior_samples_all_Gs(config)
+#     fig, axes = plt.subplots(config.n_priors, 1, figsize=(FIGWIDTH, FIGHEIGHT_PER_PRIOR * config.n_priors))
+#     axes = ensure_list(axes)
+#     for iP, ax in enumerate(axes):
+#         axes[iP] = plot_parameter(ax, iP, config.PRIORS_PARAMS_NAMES[iP], samples,
+#                                   is_last=iP == config.n_priors - 1)
+#     fig.tight_layout()
+#     if config.figures.SHOW_FLAG:
+#         fig.show()
+#     if config.figures.SAVE_FLAG:
+#         plt.savefig(config.SBI_FIT_PLOT_PATH)
+#
+#     return fig, axes
+#
+#
+# def simulate_after_fitting_for_iG(iG, iR=None, label="", config=None,
+#                                   workflow_fun=None, model_params={}, FIC=None, FIC_SPLIT=None,
+#                                   plot_flag=True, **config_args):
+#
+#     config = assert_config(config, return_plotter=False)
+#     with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
+#         dill.dump(config, file, recurse=1)
+#
+#     samples_fit = load_posterior_samples_all_runs(iG, iR, label, config=config)
+#     if iR is None:
+#         iR = slice(None)
+#     # Get the default values for the parameter except for G
+#     pvals = np.concatenate(samples_fit[config.OPT_RES_MODE][iR]).mean(axis=0)
+#
+#     # Get G for this run:
+#     G = samples_fit.get("G", config.Gs[iG])
+#
+#     # Get the default values for the parameter except for G
+#     params = config.model_params.copy()
+#     params['G'] = G
+#     # Set the posterior means or maps of the parameters:
+#     for pname, pval in zip(config.PRIORS_PARAMS_NAMES, pvals):
+#         if isinstance(pval, np.floating):
+#             np_pval = pval
+#         else:
+#             np_pval = pval.numpy()
+#         if pname == "FIC":
+#             config.FIC = np_pval
+#         elif pname == "FIC_SPLIT":
+#             config.FIC_SPLIT = np_pval
+#         else:
+#             params[pname] = np_pval
+#     if FIC is not None:
+#         config.FIC = FIC
+#     if FIC_SPLIT is not None:
+#         config.FIC_SPLIT = FIC_SPLIT
+#     # Run one simulation with the posterior means:
+#     if config.VERBOSITY:
+#         print("Simulating using the estimate of the %s of the parameters' posterior distribution!"
+#               % config.OPT_RES_MODE)
+#         print("params =\n", params)
+#         print("FIC=%g" % config.FIC)
+#         print("FIC_SPLIT=%g" % config.FIC_SPLIT)
+#     if workflow_fun is None:
+#         workflow_fun = run_workflow
+#     # Specify other parameters or overwrite some:
+#     params.update(model_params)
+#     if len(label):
+#         label = "_%s" % label
+#     outputs = workflow_fun(model_params=params, config=config,
+#                            output_folder="%s/G%g/STIM%0.2f_Is%0.2f_FIC%0.2f_FIC_SPLIT%0.2f%s" %
+#                                          (config.output_base, params['G'], params["STIMULUS"],
+#                                           params['I_s'], config.FIC, config.FIC_SPLIT, label),
+#                            plot_flag=plot_flag, **config_args)
+#     outputs["samples_fit"] = samples_fit
+#     return outputs
+#
+#
+# def ppt_batch_sim_res_filepath(iB, config, iG=None, filepath=None, extension=None):
+#     return batch_filepath(iB, config, iG, filepath, extension, config.PPT_BATCH_SIM_RES_FILE)
+#
+#
+# def write_ppt_batch_sim_res_to_file(sim_res, iB, iG=None, config=None):
+#     np.save(ppt_batch_sim_res_filepath(iB, assert_config(config, return_plotter=False), iG), sim_res, allow_pickle=True)
+#
+#
+# def write_ppt_batch_sim_res_to_file_per_iG(sim_res, iB, iG, config=None):
+#     write_ppt_batch_sim_res_to_file(sim_res, iB, iG, config)
+#
+#
+# def posterior_predictive_check_simulations_for_iG_iB(iB, iG, num_train_samples=None, iR=None,
+#                                                      workflow_fun=run_workflow, write_to_file=True, config=None):
+#     config = assert_config(config, return_plotter=False)
+#     if num_train_samples is not None:
+#         label = num_train_sample_to_label(num_train_samples, config.N_TRAIN_SAMPLES_LABEL)
+#     else:
+#         label = ""
+#     if iR is not None:
+#         iR = ensure_list(iR)
+#     samples_fit = load_posterior_samples_all_runs(iG, runs=iR, label=label, samples=None, config=config)
+#     samples = np.hstack(samples_fit["samples"])[0].copy()
+#     del samples_fit
+#     n_samples = samples.shape[0]
+#     # Split the total number of samples into N_PPT_SIM_BATCHES consecutive segments...
+#     n_possible_samples_per_batch = int(n_samples / config.N_PPT_SIM_BATCHES)
+#     # ...and choose the segment that corresponds to this batch iB:
+#     samples = samples[iB*n_possible_samples_per_batch:(iB+1)*n_possible_samples_per_batch]
+#     # Now choose N_PPT_SIMS_PER_BATCH randomly among the samples meant for this batch
+#     sampl_inds = random.sample(list(range(n_possible_samples_per_batch)), config.N_PPT_SIMS_PER_BATCH)
+#     samples = samples[sampl_inds]
+#     if write_to_file:
+#         write_to_file = write_ppt_batch_sim_res_to_file_per_iG
+#     return simulate_batch(iB, iG, samples, workflow_fun, write_to_file, config)
+#
+#
+# def read_ppt_batch_sim_res_from_file(iB, iG=None, config=None):
+#     return np.load(ppt_batch_sim_res_filepath(iB, assert_config(config, return_plotter=False), iG))
+#
+#
+# def read_ppt_batch_sim_res_from_file_for_iG(iB, iG, config=None):
+#     return read_ppt_batch_sim_res_from_file(iB, iG, config)
+#
+#
+# def read_all_ppt_batch_sim_res_files_for_iG(iG, config=None):
+#     config = assert_config(config, return_plotter=False)
+#     pptPSDs = []
+#     for iB in range(config.N_PPT_SIM_BATCHES):
+#         pptPSDs.append(read_ppt_batch_sim_res_from_file_for_iG(iB, iG, config))
+#     return pptPSDs
+#
+#
+# def plot_ppt_PSDs(iGs=None, config=None, confidence="5%", figsize=None):
+#     config = assert_config(config, return_plotter=False)
+#
+#     if figsize is None:
+#         figsize = config.figures.DEFAULT_SIZE
+#
+#     connectome, _, _, inds = load_connectome(config)
+#     inds = inds['m1s1brl']
+#     region_labels = connectome["region_labels"][inds]
+#     del connectome, inds
+#
+#     PSD_target = np.load(config.PSD_TARGET_PATH, allow_pickle=True).item()
+#     f = PSD_target["f"]
+#     nfs = f.size
+#     PSD_target = [PSD_target["PSD_M1_target"], PSD_target["PSD_S1_target"]]*2
+#
+#     if iGs is None:
+#         iGs = np.arange(len(config.Gs))
+#
+#     def plot_ax(plot_fun, axes, axi, axj, finds, f, PSDs, PSDtarg, reg_lbl, conf=None):
+#         pfun = getattr(axes[axi, axj], plot_fun)
+#         pfun(f, PSDs[finds, 0], color='b', linewidth=1, linestyle='-', alpha=0.1, label="PSD samples")
+#         pfun(f, PSDs[finds, 1:], color='b', linewidth=1, linestyle='-', alpha=0.1)
+#         pfun(f, PSDtarg, color='r', linewidth=2, linestyle='-', label="PSD target")
+#         if conf is not None:
+#             pfun(f, conf[0][finds], color='k', linewidth=2, linestyle='-')
+#             pfun(f, conf[1][finds], color='k', linewidth=2, linestyle='-')
+#         if axi == 1:
+#             axes[axi, axj].set_xlabel('f (Hz)', fontsize=12)
+#         if axi == 1 and axj == 1:
+#             axes[axi, axj].legend(prop={'size': 12})
+#         axes[axi, axj].set_title(reg_lbl, fontsize=12)
+#         return axes
+#
+#     conf = None
+#     for iG in ensure_list(iGs):
+#         PSDs = np.vstack(read_all_ppt_batch_sim_res_files_for_iG(iG, config)).T
+#         if confidence:
+#             if confidence == "std":
+#                 conf = np.std(PSDs, axis=1)
+#                 mean = np.mean(PSDs, axis=1)
+#                 conf = np.array([mean-conf, mean+conf])
+#                 del mean
+#             else:
+#                 percent = float(confidence.split("%")[0])
+#                 conf = np.percentile(PSDs, [percent, 100-percent], axis=1)
+#                 del percent
+#         fig_lin, axes_lin = plt.subplots(nrows=2, ncols=2, figsize=figsize)
+#         fig_lin.suptitle('Power spectral densities', fontsize=14)
+#         fig_semilog, axes_semilog = plt.subplots(nrows=2, ncols=2, figsize=figsize)
+#         fig_semilog.suptitle('Logpower spectral densities', fontsize=14)
+#         for iR in range(4):
+#             finds = np.arange(nfs*iR, nfs*(iR+1)).astype("i")
+#             axi = int(iR > 1)
+#             axj = 1-np.mod(iR, 2)
+#             axes_lin = plot_ax("plot", axes_lin, axi, axj, finds, f, PSDs, PSD_target[iR],
+#                                region_labels[iR], conf=conf)
+#             axes_semilog = plot_ax("semilogy", axes_semilog, axi, axj,  finds, f, PSDs, PSD_target[iR],
+#                                     region_labels[iR], conf=conf)
+#
+#     for fig, figname in zip([fig_lin, fig_semilog], ["pptPSDlin", "pptPSDsemilog"]):
+#         plt.figure(fig.number)
+#         if config.figures.SAVE_FLAG:
+#             plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, figname+".png"))
+#         if config.figures.SHOW_FLAG:
+#             plt.show()
+#     return fig_lin, axes_lin, fig_semilog, axes_semilog
+#
+#
+# def plot_diagnostic_for_iG(iG, diagnostic, config, num_train_samples=None, params=None, runs=None, confidence=True,
+#                            colors=['b', "g", "m"], marker='.', linestyle='-', title=True, xlabel=True, ylabel=True,
+#                            ax=None, figsize=None):
+#
+#     if num_train_samples is None:
+#         num_train_samples = config.N_TRAIN_SAMPLES_LIST
+#
+#     if params is None:
+#         params = config.PRIORS_PARAMS_NAMES
+#
+#     if figsize is None:
+#         figsize = config.figures.DEFAULT_SIZE
+#
+#     if ax is None:
+#         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
+#     else:
+#         fig = None
+#
+#     res = []
+#     for nts in num_train_samples:
+#         samples_fit = \
+#             load_posterior_samples_all_runs(iG, runs,
+#                                             label=num_train_sample_to_label(nts,
+#                                                                             format=config.N_TRAIN_SAMPLES_LABEL),
+#                                             config=config)
+#         res.append(np.concatenate(samples_fit[diagnostic]))
+#     res = np.stack(res)
+#     mean = np.mean(res, axis=1)
+#     err = None
+#     if confidence:
+#         if confidence == "std":
+#             std = np.std(res, axis=1)
+#             err = np.array([std]*2)
+#         else:
+#             percent = float(confidence.split("%")[0])
+#             err = np.percentile(res, [percent, 100-percent], axis=1)
+#             err[0] = mean - err[0]
+#             err[1] = err[1] - mean
+#
+#     for iP, (param, col) in enumerate(zip(params, colors)):
+#         if err is not None:
+#             ax.errorbar(num_train_samples, mean[:, iP], yerr=err[:, :, iP], capsize=5,
+#                         color=col, marker=marker, markersize=5, linestyle=linestyle, linewidth=2,
+#                         label="%s" % param)
+#         else:
+#             ax.plot(num_train_samples, mean[:, iP],
+#                     color=col, marker=marker, markersize=5, linestyle=linestyle, linewidth=2,
+#                     label="%s" % param)
+#         if title:
+#             ax.set_title("G=%g" % config.Gs[iG], fontsize=14)
+#         if xlabel:
+#             ax.set_xlabel("N training samples", fontsize=14)
+#         if ylabel:
+#             ax.set_ylabel(diagnostic, fontsize=14)
+#         ax.legend(prop={'size': 14})
+#
+#     if fig is None:
+#         return ax
+#     else:
+#         return ax, fig
+#
+#
+# def plot_all_together(config, iGs=None, diagnostics=["diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
+#                       params=None, num_train_samples=None, runs=None, confidence="5%",
+#                       colors=['b', "g", "m"], marker='.', linestyle='-', figsize=None):
+#
+#     if iGs is None:
+#         iGs = list(range(len(config.Gs)))
+#
+#     if num_train_samples is None:
+#         num_train_samples = config.N_TRAIN_SAMPLES_LIST
+#
+#     if params is None:
+#         params = config.PRIORS_PARAMS_NAMES
+#
+#     if figsize is None:
+#         figsize = config.figures.DEFAULT_SIZE
+#
+#     figsize = np.array(figsize)
+#     nGs = len(iGs)
+#     nDs = len(diagnostics)
+#     figsize[0] = figsize[1] * nDs
+#     figsize[1] = figsize[0] * nGs
+#     figsize = tuple(figsize.tolist())
+#
+#     fig, axes = plt.subplots(nrows=nDs, ncols=nGs, figsize=figsize)
+#     if nGs == 1 and nDs == 1:
+#         axes = np.array([[axes]])
+#     elif nDs == 1:
+#         axes = axes[np.newaxis]
+#     elif nGs == 1:
+#         axes = axes[:, np.newaxis]
+#
+#     for iD, diagnostic in enumerate(diagnostics):
+#         for iiG, iG in enumerate(iGs):
+#             axes[iD, iiG] = plot_diagnostic_for_iG(iG, diagnostic, config, num_train_samples, params, runs,
+#                                                    confidence, colors, marker, linestyle,
+#                                                    title=False, xlabel=False, ylabel=False,
+#                                                    ax=axes[iD, iiG])
+#         if iD == 0:
+#             axes[iD, iiG].set_title("G=%g" % config.Gs[iG], fontsize=14)
+#         if iD == nDs-1:
+#             axes[iD, iiG].set_xlabel("N training samples", fontsize=14)
+#         if iiG == 0:
+#             axes[iD, iiG].set_ylabel(diagnostic, fontsize=14)
+#
+#     plt.figure(fig.number)
+#     if config.figures.SAVE_FLAG:
+#         plt.savefig(os.path.join(config.figures.FOLDER_FIGURES, "Diagnostics_%s.png" % "_".join(diagnostics)))
+#     if config.figures.SHOW_FLAG:
+#         plt.show()
+#
+#     return fig, axes
 
 
 def rest_args_parser(funname, defargs=DEFAULT_ARGS):
@@ -979,8 +1167,10 @@ def rest_args_parser(funname, defargs=DEFAULT_ARGS):
                  'iG': ['ig', int, "G values' index", None],
                  'iR': ['ir', int, 'Repetition index', None],
                  'iP': ['ip', int, 'Parameter sample index', None],
+                 'iF': ['if', int, 'Fitting run index', None],
                  'FUNCMODE': ['fnmd', str, 'Functionality mode name', "SIM"],
-                 'label': ['lbl', str, 'Specific label name', ""]
+                 'label': ['lbl', str, 'Specific label name', ""],
+                 'fitlabel': ['flbl', str, 'Specific fitting label name', ""]
                  }
     args = deepcopy(defargs)
     for arg, vals in arguments.items():
