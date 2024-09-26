@@ -265,6 +265,7 @@ def configure(**ARGS):
     config.N_TRAIN_SAMPLES = 5  #  1000
     config.TEST_SAMPLES_RATIO = 0.25
     config.N_POSTERIOR_SAMPLES_PER_RUN = 5  # 100  # 0
+    config.N_PPC_SIMS = 3  # 100
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(0.0, 11.0)
     config.Gs[config.Gs == 0.0] = 0.1
@@ -278,6 +279,9 @@ def configure(**ARGS):
     config.PPC_FOLDER = "PPC_sims"
     config.MEAN_FOLDER = "mean_sims"
     config.MAP_FOLDER = "MAP_sims"
+    config.ALL_SAMPLES_LABEL = "allsamples"
+    config.ALL_RUNS_LABEL = "allsamples"
+    config.FIT_DIAGNOSTICS = ["mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
         DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
                                    "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
@@ -355,7 +359,7 @@ def args_parser(funname, defargs=DEFAULT_ARGS):
                  'SIMULATION_LENGTH': ['sl', float, "Simulation length"],
                  "NOISE": ['ns', float, "Noise amplitude"],
                  "NOISE_SEED": ['nsd', int, "Noise seed additive"],
-                 'MODE': ['md', str, 'Mode name'],
+                 'MODE': ['md', str, 'Mode name (e.g., TVB, NEST, COSIM)'],
                  'BASENAME': ['bsnm', str, 'Base folder name'],
                  'output_folder': ['o', str, 'Output folder name'],
                  'verbosity': ['v', int,
