@@ -1261,6 +1261,7 @@ def plot_tvb(transient, inds, results, simulator=None, plotter=None, config=None
         results = tvb_res_to_time_series(results, simulator, config=config, write_files=write_files)
     results["PSD_target"] = PSD_target
     results["PSD"] = PSD
+    results["f"] = PSD_target["f"]
 
     source_ts = results.get("source_ts", None)
     bold_ts = results.get("bold_ts", None)
