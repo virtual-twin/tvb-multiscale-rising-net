@@ -825,130 +825,203 @@ def infer(sim_res_fun, target_fun, target=None, path=None, assert_params=True,
     return samples_fit_all, samples_fit
 
 
-def load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config,
-                                                target=None, label=""):
-    samples_fit = load_posterior_samples_all_runs(None, label, None, config)
-    samples = np.hstack(samples_fit["samples"])[0].copy()
-    map_or_mean = np.hstack(samples_fit[config.OPT_RES_MODE])[0].copy().mean(axis=0)
-    del samples_fit
-    basepath = config.out.FOLDER_RES.split("/res")[0]
-    pptpath = os.path.join(basepath, "PPC", label)
-    cereboffpaths = glob.glob(os.path.join(pptpath, "TVB_CEREBOFF_[0-9]*/nsd*/res/res_*.pkl"))
-    Nsims = len(cereboffpaths)
-    print("Number of PPC simulations: %d" % Nsims)
-    COHs = []
-    sample_inds = []
-    for cereboffpath in cereboffpaths:
-        tvbpath = cereboffpath.replace("_CEREBOFF", "")
-        try:
-            sample_inds.append(int(tvbpath.split("TVB_")[-1][:5]))
-        except Exception as e:
-            raise ValueError("No sample number found in path %s!\n" % tvbpath + str(e))
-        COHsCond = []
-        for path in [tvbpath, cereboffpath]:
-            COHsCond.append(coh_to_xarray(load_pickled_dict(path)))
-        COHs.append(concat(COHsCond, dim=Index(["TVB", "TVB_CEREBOFF"], name="Condition")))
-    COHs = concat(COHs, dim=Index(sample_inds, name="Sample"))
-    COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
-    COHs = sim_res_fun(COHs, config)
-    target = target_fun(config, target).numpy()
-    try:
-        assert COHs.shape[0] == Nsims
-    except Exception as e:
-        print(COHs.shape)
-        raise e
-    return COHs, target, map_or_mean, samples[sample_inds]
+# -------------------------------------------- TODO: REMOVE THESE!: ----------------------------------------------------
+#
+# def load_allsims_to_xarrays(config, **kwargs):
+#     config = assert_config(config, return_plotter=False, **kwargs)
+#     res_files = glob.glob(path)
+#     # TODO: Make this temporary hack more robust!!!:
+#     sims = []
+#     for res_file in res_files:
+#         sims.append(int(res_file.split("_")[-1].split(".pkl")[0]))
+#     sims = np.sort(sims)
+#     res = []
+#     failed = []
+#     ifailed = []
+#     for iiR, iR in enumerate(sims):
+#         try:
+#             res.append(loadsim_to_xarrays(rest_simres_filepath(iR, config)))
+#         except Exception as e:
+#             failed.append(iR)
+#             ifailed.append(iiR)
+#             warnings.warn(str(e))
+#             continue
+#     sims = np.delete(sims, ifailed)
+#     res = concat(res, dim=Index(sims, name="Simulation"))
+#
+#     nFailed = len(failed)
+#     if nFailed:
+#         warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
+#
+#     return PSDs, failed
 
 
-def plot_posterior_predictive_check(sim_res_fun, target_fun, target=None, label="", measure_labels=None, config=None):
-    config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
-    COHS, target, map_or_mean, samples = \
-        load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config, target, label)
-    fig1, axes1 = sbi_pairplot(COHs, points=target, metric="target", labels=measure_labels,
-                               figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
-                                                    "PPC", label, 'ppc_measures_pairplot.png'),
-                               save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
-    fig2, axes2 = params_pairplot(samples, points=map_or_mean, metric=config.OPT_RES_MODE, config=config,
-                                  figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
-                                                       "PPC", label, "ppc_params_pairplot.png"))
-    return fig1, axes1, fig2, axes2
+
+#
+#
+# def sim_res_PSD_fun(sim_res, config):
+#     return sim_res.stack(Regions=("Region", "f")).values
 
 
-def stats_simulation(metric, metric_vals, statsName, sim_res_fun, target_fun, config, target=None,
-                     Nsims=1, label="", iR=0, measure_labels=None, **kwargs):
-    results = {}
-    pathlabel = "%s/%s/%s" % (statsName, label, metric)
-    fitpathlabel = "FIT/%s" % pathlabel
-    kwargs.update(dict(zip(config.PRIORS_PARAMS_NAMES, metric_vals)))
-    tests = ["TVB", "TVB_CEREBOFF"]
-    COHs = []
-    sims = np.arange(iR * Nsims, (iR + 1) * Nsims).astype('i')
-    for test in tests:
-        results[test] = []
-    for iS in range(Nsims):
-        COHsCond = []
-        for test in tests:
-            res = cosim_run_plot(iR=sims[iS],
-                                 MODE="%s/%s" % (fitpathlabel, test), **kwargs)[0]
-            COHsCond.append(coh_to_xarray(res))
-            results[test].append(res)
-        COHs.append(concat(COHsCond, dim=Index(tests, name="Condition")))
-    plot_comparison(tests, MODE=fitpathlabel)
-    COHs = concat(COHs, dim=Index(sims, name="Simulation"))
-    COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
-    COHs = sim_res_fun(COHs, config)
-    target = target_fun(config, target)
-    fig, axes = sbi_pairplot(COHs, points=target, metric="target", labels=measure_labels,
-                            figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
-                                                 pathlabel, "-".join(tests), "pairplot%d.png" % iR),
-                             save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
-    return results
+# def load_priors_and_simulations_for_sbi(iG=None, priors=None, train_params_samples=None, sim_res=None, config=None, label=""):
+#     config = assert_config(config, return_plotter=False)
+#     if priors is None:
+#         priors = build_priors(config)
+#     # Load priors' samples if not given in the input:
+#     if train_params_samples is None:
+#         # Load priors' samples
+#         train_params_samples = load_priors_samples(config=config, iR=None, iG=iG, label=label)
+#     # Load priors' samples if not given in the input:
+#     if sim_res is None:
+#         # Load priors' samples
+#         sim_res = []
+#         for iR in range(config.N_SIMULATIONS):
+#             sim_res.append(load_pickled_dict(rest_simres_filepath(iR, config))["PSD"])
+#         sim_res = torch.from_numpy(np.concatenate(sim_res).astype('float32'))
+#     return priors, train_params_samples, sim_res
 
 
-def map_or_mean_simulations(sim_res_fun, target_fun, target=None,
-                            runs=None, Nsims=1, map_mean=None, label="", config=None, measure_labels=None, **kwargs):
-    results = {}
-    config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
-    if map_mean is None or len(map_mean) == 0:
-        map_mean = [config.OPT_RES_MODE]
-    else:
-        map_mean = ensure_list(map_mean)
-    samples_fit = load_posterior_samples_all_runs(None, label, None, config)
-    if runs:
-        for iR in runs:
-            results[iR] = {}
-            for metric in map_mean:
-                metric_vals = samples_fit[metric][iR][0].squeeze()
-                results[iR][metric] = stats_simulation(metric, metric_vals, "MAPmean",
-                                                       sim_res_fun, target_fun, config,
-                                                       target=target, Nsims=Nsims, label=label, iR=iR+1,
-                                                       measure_labels=measure_labels, **kwargs)
-    for metric in map_mean:
-        metric_vals = np.vstack(samples_fit[metric]).mean(axis=0).squeeze()
-        results[metric] = stats_simulation(metric, metric_vals, "MAPmean",
-                                           sim_res_fun, target_fun, config,
-                                           target=target, Nsims=Nsims, label=label,
-                                           measure_labels=measure_labels, **kwargs)
-    return results
-
-
-def ppc_best_simulations(sim_res_fun, target_fun, target=None,
-                         Nmetrics=1, Nsims=1, label="", config=None, measure_labels=None, **kwargs):
-    config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
-    COHs, target, _, samples = \
-        load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config, target, label)
-    target = target[np.newaxis]
-    dist = np.sqrt(np.sum((COHs-target)**2, axis=1))
-    inds = np.argsort(dist, axis=0)[:Nmetrics]
-    results = {}
-    for iS in range(Nmetrics):
-        results[iS] = stats_simulation("%02dbestPPCsim" % (iS+1),
-                                       samples[inds[iS]],
-                                       "PPC",
-                                       sim_res_fun, target_fun, config,
-                                       target=target, Nsims=Nsims, label=label,
-                                       measure_labels=measure_labels, **kwargs)
-    return results
+# def load_posterior_samples_all_Gs(iGs=None, runs=None, label="", config=None):
+#     config = assert_config(config, return_plotter=False)
+#     samples = OrderedDict()
+#     if iGs is None:
+#         iGs = range(len(config.Gs))
+#     for iG in iGs:
+#         G = config.Gs[iG]
+#         try:
+#             if runs is False:
+#                 samples[G] = load_posterior_samples(iG, None, label, config)
+#             else:
+#                 samples[G] = load_posterior_samples_all_runs(iG, runs, label, config=config)
+#         except Exception as e:
+#             warnings.warn("Failed to load posterior samples for iG=%d, G=%g!\n%s" % (iG, G, str(e)))
+#     return samples
+#
+#
+# def load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config,
+#                                                 target=None, label=""):
+#     samples_fit = load_posterior_samples_all_runs(None, label, None, config)
+#     samples = np.hstack(samples_fit["samples"])[0].copy()
+#     map_or_mean = np.hstack(samples_fit[config.OPT_RES_MODE])[0].copy().mean(axis=0)
+#     del samples_fit
+#     basepath = config.out.FOLDER_RES.split("/res")[0]
+#     pptpath = os.path.join(basepath, "PPC", label)
+#     cereboffpaths = glob.glob(os.path.join(pptpath, "TVB_CEREBOFF_[0-9]*/nsd*/res/res_*.pkl"))
+#     Nsims = len(cereboffpaths)
+#     print("Number of PPC simulations: %d" % Nsims)
+#     COHs = []
+#     sample_inds = []
+#     for cereboffpath in cereboffpaths:
+#         tvbpath = cereboffpath.replace("_CEREBOFF", "")
+#         try:
+#             sample_inds.append(int(tvbpath.split("TVB_")[-1][:5]))
+#         except Exception as e:
+#             raise ValueError("No sample number found in path %s!\n" % tvbpath + str(e))
+#         COHsCond = []
+#         for path in [tvbpath, cereboffpath]:
+#             COHsCond.append(coh_to_xarray(load_pickled_dict(path)))
+#         COHs.append(concat(COHsCond, dim=Index(["TVB", "TVB_CEREBOFF"], name="Condition")))
+#     COHs = concat(COHs, dim=Index(sample_inds, name="Sample"))
+#     COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
+#     COHs = sim_res_fun(COHs, config)
+#     target = target_fun(config, target).numpy()
+#     try:
+#         assert COHs.shape[0] == Nsims
+#     except Exception as e:
+#         print(COHs.shape)
+#         raise e
+#     return COHs, target, map_or_mean, samples[sample_inds]
+#
+#
+# def plot_posterior_predictive_check(sim_res_fun, target_fun, target=None, label="", measure_labels=None, config=None):
+#     config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
+#     COHS, target, map_or_mean, samples = \
+#         load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config, target, label)
+#     fig1, axes1 = sbi_pairplot(COHs, points=target, metric="target", labels=measure_labels,
+#                                figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
+#                                                     "PPC", label, 'ppc_measures_pairplot.png'),
+#                                save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+#     fig2, axes2 = params_pairplot(samples, points=map_or_mean, metric=config.OPT_RES_MODE, config=config,
+#                                   figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
+#                                                        "PPC", label, "ppc_params_pairplot.png"))
+#     return fig1, axes1, fig2, axes2
+#
+#
+# def stats_simulation(metric, metric_vals, statsName, sim_res_fun, target_fun, config, target=None,
+#                      Nsims=1, label="", iR=0, measure_labels=None, **kwargs):
+#     results = {}
+#     pathlabel = "%s/%s/%s" % (statsName, label, metric)
+#     fitpathlabel = "FIT/%s" % pathlabel
+#     kwargs.update(dict(zip(config.PRIORS_PARAMS_NAMES, metric_vals)))
+#     tests = ["TVB", "TVB_CEREBOFF"]
+#     COHs = []
+#     sims = np.arange(iR * Nsims, (iR + 1) * Nsims).astype('i')
+#     for test in tests:
+#         results[test] = []
+#     for iS in range(Nsims):
+#         COHsCond = []
+#         for test in tests:
+#             res = cosim_run_plot(iR=sims[iS],
+#                                  MODE="%s/%s" % (fitpathlabel, test), **kwargs)[0]
+#             COHsCond.append(coh_to_xarray(res))
+#             results[test].append(res)
+#         COHs.append(concat(COHsCond, dim=Index(tests, name="Condition")))
+#     plot_comparison(tests, MODE=fitpathlabel)
+#     COHs = concat(COHs, dim=Index(sims, name="Simulation"))
+#     COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
+#     COHs = sim_res_fun(COHs, config)
+#     target = target_fun(config, target)
+#     fig, axes = sbi_pairplot(COHs, points=target, metric="target", labels=measure_labels,
+#                             figpath=os.path.join(config.figures.FOLDER_FIGURES.split("figs")[0],
+#                                                  pathlabel, "-".join(tests), "pairplot%d.png" % iR),
+#                              save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+#     return results
+#
+#
+# def map_or_mean_simulations(sim_res_fun, target_fun, target=None,
+#                             runs=None, Nsims=1, map_mean=None, label="", config=None, measure_labels=None, **kwargs):
+#     results = {}
+#     config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
+#     if map_mean is None or len(map_mean) == 0:
+#         map_mean = [config.OPT_RES_MODE]
+#     else:
+#         map_mean = ensure_list(map_mean)
+#     samples_fit = load_posterior_samples_all_runs(None, label, None, config)
+#     if runs:
+#         for iR in runs:
+#             results[iR] = {}
+#             for metric in map_mean:
+#                 metric_vals = samples_fit[metric][iR][0].squeeze()
+#                 results[iR][metric] = stats_simulation(metric, metric_vals, "MAPmean",
+#                                                        sim_res_fun, target_fun, config,
+#                                                        target=target, Nsims=Nsims, label=label, iR=iR+1,
+#                                                        measure_labels=measure_labels, **kwargs)
+#     for metric in map_mean:
+#         metric_vals = np.vstack(samples_fit[metric]).mean(axis=0).squeeze()
+#         results[metric] = stats_simulation(metric, metric_vals, "MAPmean",
+#                                            sim_res_fun, target_fun, config,
+#                                            target=target, Nsims=Nsims, label=label,
+#                                            measure_labels=measure_labels, **kwargs)
+#     return results
+#
+#
+# def ppc_best_simulations(sim_res_fun, target_fun, target=None,
+#                          Nmetrics=1, Nsims=1, label="", config=None, measure_labels=None, **kwargs):
+#     config = assert_config(config, return_plotter=False, plot_flag=False, MODE="FIT")
+#     COHs, target, _, samples = \
+#         load_posterior_predictive_check_simulations(sim_res_fun, target_fun, config, target, label)
+#     target = target[np.newaxis]
+#     dist = np.sqrt(np.sum((COHs-target)**2, axis=1))
+#     inds = np.argsort(dist, axis=0)[:Nmetrics]
+#     results = {}
+#     for iS in range(Nmetrics):
+#         results[iS] = stats_simulation("%02dbestPPCsim" % (iS+1),
+#                                        samples[inds[iS]],
+#                                        "PPC",
+#                                        sim_res_fun, target_fun, config,
+#                                        target=target, Nsims=Nsims, label=label,
+#                                        measure_labels=measure_labels, **kwargs)
+#     return results
 
 
 if __name__ == '__main__':
