@@ -90,8 +90,9 @@ def configure(**ARGS):
     TASK = PATHWAY_GAIN * WHISKERS  # (STIMULUS + )
 
     MODE = args["MODE"]
-    if TASK and "TASK" not in MODE:
-        MODE = joinstr(["TASK", MODE])
+    if TASK:
+        if "TASK" not in MODE:
+            MODE = joinstr(["TASK", MODE])
     elif "REST" not in MODE:
         MODE = joinstr(["REST", MODE])
 
