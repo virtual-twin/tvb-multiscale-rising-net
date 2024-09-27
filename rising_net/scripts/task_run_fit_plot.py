@@ -14,29 +14,38 @@ from xarray import DataArray, concat
 from pandas import Index
 from scipy.interpolate import interp1d
 
+from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
+from rising_net.scripts.filepaths import simres_filepath
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.sbi_script import \
-    build_priors, priors_filepath, sample_priors_for_sbi, prepare_for_sbi, load_priors_samples_for_iR, \
-    simulate_for_sbi, sbi_train, sbi_estimate, \
-    write_posterior, write_posterior_samples, add_posterior_samples_iR, load_posterior_samples, compute_diagnostics, \
-    params_pairplot, params_pairplot_from_samples_fit_dict, plot_samples_measures_and_targets, \
-    posterior_predictive_check_simulations
-from rising_net.scripts.rest_run_fit_plot import cosim_run_plot
+from rising_net.scripts.run_fit_plot import sim_run_plot, simres_folder, process_funcmode, run_fit_plot_args_parser
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import load_pickled_dict, dump_pickled_dict
 
-from examples.plot_write_results import plot_write_spiking_network_results
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-def get_config(iR=None, **kwargs):
+def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
+                         label="", filepath=None, extension=None):
+    folder = simres_folder(config, iG, iP, iR, FUNCMODE, label)
+    if mode is not None:
+        folder = os.path.join(folder, mode)
+    return simres_filepath(config, config.SIM_RES_FILE, folder,
+                           iR=iR, label="",
+                           filepath=filepath, extension=extension)
+
+
+# iP: parameter sample index
+# iR: simulation repetition and noise seed index
+def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
+               # parameters_iR=None, parameters_label, parameters_filepath=None, parameters_filepath_ext=None,
+               **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
     #     'I_s': 0.1,  # 0.085,
@@ -68,27 +77,28 @@ def get_config(iR=None, **kwargs):
     #     'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
     # Get configuration
-    if "PRIORS" in kwargs.get("MODE", "") and iR is not None:
-        config = configure(MODE="PRIORS", plot_flag=False, verbosity=0)[0]
-        priors = dict(zip(config.PRIORS_PARAMS_NAMES, load_priors_samples_for_iR(iR, config).numpy().squeeze()))
-        print("PRIORS_%05d:\n%s" % (iR, str(priors)))
-        kwargs.update(priors)
-        kwargs["plot_flag"] = False
-        verbosity = 0
-    else:
-        verbosity = kwargs.pop("verbosity", 1)
+    MODE = kwargs.pop("MODE", "")  # make sure we don't overshadow MODE
+    if "TASK" not in MODE.upper():
+        MODE = joinstr(["TASK", MODE])
+    verbosity = kwargs.pop("verbosity", 1)
+    config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
-    config, plotter = configure(verbosity=0, SEED=iR, **kwargs)
+    iG = kwargs.pop("iG", None)
+    iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
+        process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
 
-    config.VERBOSITY = verbosity
-    config.BOLD_PERIOD = None  # None, If None, BOLD will not be computed
-    config.AFFERENT_MONITOR = False
+    if "SIM" in FUNCMODE:
+        for md in ["COSIM_CEREBOFF", "TVB_CEREBOFF", "COSIM", "TVB"]:
+            if md in MODE:
+                break
+            else:
+                md = None
+        kwargs["output_folder"] = os.path.dirname(
+            os.path.dirname(
+                task_simres_filepath(config, md, iG, iP, iRpath, FUNCMODE, fitlabel)))
+    config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
 
     print(config.model_params)
-    print(config)
-
-    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
-        dill.dump(config.__dict__, file, recurse=1)
 
     return config, plotter
 
@@ -1022,40 +1032,52 @@ def infer(sim_res_fun, target_fun, target=None, path=None, assert_params=True,
 #                                        target=target, Nsims=Nsims, label=label,
 #                                        measure_labels=measure_labels, **kwargs)
 #     return results
+#
+#
+# if __name__ == '__main__':
+#     # Example use:
+#     # $ python task_run_fit_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
+#     # Called tuning_tvb_nest.py with:
+#     # keyword argument: w_TVB_to_NEST=world
+#     # keyword argument: simulation_length=300.0
+#
+#     import sys
+#
+#     MODE = ""
+#
+#     kwargs = {}
+#     ntests = 0
+#     for arg in sys.argv[1:]:
+#         keyval = arg.split("=")
+#         if keyval[0] not in ["MODE", "label"]:
+#             key = float(keyval[1])
+#         else:
+#             key = keyval[1].split(" ")
+#             if keyval[0] == "MODE":
+#                 if key[0] == "PPC":
+#                     MODE = "PPC"
+#                     continue
+#                 else:
+#                     ntests = len(key)
+#                     if ntests == 1:
+#                         key = key[0]
+#             elif keyval[0] == "label":
+#                 key = key[0]
+#         kwargs[keyval[0]] = key
+#
+#     if MODE == "PPC":
+#         posterior_predictive_check_simulations(**kwargs)
+#     else:
+#         cosim_run_plot(**kwargs)
 
 
-if __name__ == '__main__':
-    # Example use:
-    # $ python task_run_fit_plot.py w_TVB_to_NEST=0.04375 'simulation_length'='300.0'
-    # Called tuning_tvb_nest.py with:
-    # keyword argument: w_TVB_to_NEST=world
-    # keyword argument: simulation_length=300.0
-
-    import sys
-
-    MODE = ""
-
-    kwargs = {}
-    ntests = 0
-    for arg in sys.argv[1:]:
-        keyval = arg.split("=")
-        if keyval[0] not in ["MODE", "label"]:
-            key = float(keyval[1])
-        else:
-            key = keyval[1].split(" ")
-            if keyval[0] == "MODE":
-                if key[0] == "PPC":
-                    MODE = "PPC"
-                    continue
-                else:
-                    ntests = len(key)
-                    if ntests == 1:
-                        key = key[0]
-            elif keyval[0] == "label":
-                key = key[0]
-        kwargs[keyval[0]] = key
-
-    if MODE == "PPC":
-        posterior_predictive_check_simulations(**kwargs)
-    else:
-        cosim_run_plot(**kwargs)
+if __name__ == "__main__":
+    parser, defargs = run_fit_plot_args_parser("task_run_fit_plot")
+    args, parser_args, parser = parse_args(parser, argsnames=list(defargs.keys()))
+    funcname = args.pop("function", "sim_run_plot")
+    verbosity = args.get('verbosity', defargs['verbosity'])
+    if verbosity:
+        print("Running function %s from script %s with REST_or_TASK='TASK' "
+              "and user provided arguments:\n" % (funcname, parser.description))
+        print(args, "\n")
+    globals()[funcname](REST_or_TASK="TASK", **args)
