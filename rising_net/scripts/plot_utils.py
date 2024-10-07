@@ -95,11 +95,10 @@ def psd_percent_plot(results,
     return fig, axes
 
 
-def plot_pathway_psd_coh_old(results, inds,
-                         anslob_psd=None, tests=["tvb-only", "cerebOFF"], colors=["g", "r"],
-                         percentile_min=1, percentile_max=99, n=1,
-                         plot_mean=False, plot_median=True, mode="semilog",
-                         alpha=0.5, figsize=(20, 20), fontsize=16, **line_kwargs):
+def plot_pathway_psd_coh_old(results, inds, tests=["tvb-only", "cerebOFF"],
+                             colors=["g", "r"], percentile_min=1, percentile_max=99, n=1,
+                             plot_mean=False, plot_median=True, mode="linear",
+                             alpha=0.5, figsize=(20, 20), fontsize=16, **line_kwargs):
     REGIONS = ["s1brl", "m1",
                "s1brlthal", "m1thal",
                "ponssens", "ponsmotor",
@@ -182,16 +181,16 @@ def plot_pathway_psd_coh_old(results, inds,
                 else:
                     ind = inds[reg][1 - hemi]
                 pair.append(np.where(results["inds"] == ind)[0].item())
-            try:
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
-            except:
-                pair = pair[::-1]
-                iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                             results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            # try:
+            #     iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+            #                                  results["ij"][:, 1].flatten() == pair[1]))[0].item()
+            # except:
+            #     pair = pair[::-1]
+            #     iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
+            #                                  results["ij"][:, 1].flatten() == pair[1]))[0].item()
             ax = axH["-".join(regs)]
             for col, test in zip(colors, tests):
-                percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                percent_plot(results["f"], results[test]['COH'][:, pair[0], pair[1], :].squeeze(),
                              percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                              plot_mean=plot_mean, plot_median=plot_median,
                              color=col, alpha=alpha, ax=ax, mode=mode,
@@ -200,9 +199,9 @@ def plot_pathway_psd_coh_old(results, inds,
                                         ["COHth", "COHgm"],
                                         ["fth", "fgm"]):
                     if mode == "semilog":
-                        mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                        mean = np.log(results[test]['COH'][:,  pair[0], pair[1], results[f]]).mean()
                     else:
-                        mean = results[test]['COH'][:, iR, results[f]].mean()
+                        mean = results[test]['COH'][:,  pair[0], pair[1], results[f]].mean()
                     ax.plot(results[band], [mean] * 2,
                             color=col, linewidth=2.0)
             ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
@@ -259,11 +258,7 @@ def group_percent_barplot(data, errlows, errhighs,
     return df.plot(kind='bar', yerr=err, ylabel=data_label, **kwargs)
 
 
-def get_coherence(ii, jj, COH, ij, taskinds):
-    return COH[:, np.where(np.logical_and(taskinds[ij[:, 0]] == ii, taskinds[ij[:, 1]] == jj))[0]]
-
-
-def barplots(inds, resname, results, tests=["cosim", "tvb-only", "cerebOFF"], **kwargs):
+def barplots(inds, resname, results, tests=["TVB", "TVB_CEREBOFF"], **kwargs):
     nR = inds.size
     data = []
     for iT, test_name in enumerate(tests):
@@ -272,24 +267,20 @@ def barplots(inds, resname, results, tests=["cosim", "tvb-only", "cerebOFF"], **
         for i1 in range(nR):
             for i2 in range(i1 + 1, nR):
                 pair = [inds[i1], inds[i2]]
-                coh = get_coherence(pair[0], pair[1], results[test_name][resname], results['ij'], results["inds"])
+                coh = results[test_name][resname][:, pair[0], pair[0]]
                 if coh.size == 0:
                     pair = pair[::-1]
-                    coh = get_coherence(pair[0], pair[1], results[test_name][resname], results['ij'], results["inds"])
+                    coh = results[test_name][resname][:, pair[0], pair[0]]
                 pairs.append(list(pair))
                 dataT.append(coh)
-
         data.append(np.array(dataT).copy())
-
     data = np.array(data).squeeze()
     pairs = np.array(pairs)
-
     if data.ndim < 3:
         data = data[:, :, np.newaxis]
     mean = data.mean(axis=2)
     errlows = mean - np.percentile(data, 10, axis=2)
     errhighs = np.percentile(data, 90, axis=2) - mean
-
     data_label = resname
     legend_label = "Test modes"
     legend = np.array(tests)
@@ -303,7 +294,6 @@ def barplots(inds, resname, results, tests=["cosim", "tvb-only", "cerebOFF"], **
                                index, legend,
                                data_label, index_label, legend_label, **kwargs)
     ax.set_ylim(np.percentile(data, 10, axis=2).min() * 0.9)
-
     return ax
 
 
@@ -368,8 +358,9 @@ def coherence_networks_plot(results,
     for iB, (band, res) in enumerate(zip(bands, resnames)):
         dataB = []
         for iT, test_name in enumerate(tests):
-            dataT = np.zeros((nR, nR))
-            dataT[results["ij"][:, 0], results["ij"][:, 1]] = results[test_name][res].mean(axis=0)
+            dataT = np.nan * np.ones((nR, nR))
+            dataT[results["ij"][:, 0], results["ij"][:, 1]] = \
+                results[test_name][res][:, results["ij"][:, 0], results["ij"][:, 1]].mean(axis=0)
             dataB.append(dataT)
         dataB = np.array(dataB)
         vmins.append(np.percentile(dataB, 5))
@@ -384,7 +375,6 @@ def coherence_networks_plot(results,
                                             vmin=vmins[iB], vmax=vmaxs[iB],
                                             colorbar=True if iT==2 else False,
                                             fontsize=fontsize)
-
     fig.tight_layout()
     return fig, axes
 
@@ -475,10 +465,7 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
     figR, axR = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
     figL, axL = plt.subplot_mosaic(mosaic, sharex=True, figsize=figsize)
 
-    print(axR)
-    print(axL)
     # PSD plots:
-
     for figH, axH, hemi in zip([figR, figL], [axR, axL], [0, 1]):
         for reg, hemiI in zip(REGIONS, ipsiPSD):
             indhs = inds.get(reg, [])
@@ -488,7 +475,12 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                 else:
                     ind = indhs[1 - hemi]
                 try:
-                    iR = np.where(results["inds"] == ind)[0].item()
+                    iR = np.where(results["inds"] == ind)[0]
+                    if len(iR):
+                        iR = iR[0].item()
+                    else:
+                        raise ValueError("No region index iR for index %s and results['inds']=\n%s"
+                                         % (str(ind), str(results["inds"])))
                     for col, test in zip(colors, tests):
                         percent_plot(results["f"], results[test]['PSD'][:, iR, :].squeeze(),
                                      percentile_min=percentile_min, percentile_max=percentile_max, n=n,
@@ -530,30 +522,20 @@ def plot_pathway_psd_coh(results, inds, tests=["TVB", "TVB_CEREBOFF"], colors=["
                         pair.append(np.where(results["inds"] == ind)[0].item())
                     except Exception as e:
                         warnings.warn(str(e))
-
             if len(pair) == 2:
-                try:
-                    iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                                 results["ij"][:, 1].flatten() == pair[1]))[0].item()
-                except:
-                    pair = pair[::-1]
-                    iR = np.where(np.logical_and(results["ij"][:, 0].flatten() == pair[0],
-                                                 results["ij"][:, 1].flatten() == pair[1]))[0].item()
                 for col, test in zip(colors, tests):
-                    percent_plot(results["f"], results[test]['COH'][:, iR, :].squeeze(),
+                    COH = results[test]['COH'][:, pair[0], pair[1], :].squeeze()
+                    percent_plot(results["f"], COH,
                                  percentile_min=percentile_min, percentile_max=percentile_max, n=n,
                                  plot_mean=plot_mean, plot_median=plot_median,
                                  color=col, alpha=alpha, ax=ax, mode=modeCOH,
                                  **line_kwargs)
-                    for band, COH, f in zip(["theta", "gamma"],
-                                            ["COHth", "COHgm"],
-                                            ["fth", "fgm"]):
+                    for band in ["theta", "gamma"]:
                         if modeCOH == "semilog":
-                            mean = np.log(results[test]['COH'][:, iR, results[f]]).mean()
+                            mean = np.log(COH).mean()
                         else:
-                            mean = results[test]['COH'][:, iR, results[f]].mean()
-                        ax.plot(results[band], [mean] * 2,
-                                color=col, linewidth=2.0)
+                            mean = COH.mean()
+                        ax.plot(results[band], [mean] * 2, color=col, linewidth=2.0)
                 ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
                                           results['short_labels'][pair[1]]), fontsize=fontsize)
                 if modeCOH == "semilog":
@@ -602,3 +584,18 @@ def sbi_pairplot(samples, figpath=None, save_flag=True, show_flag=True, **kwargs
     else:
         plt.close(fig)
     return fig, axes
+
+
+def define_colors(N):
+    from cycler import cycler
+    import matplotlib as mpl
+
+    cmap = mpl.colormaps['jet']
+
+    # Take colors at regular intervals spanning the colormap.
+    colors = cmap(np.linspace(0, 1, N))
+
+    custom_cycler = cycler(color=colors)  # or simply color=colorlist
+    plt.rc('axes', prop_cycle=custom_cycler)
+
+    return custom_cycler
