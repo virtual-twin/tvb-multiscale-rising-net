@@ -19,14 +19,13 @@ import xarray as xr
 from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import istr, get_path, simres_filepath, construct_filepath
+from rising_net.scripts.filepaths import get_path, simres_filepath, construct_filepath
 from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, get_simres_folder_name, \
     simres_folder, get_stats_params, process_funcmode, find_all_folders, load_sims_to_xarrays_for_iP, \
     run_fit_plot_args_parser
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, \
     compute_target_PSDs, compute_PSD_target_and_data
-from rising_net.scripts.nest_script import build_NEST_network
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
 from rising_net.scripts.sbi_script import build_priors, \
     load_train_params_samples, load_train_params_samples_selection, \
@@ -196,8 +195,6 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                config=None,
                                                igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
-    if sim_res_path is None:
-        sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
     # Rebuild priors if not provided in the input:
     if priors is None:
         priors = build_priors(config)
@@ -211,6 +208,8 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                          ).numpy().squeeze().astype('float32')
     # Load training simulation results if not provided in the input:
     if sim_res is None:
+        if sim_res_path is None:
+            sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
         # Load priors' samples
         # By default, we load all parameters and all simulation repetitions and we average across repetitions.
         sim_res = \
