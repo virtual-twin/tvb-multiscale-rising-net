@@ -20,7 +20,7 @@ from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
 from rising_net.scripts.filepaths import istr, get_path, simres_filepath, construct_filepath
-from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, iPstr, iRstr, get_simres_folder_name, \
+from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, get_simres_folder_name, \
     simres_folder, get_stats_params, process_funcmode, find_all_folders, load_sims_to_xarrays_for_iP, \
     run_fit_plot_args_parser
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
@@ -35,12 +35,14 @@ from rising_net.scripts.sbi_script import build_priors, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
+from rising_net.scripts.utils import joinstr
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.data_structures_utils import narray_summary_info
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict, load_pickled_dict
 from examples.plot_write_results import plot_write_spiking_network_results
 
+from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
@@ -129,6 +131,25 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     return config, plotter
 
 
+def load_sims_PSD_to_xarrays(folder, config, iR=None, resstr=RESSTR, **kwargs):  # measures = "PSD" not really needed!
+    path = construct_filepath(os.path.join(folder, resstr), default_filename=config.SIM_RES_FILE, iR=iR)
+    res = load_pickled_dict(path)
+    # TODO: Remove this transitory hack:
+    f = res.get("f", np.arange(5.0, 48.0, 1.0))
+    regions = res.get("regions",
+                      np.array(['Right Primary motor area',
+                                'Left Primary motor area',
+                                'Right Primary somatosensory area, barrel field',
+                                'Left Primary somatosensory area, barrel field']))
+    indf = pd.Index(f, name='f')
+    indr = pd.Index(regions, name='Regions')
+    indPSD = pd.MultiIndex.from_product([indr, indf], names=[indf.name, indr.name])
+    name = joinstr(indPSD.names, " - ")
+    # To unravel index:
+    # PSD.unstack(PSD.dims[0]).shape = (nregs, nfreqs)
+    return {"PSD": xr.DataArray(res["PSD"], dims=[name], coords={name: indPSD}, name="PSD: %s" % path)}
+
+
 def load_sims_to_xarrays_for_iG(path=None, config=None, iG=None, iP=None, iR=None,
                                 average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
@@ -142,12 +163,12 @@ def load_sims_to_xarrays_for_iG(path=None, config=None, iG=None, iP=None, iR=Non
     iPs = []
     if len(iG):
         for iiG in iG:
-            res_ig, iP_ig = load_sims_to_xarrays_for_iP(
-                    os.path.join(path, iGstr(iiG, Ngs=len(config.Gs))),
+            res_ig, iP_ig = load_sims_to_xarrays_for_iP(load_sims_PSD_to_xarrays, "PSD",
+                    os.path.join(path, iGstr(iiG, Ngs=len(config.Gs), igstr=igstr)),
                     config, iP=iP, iR=iR,
                     average_repetitions=average_repetitions,
                     folderstr=folderstr, resstr=resstr)
-            res.append(res_ig)
+            res.append(res_ig["PSD"])
             iPs.append(iP_ig)
         res = xr.concat(res, dim=pd.Index(iG, name="Global coupling scaling parameter (G) index iG"))
         if len(iG) == 1:
@@ -214,7 +235,7 @@ def infer_workflow_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
                                                    config,
                                                    igstr, folderstr, resstr)
-    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))])
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth, config,
                           label, n_samples_per_run, measure_labels,
                           results, iR, save_samples, plot_flag, verbosity)
@@ -233,7 +254,7 @@ def infer_nRuns_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
                                                    config,
                                                    igstr, folderstr, resstr)
-    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))])
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
     return infer_nRuns(train_params_samples, sim_res, priors, target,
                        ground_truth, config,
                        label, n_samples_per_run, measure_labels,
@@ -290,7 +311,7 @@ def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=Non
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
     return plot_stats(sim_res, stat, target, params_vals,
-                      joinstr([iGstr(iG), label]), measure_labels, config)
+                      joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]), measure_labels, config)
 
 
 def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
@@ -303,7 +324,7 @@ def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, i
         load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, config,
                                             target, igstr, folderstr, resstr)
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
-                                             label=joinstr([iGstr(iG, Ngs=len(config.Gs)), label]),
+                                             label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
                                              measure_labels=measure_labels, config=config)
 

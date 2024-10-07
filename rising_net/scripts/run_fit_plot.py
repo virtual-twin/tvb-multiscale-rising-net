@@ -4,11 +4,11 @@ import warnings
 from copy import deepcopy
 
 import numpy as np
-import pandas
+import pandas as pd
 import xarray as xr
 
 from rising_net.scripts.base import assert_config, DEFAULT_ARGS, args_parser
-from rising_net.scripts.filepaths import simres_filepath, istr, construct_filepath
+from rising_net.scripts.filepaths import simres_filepath, istr
 from rising_net.scripts.nest_script import build_NEST_network
 from rising_net.scripts.sbi_script import load_posterior_samples, load_train_params_samples_selection
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
@@ -18,25 +18,27 @@ from rising_net.scripts.utils import compute_selected_spectra_coherence, joinstr
 from tvb_multiscale.core.utils.data_structures_utils import narray_summary_info
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict, load_pickled_dict
 
+from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
+
 
 GSTR = "iG"
 RESSTR = "res"
 NSDSTR = "nsd"
 
 
-def iGstr(iG, Ngs=100):
-    return GSTR + istr(int(iG), Ns=Ngs)
+def iGstr(iG, Ngs=100, igstr=GSTR):
+    return igstr + istr(int(iG), Ns=Ngs)
 
 
-def iPstr(iP, Nsims=10000):
-    return RESSTR + istr(int(iP), Ns=Nsims)
+def iPstr(iP, Nsims=10000, resstr=RESSTR):
+    return resstr + istr(int(iP), Ns=Nsims)
 
 
-def iRstr(iR, Nreps=10):
-    return NSDSTR + istr(int(iR), Ns=Nreps)
+def iRstr(iR, Nreps=10, nsdstr=NSDSTR):
+    return nsdstr + istr(int(iR), Ns=Nreps)
 
 
-def get_simres_folder_name(config, FUNCMODE="TRAINSIM"):
+def get_simres_folder_name(config, FUNCMODE="SIM"):
     if FUNCMODE.upper() == "TRAINSIM":
         return config.TRAIN_SIMS_FOLDER
     elif FUNCMODE.upper() == "PPCSIM":
@@ -75,7 +77,9 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
             FUNCMODE = "%sSIM" % stat.upper()
         else:
             FUNCMODE = "PPCSIM"
-    labeliG = joinstr([iGstr(iG, Ngs=len(config.Gs)), fitlabel])
+    labeliG = str(fitlabel)
+    if iG is not None:
+        labeliG = joinstr([iGstr(iG, Ngs=len(config.Gs)), labeliG])
     samples = load_posterior_samples(label=labeliG, config=config)
 
     # In these cases we need to load parameters from a samples.pkl file
@@ -196,7 +200,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                 else:
                     raise ValueError("No way to determine if it is a REST or TASK simulation"
                                      "since config=%s, REST_or_TASK=%s, MODE=%s and PATHWAY_GAIN=%s!"
-                                     % (str(config), str(REST_or_TASK), str(MODE), str(PATHWAY_GAIN)))
+                                     % (str(config), str(REST_or_TASK), str(MODE), str(PG)))
         if REST_or_TASK == "REST":
             from rising_net.scripts.rest_run_fit_plot import get_config
         elif REST_or_TASK == "TASK":
@@ -300,6 +304,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
         results["f"] = f
         results["COH"] = COH
         results["pairs"] = pairs
+        results["regions"] = simulator.connectivity.region_labels[taskinds]
 
         results_keys = list(results.keys())
         if FUNCMODE.upper() != "SIM":
@@ -315,25 +320,6 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
     return results, simulator, nest_network, config, inds
 
 
-def load_sim_to_xarrays(path):
-    res = load_pickled_dict(path)
-    # TODO: Remove this transitory hack:
-    f = res.get("f", np.arange(5.0, 48.0, 1.0))
-    regions = res.get("regions",
-                      np.array(['Right Primary motor area',
-                                'Left Primary motor area',
-                                'Right Primary somatosensory area, barrel field',
-                                'Left Primary somatosensory area, barrel field']))
-    indf = pd.Index(f, name='f')
-    indr = pd.Index(regions, name='Regions')
-    indPSD = pd.MultiIndex.from_product([indr, indf], names=[indf.name, indr.name])
-    name = joinstr(indPSD.names, " - ")
-    # To unravel index:
-    # PSD.unstack(PSD.dims[0]).shape = (nregs, nfreqs)
-    return xr.DataArray(res["PSD"], dims=[name], coords={name: indPSD},
-                        name="PSD: %s" % path)
-
-
 def find_all_folders(path, folderstr):
     pathstr = os.path.join(path, folderstr + "_*", "")
     ii = []
@@ -342,7 +328,8 @@ def find_all_folders(path, folderstr):
     return ii
 
 
-def load_sims_to_xarrays_for_iR(path=None, config=None, iR=None, average=False, folderstr=NSDSTR, resstr=RESSTR):
+def load_sims_to_xarrays_for_iR(load_sim_to_xarrays_fun, measures, path=None, config=None, iR=None, average=False,
+                                folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     config = assert_config(config, return_plotter=False)
     if path is None:
         path = config.out.FOLDER_RES
@@ -350,33 +337,34 @@ def load_sims_to_xarrays_for_iR(path=None, config=None, iR=None, average=False, 
         iR = find_all_folders(path, folderstr)
     else:
         iR = np.sort(ensure_list(iR)).tolist()
-    res = []
+    measures = ensure_list(measures)
+    for iM, measure in enumerate(measures):
+        measures[iM] = measure.upper()
     if len(iR):
+        res = dict(zip(measures, [list() for _ in range(len(measures))]))
         for iiR in iR:
-            res.append(
-                load_sim_to_xarrays(
-                    construct_filepath(
-                        os.path.join(path, iRstr(iiR, config.N_SIMS_PER_PARAM), resstr),
-                        config.SIM_RES_FILE,  iR=iiR)))
-        res = xr.concat(res, dim=pd.Index(iR, name="Repetitions' index iR"))
-        if len(iR) == 1:
-            res = res.squeeze()
-            res.name = path + ", Repetition: %d" % iR[0]
-        else:
-            res.name = path + ", Repetitions: %s" % \
-                       list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
-            if average:
-                res = res.mean(axis=0).squeeze()
+            res_i = load_sim_to_xarrays_fun(os.path.join(path, iRstr(iiR, config.N_SIMS_PER_PARAM)),
+                                            config, iR=iiR, resstr=resstr, measures=measures, **kwargs)
+            for measure in measures:
+                res[measure].append(res_i[measure])
+        for measure in measures:
+            res[measure] = xr.concat(res[measure], dim=pd.Index(iR, name="Repetitions' index iR"))
+            if len(iR) == 1:
+                res[measure] = res[measure].squeeze()
+                res[measure].name = path + ", Repetition: %d" % iR[0]
+            else:
+                res[measure].name = path + ", Repetitions: %s" % \
+                           list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
+                if average:
+                    res[measure] = res[measure].mean(axis=0).squeeze()
     else:
         iR = None
-        res = load_sim_to_xarrays(
-                construct_filepath(os.path.join(path, config.SIM_RES_FILE.split(".")[0]), config.SIM_RES_FILE, iR=iR)
-        )
+        res = load_sim_to_xarrays_fun(path, config, iR=iR, resstr=resstr, measures=measures, **kwargs)
     return res, iR
 
 
-def load_sims_to_xarrays_for_iP(path=None, config=None, iP=None, iR=None,
-                                average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
+def load_sims_to_xarrays_for_iP(load_sim_to_xarrays_fun, measures, path=None, config=None, iP=None, iR=None,
+                                average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     config = assert_config(config, return_plotter=False)
     if path is None:
         path = config.out.FOLDER_RES
@@ -384,21 +372,31 @@ def load_sims_to_xarrays_for_iP(path=None, config=None, iP=None, iR=None,
         iP = find_all_folders(path, RESSTR)
     else:
         iP = np.sort(ensure_list(iP)).tolist()
-    res = []
+    measures = ensure_list(measures)
+    for iM, measure in enumerate(measures):
+        measures[iM] = measure.upper()
     if len(iP):
+        res = dict(zip(measures, [list() for _ in range(len(measures))]))
         for iiP in iP:
-            res.append(
-                load_sims_to_xarrays_for_iR(
-                    os.path.join(path, iPstr(iiP, Nsims=config.N_SIMULATIONS)),
-                    config, iR=iR, average=average_repetitions,
-                    folderstr=folderstr, resstr=resstr)[0])
-        res = xr.concat(res, dim=pd.Index(iP, name="Parameters' samples' index iP"))
+            res_i = load_sims_to_xarrays_for_iR(load_sim_to_xarrays_fun, measures,
+                                                os.path.join(path, iPstr(iiP, Nsims=config.N_SIMULATIONS)),
+                                                config, iR=iR, average=average_repetitions,
+                                                folderstr=folderstr, resstr=resstr, **kwargs)[0]
+            for measure in measures:
+                res[measure].append(res_i[measure])
+        for measure in measures:
+            res[measure] = xr.concat(res[measure], dim=pd.Index(iP, name="Parameters' samples' index iP"))
         if len(iP) == 1:
-            res = res.squeeze()
-            res.name = path + ", Parameter sample: %d" % iP[0]
+            res[measure] = res[measure].squeeze()
+            res[measure].name = path + ", Parameter sample: %d" % iP[0]
         else:
-            res.name = path + ", Parameters' samples: %s" % \
-                       list(narray_summary_info(np.array(iP), omit_shape=True).values())[0]
+            res[measure].name = path + ", Parameters' samples: %s" % \
+                                list(narray_summary_info(np.array(iP), omit_shape=True).values())[0]
+    else:
+        iP = None
+        res = load_sims_to_xarrays_for_iR(load_sim_to_xarrays_fun, measures,
+                                          path, config, iR=iR, average=average_repetitions,
+                                          folderstr=folderstr, resstr=resstr, **kwargs)[0]
     return res, iP
 
 
