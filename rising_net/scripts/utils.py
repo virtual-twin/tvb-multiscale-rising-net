@@ -98,14 +98,16 @@ def compute_selected_spectra_coherence(source_ts, inds, sample_period, transient
     n_regions = len(inds)
     data = source_ts[transient:, 0, inds].squeeze().T
     fs = 1000/sample_period
+    Ndata = data.shape[1]
     if nperseg is None:
-        nperseg = compute_nperseg(fs, data.shape[1])
+        nperseg = compute_nperseg(fs, Ndata)
     f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
     fout, Pxx_den = interpolate_freqs(Pxx_den, f, fmin=fmin, fmax=fmax, ftarg=ftarg)
     Cxy = []
     n_regions2 = int(n_regions * (n_regions - 1)/2)
     pairs = []
     if n_regions2:
+        nperseg = np.minimum(int(Ndata / 2), nperseg)
         for ii in range(n_regions):
             for jj in range(ii+1, n_regions):
                 f, Cxyiijj = signal.coherence(data[ii], data[jj], fs, nperseg=nperseg)
@@ -122,11 +124,12 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
     n_regions = int(len(inds) / 2)
     transient = int(transient/source_ts.sample_period)
     data = source_ts[transient:, 0, inds].squeeze().T
+    Ndata = data.shape[1]
     if conn is None:
         conn = source_ts.connectivity
     fs = 1000/source_ts.sample_period
     if nperseg is None:
-        nperseg = compute_nperseg(fs, data.shape[1])
+        nperseg = compute_nperseg(fs, Ndata)
     f, Pxx_den = signal.welch(data, fs, nperseg=nperseg)
     fig, axes = plt.subplots(n_regions, 2, figsize=(figsize[0], figsize[1]*n_regions))
     if axes.ndim == 1:
@@ -164,6 +167,7 @@ def compute_plot_selected_spectra_coherence(source_ts, inds,
     CxyLs = []
     n_regions2 = int(n_regions * (n_regions - 1)/2)
     if n_regions2:
+        nperseg = np.minimum(int(Ndata / 2), nperseg)
         fig, axes = plt.subplots(n_regions2, 2, figsize=(figsize[0], figsize[1]*n_regions))
         if len(axes.shape) < 2:
             axes = axes[np.newaxis, :]
