@@ -248,7 +248,7 @@ def configure(**ARGS):
          }
     config.SBI_NUM_WORKERS = 1
     config.SBI_METHOD = 'SNPE'
-    config.TARGET_PSD_POPA_PATH = popa_freqs_path
+    config.TARGET_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
     # config.TASK_TRANSFER_METRICS_PATH = os.path.join(config.out.FOLDER_RES, "task_metrics_data.pkl")
