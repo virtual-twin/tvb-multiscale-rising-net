@@ -15,10 +15,14 @@ from pandas import Index
 from scipy.interpolate import interp1d
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import simres_filepath, construct_filepath
+from rising_net.scripts.filepaths import get_path, simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
-from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
 from rising_net.scripts.tvb_nest_script import *
+from rising_net.scripts.sbi_script import build_priors, \
+    load_train_params_samples, load_train_params_samples_selection, \
+    sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
+    load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
+    plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
 from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_simres_folder_name, simres_folder, \
@@ -319,22 +323,8 @@ def get_sim_res_COHgamma(COHs, pathway_pairs, config):
     return _get_sim_res_COHgamma(COHs, pathway_pairs, config).values
 
 
-def get_sim_res_COHgamma_params_from_path(pathway_pairs, config,
-                                          Nsims=None, conds=["TVB"], path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=conds, path=path, assert_params=assert_params)
-    return get_sim_res_COHgamma_params(COHs, pathway_pairs, config), params.values
-
-
 def get_sim_res_COHgammaPathway_params(COHs, config):
     return COHs.mean(axis=-1).values
-
-
-def get_sim_res_COHgammaPathway_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params = get_sim_res_COHgamma_params_from_path(pathway_pairs_fun(), config,
-                                                         Nsims=Nsims, conds=["TVB"],
-                                                         path=path, assert_params=assert_params)
-    COHs = COHs.mean(axis=-1)  # average over gamma band
-    return COHs.mean(axis=-1), params
 
 
 def get_sim_res_COHgammaM1S1diff(COHs, config):
@@ -342,17 +332,6 @@ def get_sim_res_COHgammaM1S1diff(COHs, config):
     COHs = COHs[0] - COHs[1]   # TVB
     COHs = COHs.mean(axis=-1)  # average over gamma band
     return COHs.values
-
-
-def get_sim_res_COHgammaM1S1diff_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params = get_sim_res_COHgamma_params_from_path(M1S1_pairs_fun(), config,
-                                                         Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                         path=path, assert_params=assert_params)
-    if config.COHERENCE_FISHER_Z_TRANSFORM:
-        COHs = np.arctanh(COHs)
-    COHs = COHs[0] - COHs[1]   # TVB
-    COHs = COHs.mean(axis=-1)  # average over gamma band
-    return COHs, params
 
 
 def get_sim_res_COHM1S1diff(COHs, config):
@@ -375,12 +354,6 @@ def get_sim_res_COHM1S1diff(COHs, config):
     return COHs
 
 
-def get_sim_res_COHM1S1diff_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diff(COHs, config), params.values
-
-
 def get_sim_res_COHM1S1andDiff(COHs, config):
     pathway_pairs = M1S1_pairs_fun()
     COHs = COHs[:, :, :, :, :].isel(
@@ -401,12 +374,6 @@ def get_sim_res_COHM1S1andDiff(COHs, config):
         COHsDiffsPerBand.append((temp[0] - temp[1]).values.squeeze())
     COHs = np.hstack([np.hstack(COHsPerBand), np.hstack(COHsDiffsPerBand)])
     return COHs
-
-
-def get_sim_res_COHM1S1andDiff_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1andDiff(COHs, config), params.values
 
 
 def get_sim_res_COHM1S1diffratio(COHs, config):
@@ -432,12 +399,6 @@ def get_sim_res_COHM1S1diffratio(COHs, config):
     return COHs
 
 
-def get_sim_res_COHM1S1diffratio_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratio(COHs, config), params.values
-
-
 def get_sim_res_COHM1S1diffratioDist(COHs, config):
     COHs =  get_sim_res_COHM1S1diffratio(COHs, config)
     target = target_COHM1S1diffratio_fun(config).numpy()
@@ -448,20 +409,8 @@ def get_sim_res_COHM1S1diffratioDist(COHs, config):
     return COHs
 
 
-def get_sim_res_COHM1S1diffratioDist_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratioDist(COHs, config), params.values
-
-
 def get_sim_res_COHM1S1diffratioDist2Sum(COHs, config):
     return np.sqrt((get_sim_res_COHM1S1diffratioDist(COHs, config)**2).sum(axis=1))[:, np.newaxis]
-
-
-def get_sim_res_COHM1S1diffratioDist2Sum_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratioDist2Sum(COHs, config), params.values
 
 
 def get_sim_res_COHM1S1diffratioDistRatio(COHs, config):
@@ -474,30 +423,12 @@ def get_sim_res_COHM1S1diffratioDistRatio(COHs, config):
     return COHs
 
 
-def get_sim_res_COHM1S1diffratioDistRatio_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratioDistRatio(COHs, config), params.values
-
-
 def get_sim_res_COHM1S1diffratioDistRatioDist(COHs, config):
     return get_sim_res_COHM1S1diffratioDistRatio(COHs, config).sum(axis=1)[:, np.newaxis]
 
 
-def get_sim_res_COHM1S1diffratioDistRatioDist_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratioDistRatioDist(COHs, config), params.values
-
-
 def get_sim_res_COHM1S1diffratioDistRatioDist2(COHs, config):
     return (get_sim_res_COHM1S1diffratioDistRatio(COHs, config)**2).sum(axis=1)[:, np.newaxis]
-
-
-def get_sim_res_COHM1S1diffratioDistRatioDist2_params_from_path(config, Nsims=None, path=None, assert_params=True):
-    COHs, params, failed = load_allsims_to_xarrays(Nsims=Nsims, conds=["TVB", "TVB_CEREBOFF"],
-                                                   path=path, assert_params=assert_params)
-    return get_sim_res_COHM1S1diffratioDistRatioDist2(COHs, config), params.values
 
 
 def target_COHgammaPathway_fun(config, target=0.5):
@@ -508,7 +439,7 @@ def target_COHgammaPathway_fun(config, target=0.5):
 
 
 def load_Popa_etal_COH(config):
-    with open(os.path.join(config.TARGET_PSD_POPA_PATH, 'COH.npy'), 'rb') as f:
+    with open(os.path.join(config.TARGET_POPA_PATH, 'COH.npy'), 'rb') as f:
         COH = np.load(f)
     # # Compute coherence interpolation...
     # interp = interp1d(COH.T[0], COH.T[1], kind='linear', axis=0,
@@ -522,7 +453,6 @@ def target_COHgammaM1S1diff_fun(config, target=0.1):
         if config.COHERENCE_FISHER_Z_TRANSFORM:
             COH = np.arctanh(COH)
         gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
-        # TODO: Update when we have the CEREBOFF Popa et al data:
         target = np.array([[np.mean(COH[0, gammaInds] - COH[1, gammaInds])] * 2]).flatten()
     else:
         target = target * np.ones((2,))
@@ -537,7 +467,6 @@ def target_COHM1S1diff_fun(config, target=None):
         thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
         betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
         gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
-        # TODO: Update when we have the CEREBOFF Popa et al data:
         target = np.array([[np.mean(COH[0, thetaInds] - COH[1, thetaInds])]*2,
                            [np.mean(COH[0, betaInds] - COH[1, betaInds])]*2,
                            [np.mean(COH[0, gammaInds] - COH[1, gammaInds])]*2]).flatten()
@@ -554,7 +483,6 @@ def target_COHM1S1andDiff_fun(config, target=None):
         thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
         betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
         gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
-        # TODO: Update when we have the CEREBOFF Popa et al data:
         target = np.array([[np.mean(COH[0, thetaInds])]*2,
                            [np.mean(COH[0, betaInds])]*2,
                            [np.mean(COH[0, gammaInds])]*2,
@@ -574,7 +502,6 @@ def target_COHM1S1diffratio_fun(config, target=None):
         thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
         betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
         gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
-        # TODO: Update when we have the CEREBOFF Popa et al data:
         target = np.array([[np.mean((COH[0, thetaInds] - COH[1, thetaInds])/COH[0, thetaInds])]*2,
                            [np.mean((COH[0, betaInds] - COH[1, betaInds])/COH[0, betaInds])]*2,
                            [np.mean((COH[0, gammaInds] - COH[1, gammaInds])/COH[0, gammaInds])]*2]).flatten()
@@ -593,6 +520,43 @@ def target_COHM1S1diffratioDist2Sum_fun(config, target=None):
 
 def target_COHM1S1diffratioDistRatioDist(config, target=None):
     return torch.Tensor(np.zeros((1,)))
+
+
+def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+                      config=None, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if sim_res_path is None:
+        sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
+    # Load priors' samples
+    # By default, we load all parameters and all simulation repetitions and we average across repetitions.
+    sim_res = load_sims_to_xarrays(sim_res_path, config, iP=None, iR=None, modes=None, measures="COH",
+                                   average_repetitions=True, folderstr=folderstr, resstr=resstr)[0]["COH"]
+    # Reverse the dimensions of modes and parameters:
+    return sim_res_fun(sim_res.transpose(*np.array(sim_res.dims)[[1, 0, 2, 3, 4]].tolist()), config)
+
+
+def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
+                                        sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+                                        target=None, target_fun=target_COHM1S1diffratio_fun,
+                                        config=None, folderstr=NSDSTR, resstr=RESSTR):
+    # Rebuild priors if not provided in the input:
+    if priors is None:
+        priors = build_priors(config)
+    # Load training parameters' samples if not provided in the input:
+    if train_params_samples is None:
+        train_params_samples = load_train_params_samples(config,
+                                                         # iR=parameters_iR,
+                                                         # label=parameters_label,
+                                                         # filepath=parameters_filepath,
+                                                         # extension=parameters_filepath_ext
+                                                         ).numpy().squeeze().astype('float32')
+    # Load training simulation results if not provided in the input:
+    if sim_res is None:
+        sim_res = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
+                                    config=config, folderstr=folderstr, resstr=resstr)
+    if target is None:
+        target = target_fun(config, target)
+    return priors, train_params_samples, sim_res, target
 
 
 if __name__ == "__main__":
