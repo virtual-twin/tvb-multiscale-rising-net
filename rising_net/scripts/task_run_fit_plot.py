@@ -15,20 +15,26 @@ from pandas import Index
 from scipy.interpolate import interp1d
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import simres_filepath
+from rising_net.scripts.filepaths import simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.nest_script import *        #build_NEST_network, plot_nest_results
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.run_fit_plot import sim_run_plot, simres_folder, process_funcmode, run_fit_plot_args_parser
+from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_simres_folder_name, simres_folder, \
+    process_funcmode, sim_run_plot, run_fit_plot_args_parser, load_sims_to_xarrays_for_iP
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
 from tvb_multiscale.core.plot.plotter import Plotter
 from tvb_multiscale.core.utils.file_utils import load_pickled_dict, dump_pickled_dict
 
+from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
+from tvb.contrib.scripts.utils.file_utils import safe_makedirs
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
+
+
+MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF"]
 
 
 def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
@@ -103,31 +109,108 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     return config, plotter
 
 
-def plot_comparison(tests, **kwargs):
+def find_all_modes_folders(path, modes=MODES):
+    modes_found = []
+    for mode in modes:
+        folder = os.path.join(path, mode)
+        if os.path.isdir(folder):
+            resfiles = glob.glob(os.path.join(folder, "res", "res_*.pkl"))
+            Nf =len(resfiles)
+            if Nf == 1:
+                modes_found.append(mode)
+            elif Nf > 1:
+                raise ValueError("\nMore than one (%d) results files found in path %s!:\n%s\n" %
+                                 (Nf, folder, str(resfiles)))
+    return modes_found
 
-    TESTS = tests
-    colors = []
-    for test, col in zip(["COSIM", "COSIM_CEREBOFF", "TVB", "TVB_CEREBOFF"], ["b", "m", "g", "r"]):
-        if test in TESTS:
-            colors.append(col)
-    TESTSFOLDER = "-".join(TESTS)
 
-    # CONFIGURATION:
-    MODE = kwargs.pop("MODE", TESTS[0])
-    config, plotter = get_config(MODE=MODE, **kwargs)
+def correct_regions(config):
+    # TODO: REMOVE THIS HACK!
+    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
+    connectivity = build_connectivity(connectome, inds, config)
+    return connectivity.region_labels[config.TASKINDS]
+
+
+def coh_to_xarray(res):
+    Nregs = len(res["regions"])
+    COH = DataArray(np.zeros((Nregs, Nregs, len(res["f"]))),
+                    dims=["Region1", "Region2", "f"],
+                    coords={"Region1": res["regions"],
+                            "Region2": res["regions"],
+                            "f": res["f"]},
+                    name="COH")
+    for iP, pair in enumerate(res["pairs"]):
+        COH[pair[0], pair[1]] = res["COH"][iP]
+        COH[pair[1], pair[0]] = COH[pair[0], pair[1]]
+    return COH
+
+
+def psd_to_xarray(res):
+    return DataArray(res["PSD"],
+                     dims=["Region", "f"],
+                     coords={"Region": res["regions"], "f": res["f"]},
+                     name="PSD")
+
+
+def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None, measures="COH"):
+    if modes is None:
+        modes = find_all_modes_folders(folder, modes=MODES)
+    measures = ensure_list(measures)
+    for iM, measure in enumerate(measures):
+        measures[iM] = measure.upper()
+    res = dict(zip(measures, [list() for _ in range(len(measures))]))
+    for mode in modes:
+        path = construct_filepath(os.path.join(folder, mode, resstr), default_filename=config.SIM_RES_FILE, iR=iR)
+        res_i = load_pickled_dict(path)
+        # TODO: REMOVE THIS HACK!
+        res_i["regions"] = correct_regions(config)
+        for measure in measures:
+            if "COH" in measure:
+                res[measure].append(coh_to_xarray(res_i))
+            elif "PSD" in measure:
+                res[measure].append(psd_to_xarray(res_i))
+            res[measure][-1].name += " %s: %s" % (mode, path)
+    for measure in measures:
+        res[measure] = concat(res[measure], dim=Index(modes, name="Simulation mode"))
+        res[measure].name = "%s %s: %s" % (measure, str(modes), folder)
+    return res
+
+
+def load_sims_to_xarrays(path=None, config=None, iP=None, iR=None, modes=None, measures="COH",
+                         average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False)
+    if path is None:
+        path = config.out.FOLDER_RES
+    return load_sims_to_xarrays_for_iP(load_task_sims_to_xarrays, measures, path,
+                                       config, iP=iP, iR=iR,
+                                       average_repetitions=average_repetitions,
+                                       folderstr=folderstr, resstr=resstr, modes=modes)
+
+
+def pathway_pairs_fun():
+    pathway_pairs_R = [[0, 3], [3, 5], [5, 7], [7, 9], [9, 11], [11, 13], [0, 13], [13, 18]]
+    pathway_pairs_L = [[1, 2], [2, 4], [4, 6], [6, 8], [8, 10], [10, 12], [1, 12], [12, 19]]
+    pathway_pairs = np.array(pathway_pairs_R + pathway_pairs_L)
+    return pathway_pairs
+
+
+def plot_comparisons(COH, PSD, config, plotter, folder=None):
+
+    if folder is None:
+        folder = config.figures.FOLDER_FIGURES
 
     # CONNECTIVITY:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
     connectivity = build_connectivity(connectome, inds, config)
 
-    # Results path:
-    if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
-    BASEPATH = os.path.dirname(config.out.FOLDER_RES.split("/res")[0])
-    if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
-    TESTSPATH = os.path.join(BASEPATH, TESTSFOLDER)
-    if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
-    config.out._out_base = TESTSPATH
-    config.figures._out_base = TESTSPATH
+    # # Results path:
+    # if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
+    # BASEPATH = os.path.dirname(config.out.FOLDER_RES.split("/res")[0])
+    # if config.VERBOSITY > 1: print("BASEPATH: ", BASEPATH)  # e.g. "../outputs"
+    # TESTSPATH = os.path.join(BASEPATH, TESTSFOLDER)
+    # if config.VERBOSITY > 1: print("TESTSPATH: ", TESTSPATH)
+    # config.out._out_base = TESTSPATH
+    # config.figures._out_base = TESTSPATH
 
     # Task related regions' labels:
     REGION_LABELS = connectivity.region_labels[config.TASKINDS]
@@ -141,55 +224,27 @@ def plot_comparison(tests, **kwargs):
     results = {"inds": config.TASKINDS,
                "region_labels": REGION_LABELS, "short_labels": SHORT_LABELS,
                "theta": THETA, "gamma": GAMMA}
-
-    for test_name in TESTS:
-
-        results[test_name] = {}
-        Ps = []
-        Cs = []
-
-        if config.VERBOSITY > 1: print("test_name: ", test_name)
-        testpath_old = os.path.join(BASEPATH, test_name)
-        if config.VERBOSITY > 1: print("testpath_old: ", testpath_old)
-        testpath = os.path.join(TESTSPATH, test_name)
-        if config.VERBOSITY > 1: print("testpath: ", testpath)
-        if os.path.isdir(testpath_old):
-            shutil.move(testpath_old, testpath)
-        nsdtestpath = os.path.join(testpath, "nsd*")
-        if config.VERBOSITY > 1: print("nsdtestpath: ", nsdtestpath)
-        paths = glob.glob(nsdtestpath)
-        if len(paths) == 0:
-            Warning("No simulation files found at paths %s\nTrying for single simulation!" % nsdtestpath)
-            paths = [testpath]
-        for path in paths:
-            resultsfile = os.path.join(path, "res/source_ts.pkl")
-            if config.VERBOSITY > 1: print(resultsfile)
-            with open(resultsfile, 'rb') as handle:
-                source_ts = pickle.load(handle)  # to load results
-            Pxx_den, Cxy, f, ij = compute_selected_spectra_coherence(
-                                        source_ts["data"], config.TASKINDS,
-                                        transient=source_ts["data"].shape[0]-2**15,  # 2**15 final length
-                                        sample_period=source_ts["sample_period"],
-                                        nperseg=None, fmin=0.0, fmax=GAMMA[-1])
-            Ps.append(Pxx_den)
-            Cs.append(Cxy)
-
-        results[test_name]['PSD'] = np.array(Ps)
-        results[test_name]['COH'] = np.array(Cs)
-        fth = np.where(np.logical_and(f > THETA[0], f < THETA[1]))[0]
-        results[test_name]['COHth'] = results[test_name]['COH'][:, :, fth].mean(axis=2)  # TODO Find out if it is correct!
-        fgm = np.where(np.logical_and(f > GAMMA[0], f < GAMMA[1]))[0]
-        results[test_name]['COHgm'] = results[test_name]['COH'][:, :, fgm].mean(axis=2) # TODO Find out if it is correct!
-
-    results["f"] = f      # frequency vector
-    results["fth"] = fth  # theta frequency vector inds
-    results["fgm"] = fgm  # gamma frequency vector inds
-    results["ij"] = ij    # pairs of regions of coherences where i, j in [0, config.TASKINDS.size]
-
-    dump_pickled_dict(results, os.path.join(config.out.FOLDER_RES, "res_PSD_COH.pkl"))
+    f = COH.coords["f"].values
+    fth = np.where(np.logical_and(f > THETA[0], f < THETA[1]))[0]
+    fgm = np.where(np.logical_and(f > GAMMA[0], f < GAMMA[1]))[0]
+    modes = COH.coords[COH.dims[1]].values.tolist()
+    colors = []
+    for mode, col in zip(MODES, ["g", "r", "b", "m"]):
+        if mode in modes:
+            colors.append(col)
+    for iM, mode in enumerate(modes):
+        results[mode] = {}
+        results[mode]['PSD'] = PSD[:, iM].values
+        results[mode]['COH'] = COH[:, iM].values
+        results[mode]['COHth'] = results[mode]['COH'][:, :, :, fth].mean(axis=-1)
+        results[mode]['COHgm'] = results[mode]['COH'][:, :, :, fgm].mean(axis=-1)
+        results["f"] = f  # frequency vector
+        results["fth"] = fth  # theta frequency vector inds
+        results["fgm"] = fgm  # gamma frequency vector inds
+        results["ij"] = pathway_pairs_fun()  # pairs of regions of coherences where i, j in [0, config.TASKINDS.size]
 
     figR, axR, figL, axL = plot_pathway_psd_coh(results, inds,
-                                                tests=TESTS, colors=colors,
+                                                tests=modes, colors=colors,
                                                 percentile_min=1, percentile_max=99, n=1,
                                                 plot_mean=True, plot_median=False, modePSD="semilog", modeCOH="linear",
                                                 alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)
@@ -197,203 +252,53 @@ def plot_comparison(tests, **kwargs):
     if plotter.config.SAVE_FLAG:
         for fig, hemi in zip([figR, figL], ["Right", "Left"]):
             plt.figure(fig.number)
-            plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "PathwayPSD_COH_%s.png" % hemi))
+            plt.savefig(os.path.join(folder, "Pathway_PSD_COH_%s.png" % hemi))
 
     figPSD, axesPSD = psd_percent_plot(results,
-                                        inds=None,
-                                        tests=TESTS, colors=colors,
-                                        percentile_min=1, percentile_max=99, n=1,
-                                        plot_mean=False, plot_median=True,
-                                        alpha=0.5, figsize=config.figures.DEFAULT_SIZE, fontsize=16)
+                                       inds=None,
+                                       tests=modes, colors=colors,
+                                       percentile_min=1, percentile_max=99, n=1,
+                                       plot_mean=False, plot_median=True,
+                                       alpha=0.5, figsize=config.figures.DEFAULT_SIZE, fontsize=16)
 
     if plotter.config.SAVE_FLAG:
         plt.figure(figPSD.number)
-        plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "PSDs.png"))
+        plt.savefig(os.path.join(folder, "PSDs.png"))
 
     figCOH, axesCOH = coherence_networks_plot(results,
-                                              tests=TESTS,
+                                              tests=modes,
                                               resnames=['COHth', 'COHgm'],
                                               bands=["theta", "gamma"],
                                               figsize=config.figures.DEFAULT_SIZE, fontsize=16)
 
     if plotter.config.SAVE_FLAG:
         plt.figure(figCOH.number)
-        plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "COHs.png"))
+        plt.savefig(os.path.join(folder, "COHs.png"))
 
 
-def params_path_fun(iR=None, path=None):
-    if path is None:
-        path = os.getcwd()
-    if iR is not None:
-        return os.path.join(path, "PRIORS/res/ps_%05d.pt" % iR)
-    else:
-        return os.path.join(path, "PRIORS/res/ps_*.pt")
+def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
 
+    # CONFIGURATION:
+    FUNCMODE = kwargs.get("FUNCMODE", "SIM")
+    config, plotter = assert_config(config, return_plotter=True, **kwargs)
+    folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
+    path = config.out.FOLDER_RES
+    figsfolder = config.figures.FOLDER_FIGURES
+    if len(folder):
+        path = os.path.join(os.path.dirname(config.out.FOLDER_RES), folder)
 
-def sim_res_path_fun(iR=None, path=None, mode="TVB"):
-    if path is None:
-        path = os.getcwd()
-    if iR is not None:
-        ipath = os.path.join(path, mode, "nsd%05d" % iR, "res")
-        return os.path.join(ipath, "res_%05d.pkl" % iR), os.path.join(ipath, "config.pkl")
-    else:
-        ipath = os.path.join(path, mode, "nsd*", "res")
-        return os.path.join(ipath, "res_*.pkl"), os.path.join(ipath, "config.pkl")
+    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, modes=TESTS, measures=["COH", "PSD"],
+                                    average_repetitions=False, folderstr=folderstr, resstr=resstr)
+    Nps = len(iPs)
+    if Nps == 0:
+        iPs = [None]
 
-
-def all_paths_fun(iR=None, path=None, mode="TVB"):
-    if path is None:
-        path = os.getcwd()
-    params_path = params_path_fun(iR, path)
-    res_path, config_path = sim_res_path_fun(iR, path, mode)
-    return params_path, res_path, config_path
-
-
-def assert_params_fun(config, params):
-    for iP, p in enumerate(config["PRIORS_PARAMS_NAMES"]):
-
-        if iP < 2:
-            pval = config["model_params"][p]
-        else:
-            pval = config[p]
-        try:
-            #         print(p)
-            #         print(pval)
-            #         print(params[iP])
-            assert pval == params[iP]
-        except Exception as e:
-            print(p)
-            print(pval)
-            print(params[iP])
-            raise e
-
-
-def loadsim(iR, mode="TVB", path=None, assert_params=True):
-    params_path, res_path, config_path = all_paths_fun(iR, path, mode)
-
-    params = torch.load(params_path).numpy().squeeze()
-    config = load_pickled_dict(config_path)
-    res = load_pickled_dict(res_path)
-
-    if assert_params:
-        assert_params_fun(config, params)
-
-    return params, config, res
-
-
-def coh_to_xarray(res):
-    COH = DataArray(np.zeros((20, 20, 96)), dims=["Region1", "Region2", "f"],
-                    coords={"Region1": res["source_ts"].labels_dimensions["Region"],
-                            "Region2": res["source_ts"].labels_dimensions["Region"],
-                            "f": res["f"]},
-                    name="COH")
-    for iP, pair in enumerate(res["pairs"]):
-        COH[pair[0], pair[1]] = res["COH"][iP]
-    return COH
-
-
-def loadsim_to_xarrays(iR, mode="TVB", path=None, assert_params=True):
-    if path is None:
-        path = os.getcwd()
-    params, config, res = loadsim(iR, mode=mode, path=path, assert_params=assert_params)
-
-    # TS = res["source_ts"]._data[:, :, :, 0].transpose("Region", "Time", "State Variable")
-
-    # PSD = DataArray(res["PSD"], dims=["Region", "f"],
-    #                 coords={"Region": res["source_ts"].labels_dimensions["Region"],
-    #                         "f": res["f"]},
-    #                 name="PSD")
-
-    # TM = res["TaskMetrics"].T
-
-    return coh_to_xarray(res), params, config  # TS, PSD, COH, TM, params, config
-
-
-def load_allsims_to_xarrays(Nsims=None, conds=["TVB", "TVB_CEREBOFF"], path=None, assert_params=True):
-    res_files = glob.glob(sim_res_path_fun(iR=None, path=path, mode=conds[0])[0])
-    # TODO: Make this temporary hack more robust!!!:
-    NallSims = int(np.sort(res_files)[-1].split("_")[-1].split(".pkl")[0])
-    # NallSims = len(res_files)
-    if Nsims is None:
-        Nsims = NallSims
-    if Nsims < NallSims:
-        sims = np.random.permutation(NallSims)[:Nsims]
-    else:
-        if Nsims > NallSims:
-            warnings.warn("There are no %d samples available! Switching to %d samples!" % (Nsims, NallSims))
-            Nsims = NallSims
-        sims = np.arange(Nsims).astype("i")
-
-    if Nsims == 0:
-        _, config, _ = loadsim(0, mode=conds[0], path=path, assert_params=False)
-
-    params = []
-    # TSs = []
-    # PSDs = []
-    COHs = []
-    # TMs = []
-
-    failed = []
-    ifailed = []
-    for iiR, iR in enumerate(sims):
-        COHiR = []
-        try:
-            for iC, cond in enumerate(conds):
-                # TS1, PSD1, COH1, TM1, param, config
-                COHiC, param, config = \
-                    loadsim_to_xarrays(iR, mode=cond, path=path, assert_params=assert_params)
-                COHiR.append(COHiC)
-        except Exception as e:
-            failed.append(iR)
-            ifailed.append(iiR)
-            warnings.warn(str(e))
-            continue
-        params.append(param)
-        # TSs.append(concat([TS1, TS2], dim=Index(conds, name="Condition")))
-        # PSDs.append(concat([PSD1, PSD2], dim=Index(conds, name="Condition")))
-        COHs.append(concat(COHiR, dim=Index(conds, name="Condition")))
-        # TMs.append(concat([TM1, TM2], dim=Index(conds, name="Condition")))
-    sims = np.delete(sims, ifailed)
-
-    params = DataArray(np.array(params).T, dims=["Parameter", "Simulation"],
-                       coords={"Parameter": config['PRIORS_PARAMS_NAMES'],
-                               "Simulation": sims})
-    # TSs = concat(TSs, dim=Index(sims, name="Simulation"))
-    # TSs = TSs.transpose(*(tuple(np.array(TSs.dims)[[1, 0]].tolist()) + TSs.dims[2:]))
-    # PSDs = concat(PSDs, dim=Index(sims, name="Simulation"))
-    # PSDs = PSDs.transpose(*(tuple(np.array(PSDs.dims)[[1, 0]].tolist()) + PSDs.dims[2:]))
-    COHs = concat(COHs, dim=Index(sims, name="Simulation"))
-    COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
-    # TMs = concat(TMs, dim=Index(sims, name="Simulation"))
-    # TMs = TMs.transpose(*(tuple(np.array(TMs.dims)[[1, 0]].tolist()) + TMs.dims[2:]))
-
-    nFailed = len(failed)
-    if nFailed:
-        warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
-
-    return COHs, params, failed  # TSs, PSDs, COHs, TMs, params, failed
-
-
-def define_colors(N):
-    from cycler import cycler
-    import matplotlib as mpl
-
-    cmap = mpl.colormaps['jet']
-
-    # Take colors at regular intervals spanning the colormap.
-    colors = cmap(np.linspace(0, 1, N))
-
-    custom_cycler = cycler(color=colors)  # or simply color=colorlist
-    plt.rc('axes', prop_cycle=custom_cycler)
-
-    return custom_cycler
-
-
-def pathway_pairs_fun():
-    pathway_pairs_R = [[0, 3], [3, 5], [5, 7], [7, 9], [9, 11], [11, 13], [0, 13], [13, 18]]
-    pathway_pairs_L = [[1, 2], [2, 4], [4, 6], [6, 8], [8, 10], [10, 12], [1, 12], [12, 19]]
-    pathway_pairs = np.array(pathway_pairs_R + pathway_pairs_L)
-    return pathway_pairs
+    for iiP, iP in enumerate(iPs):
+        if iP is not None:
+            figsfolder = os.path.join(path, iPstr(iP, Nsims=Nps, resstr=resstr))
+            figsfolder = os.path.join(figsfolder, "figs")
+            safe_makedirs(figsfolder)
+        plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder)
 
 
 def M1S1_pairs_fun():
@@ -864,9 +769,100 @@ def infer(sim_res_fun, target_fun, target=None, path=None, assert_params=True,
 #         warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
 #
 #     return PSDs, failed
-
-
-
+#
+# def params_path_fun(iR=None, path=None):
+#     if path is None:
+#         path = os.getcwd()
+#     if iR is not None:
+#         return os.path.join(path, "PRIORS/res/ps_%05d.pt" % iR)
+#     else:
+#         return os.path.join(path, "PRIORS/res/ps_*.pt")
+#
+#
+# def assert_params_fun(config, params):
+#     for iP, p in enumerate(config["PRIORS_PARAMS_NAMES"]):
+#
+#         if iP < 2:
+#             pval = config["model_params"][p]
+#         else:
+#             pval = config[p]
+#         try:
+#             #         print(p)
+#             #         print(pval)
+#             #         print(params[iP])
+#             assert pval == params[iP]
+#         except Exception as e:
+#             print(p)
+#             print(pval)
+#             print(params[iP])
+#             raise e
+#
+#
+# def load_allsims_to_xarrays(Nsims=None, conds=["TVB", "TVB_CEREBOFF"], path=None, assert_params=True):
+#     res_files = glob.glob(sim_res_path_fun(iR=None, path=path, mode=conds[0])[0])
+#     # TODO: Make this temporary hack more robust!!!:
+#     NallSims = int(np.sort(res_files)[-1].split("_")[-1].split(".pkl")[0])
+#     # NallSims = len(res_files)
+#     if Nsims is None:
+#         Nsims = NallSims
+#     if Nsims < NallSims:
+#         sims = np.random.permutation(NallSims)[:Nsims]
+#     else:
+#         if Nsims > NallSims:
+#             warnings.warn("There are no %d samples available! Switching to %d samples!" % (Nsims, NallSims))
+#             Nsims = NallSims
+#         sims = np.arange(Nsims).astype("i")
+#
+#     if Nsims == 0:
+#         _, config, _ = loadsim(0, mode=conds[0], path=path, assert_params=False)
+#
+#     params = []
+#     # TSs = []
+#     # PSDs = []
+#     COHs = []
+#     # TMs = []
+#
+#     failed = []
+#     ifailed = []
+#     for iiR, iR in enumerate(sims):
+#         COHiR = []
+#         try:
+#             for iC, cond in enumerate(conds):
+#                 # TS1, PSD1, COH1, TM1, param, config
+#                 COHiC, param, config = \
+#                     loadsim_to_xarrays(iR, mode=cond, path=path, assert_params=assert_params)
+#                 COHiR.append(COHiC)
+#         except Exception as e:
+#             failed.append(iR)
+#             ifailed.append(iiR)
+#             warnings.warn(str(e))
+#             continue
+#         params.append(param)
+#         # TSs.append(concat([TS1, TS2], dim=Index(conds, name="Condition")))
+#         # PSDs.append(concat([PSD1, PSD2], dim=Index(conds, name="Condition")))
+#         COHs.append(concat(COHiR, dim=Index(conds, name="Condition")))
+#         # TMs.append(concat([TM1, TM2], dim=Index(conds, name="Condition")))
+#     sims = np.delete(sims, ifailed)
+#
+#     params = DataArray(np.array(params).T, dims=["Parameter", "Simulation"],
+#                        coords={"Parameter": config['PRIORS_PARAMS_NAMES'],
+#                                "Simulation": sims})
+#     # TSs = concat(TSs, dim=Index(sims, name="Simulation"))
+#     # TSs = TSs.transpose(*(tuple(np.array(TSs.dims)[[1, 0]].tolist()) + TSs.dims[2:]))
+#     # PSDs = concat(PSDs, dim=Index(sims, name="Simulation"))
+#     # PSDs = PSDs.transpose(*(tuple(np.array(PSDs.dims)[[1, 0]].tolist()) + PSDs.dims[2:]))
+#     COHs = concat(COHs, dim=Index(sims, name="Simulation"))
+#     COHs = COHs.transpose(*(tuple(np.array(COHs.dims)[[1, 0]].tolist()) + COHs.dims[2:]))
+#     # TMs = concat(TMs, dim=Index(sims, name="Simulation"))
+#     # TMs = TMs.transpose(*(tuple(np.array(TMs.dims)[[1, 0]].tolist()) + TMs.dims[2:]))
+#
+#     nFailed = len(failed)
+#     if nFailed:
+#         warnings.warn("There are %d simulations that failed to provide a sample!:\n%s" % (nFailed, str(failed)))
+#
+#     return COHs, params, failed  # TSs, PSDs, COHs, TMs, params, failed
+#
+#
 #
 #
 # def sim_res_PSD_fun(sim_res, config):
