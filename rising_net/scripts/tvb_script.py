@@ -958,8 +958,8 @@ def simulate(simulator, config):
 
 def compute_target_PSDs(config):
     # Load Popa 2013 files:
-    psd_m1 = np.load(os.path.join(config.TARGET_PSD_POPA_PATH, "PSD_M1.npy"))
-    psd_s1 = np.load(os.path.join(config.TARGET_PSD_POPA_PATH, "PSD_S1.npy"))
+    psd_m1 = np.load(os.path.join(config.TARGET_POPA_PATH, "PSD_M1.npy"))
+    psd_s1 = np.load(os.path.join(config.TARGET_POPA_PATH, "PSD_S1.npy"))
 
     # Interpolate to the desired frequency range:
     psd_m1_target = np.interp(config.TARGET_FREQS, psd_m1[:, 0], psd_m1[:, 1])
