@@ -351,7 +351,6 @@ def coherence_networks_plot(results,
                             bands=["theta", "gamma"],
                             figsize=(20, 10), fontsize=16):
     nR = len(results["inds"])
-
     vmins = []
     vmaxs = []
     data = []
@@ -363,8 +362,8 @@ def coherence_networks_plot(results,
                 results[test_name][res][:, results["ij"][:, 0], results["ij"][:, 1]].mean(axis=0)
             dataB.append(dataT)
         dataB = np.array(dataB)
-        vmins.append(np.percentile(dataB, 5))
-        vmaxs.append(np.percentile(dataB, 95))
+        vmins.append(np.nanpercentile(dataB, 5))
+        vmaxs.append(np.nanpercentile(dataB, 95))
         data.append(dataB)
     data = np.array(data)
     fig, axes = plt.subplots(len(resnames), len(tests), figsize=(figsize[0], 1.5*figsize[1]))
