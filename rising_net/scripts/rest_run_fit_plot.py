@@ -192,8 +192,7 @@ def target_PSD_fun(config, target=None):
 def load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
                                                target=None,
-                                               config=None,
-                                               igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                                               config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     # Rebuild priors if not provided in the input:
     if priors is None:
@@ -223,45 +222,38 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
 
 def infer_workflow_for_iG(iG,
                           priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
-                          target=None,
-                          config=None,
-                          igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                          ground_truth=None,
+                          target=None, ground_truth=None,
+                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                           label="", n_samples_per_run=None, measure_labels=None,
-                          results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
+                          results=None, iR=None, save_samples=True,
+                          plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
-                                                   config,
-                                                   igstr, folderstr, resstr)
+                                                   config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
-    return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth, config,
-                          label, n_samples_per_run, measure_labels,
-                          results, iR, save_samples, plot_flag, verbosity)
+    return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
+                          config, label, n_samples_per_run, measure_labels,
+                          results, iR, save_samples, plot_flag, plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_iG(iG,
                        priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
-                       target=None,
-                       config=None,
-                       igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                       ground_truth=None,
+                       target=None, ground_truth=None,
+                       config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                        label="", n_samples_per_run=None, measure_labels=None,
                        save_samples=True, plot_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
-                                                   config,
-                                                   igstr, folderstr, resstr)
+                                                   config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
-    return infer_nRuns(train_params_samples, sim_res, priors, target,
-                       ground_truth, config,
-                       label, n_samples_per_run, measure_labels,
-                       save_samples, plot_flag, verbosity)
+    return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
+                       config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, verbosity)
 
 
-def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None, config=None,
-                          igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
+                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
         sim_res_path = get_path(config, folder=get_simres_folder_name(config, "%sSIM" % stat.upper()))
@@ -283,8 +275,7 @@ def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None, 
 
 
 def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="", sim_res_path=None, config=None,
-                                        target=None,
-                                        igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                                        target=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iG, iP = load_stat_sims_for_iG(iG, stat=stat, label=label, sim_res_path=sim_res_path, iP=iP,
                                             config=config,  igstr=igstr, folderstr=folderstr, resstr=resstr)
@@ -298,14 +289,13 @@ def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label=
 
 
 def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
-                                                 sim_res_path=None, config=None,
-                                                 target=None,
-                                                 igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                                                 sim_res_path=None, target=None,
+                                                 config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                  measure_labels=None):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
-        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, config,
-                                            target, igstr, folderstr, resstr)
+        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, target,
+                                             config, igstr, folderstr, resstr)
     params_vals = np.array(list(params.values())).T
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
@@ -314,14 +304,14 @@ def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=Non
 
 
 def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
-                                                      sim_res_path=None, config=None,
+                                                      sim_res_path=None,
                                                       target=None, target_dist_fun=correlation_distance, Nbest=None,
-                                                      igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                                                      config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                       measure_labels=None):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
-        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, config,
-                                            target, igstr, folderstr, resstr)
+        load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path,  target,
+                                            config, igstr, folderstr, resstr)
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
                                              label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
