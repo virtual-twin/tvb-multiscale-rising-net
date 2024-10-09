@@ -349,14 +349,10 @@ def load_sims_to_xarrays_for_iR(load_sim_to_xarrays_fun, measures, path=None, co
                 res[measure].append(res_i[measure])
         for measure in measures:
             res[measure] = xr.concat(res[measure], dim=pd.Index(iR, name="Repetitions' index iR"))
-            if len(iR) == 1:
-                res[measure] = res[measure].squeeze()
-                res[measure].name = path + ", Repetition: %d" % iR[0]
-            else:
-                res[measure].name = path + ", Repetitions: %s" % \
-                           list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
-                if average:
-                    res[measure] = res[measure].mean(axis=0).squeeze()
+            res[measure].name = path + ", Repetitions: %s" % \
+                                list(narray_summary_info(np.array(iR), omit_shape=True).values())[0]
+            if average:
+                res[measure] = res[measure].mean(axis=0).squeeze()
     else:
         iR = None
         res = load_sim_to_xarrays_fun(path, config, iR=iR, resstr=resstr, measures=measures, **kwargs)
@@ -386,10 +382,6 @@ def load_sims_to_xarrays_for_iP(load_sim_to_xarrays_fun, measures, path=None, co
                 res[measure].append(res_i[measure])
         for measure in measures:
             res[measure] = xr.concat(res[measure], dim=pd.Index(iP, name="Parameters' samples' index iP"))
-        if len(iP) == 1:
-            res[measure] = res[measure].squeeze()
-            res[measure].name = path + ", Parameter sample: %d" % iP[0]
-        else:
             res[measure].name = path + ", Parameters' samples: %s" % \
                                 list(narray_summary_info(np.array(iP), omit_shape=True).values())[0]
     else:
