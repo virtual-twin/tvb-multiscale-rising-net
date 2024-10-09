@@ -291,7 +291,9 @@ def sbi_train(priors, train_params_samples, sim_res, verbosity):
             # Build the posterior:
             if verbosity:
                 print("\nBuilding the posterior...")
-            posterior = inference.build_posterior(density_estimator)
+            posterior = inference.build_posterior(density_estimator,
+                                                  # sample_with="mcmc"
+                                                  )
             keep_building = 0
         except Exception as e:
             exception = e
@@ -335,7 +337,8 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
     if verbosity:
         print("\nSampling %d samples from the posterior..." % n_samples_per_run)
         tic = time.time()
-    samples = posterior.sample((n_samples_per_run,), show_progress_bars=verbosity>0).numpy()
+    samples = posterior.sample((n_samples_per_run,),
+                               show_progress_bars=verbosity>0).numpy()
     if verbosity:
         print("\nDONE sampling in %g secs!" % (time.time() - tic))
         print("\nSampling to find MAP with %d initial samples and %d samples to optimize..." %
@@ -407,15 +410,15 @@ def get_diagnostic(diagnostic, samples, config, params=None, iR=None):
     if iR is None:
         iRs = slice(None)
     else:
-        iRs = iR
-    res = np.vstack(samples[diagnostic][iRs])
+        iRs = ensure_list(iR)
+    res = np.vstack((samples[diagnostic]))[iRs]
     name = diagnostic
     coords = {"Parameter": params}
     if iR is None and res.shape[0] > 1:
         iR = np.arange(res.shape[0]).astype("i")
     if iR is not None:
-        dims=["Fitting repetition", "Parameter"]
-        coords[dims[0]] = iR
+        dims = ["Fitting repetition", "Parameter"]
+        coords[dims[0]] = ensure_list(iR)
     else:
         dims = ["Parameter"]
         res = res.squeeze()
@@ -424,9 +427,8 @@ def get_diagnostic(diagnostic, samples, config, params=None, iR=None):
 
 
 def plot_diagnostics(samples, config,
-                     diagnostics=["mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
+                     diagnostics=["MAP", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
                      params=None, iR=None, label="", figsize=None, figname=None, figpath=None):
-
     res = []
     dnames = []
     for d in diagnostics:
@@ -434,10 +436,8 @@ def plot_diagnostics(samples, config,
             res.append(get_diagnostic(d, samples, config, params=params, iR=iR))
             dnames.append(d)
     res = concat(res, dim=Index(dnames, name="Inference diagnostics"))
-
     if figsize is None:
         figsize = config.figures.DEFAULT_SIZE
-
     if res.ndim > 2:
         res.plot.line(x=res.dims[1], row=res.dims[0], hue=res.dims[2],
                       marker="*", markersize=10, figsize=figsize)
@@ -451,12 +451,13 @@ def plot_diagnostics(samples, config,
         plt.savefig(figpath)
 
 
-def plot_infer(samples=None, results=None, points=None, metric=None, iR=None, label="", config=None):
+def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
+               label="", plot_diagnostics_flag=True, config=None):
     config = assert_config(config, return_plotter=False)
     if iR is None:
         iRinds = slice(None)
     else:
-        iRinds = iR
+        iRinds = ensure_list(iR)
     if samples is None:
         if results is None:
             raise ValueError("Either samples or results dict must be given to plot_infer()!")
@@ -466,8 +467,7 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None, la
     try:
         if points is None:
             if results is not None:
-                points = \
-                    np.concatenate(np.array(results[config.OPT_RES_MODE])[iRinds].tolist()).mean(axis=0).squeeze()
+                points = np.vstack(results[config.OPT_RES_MODE])[iRinds].mean(axis=0).squeeze()
     except Exception as e:
         warnings.warn("Failed to get metric %s!\n%s" % str(e))
         metric = None
@@ -478,14 +478,17 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None, la
     else:
         figpath=None
     fig, axes = params_pairplot(samples, points=points, metric=metric, config=config, figpath=figpath)
-    if len(config.FIT_DIAGNOSTICS):
-        plot_diagnostics(samples, config, diagnostics=config.FIT_DIAGNOSTICS, params=None, iR=iR,  label=label)
+    if plot_diagnostics_flag is None:
+        plot_diagnostics_flag = len(config.FIT_DIAGNOSTICS)
+    if plot_diagnostics_flag and results is not None:
+        plot_diagnostics(results, config, diagnostics=config.FIT_DIAGNOSTICS, params=None, iR=iR,  label=label)
     return fig, axes
 
 
 def infer_workflow(train_params_samples, sim_res, priors=None, target=None, ground_truth=None, config=None,
                    label="", n_samples_per_run=None, measure_labels=None,
-                   results=None, iR=None, save_samples=True, plot_flag=True, verbosity=None):
+                   results=None, iR=None, save_samples=True,
+                   plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
@@ -511,7 +514,7 @@ def infer_workflow(train_params_samples, sim_res, priors=None, target=None, grou
                                       results=results, save_samples=save_samples)
     if plot_flag:
         plot_infer(samples, results=results, points=MAP, metric="MAP",
-                   iR=iR, label=label, config=config)
+                   iR=iR, label=label, plot_diagnostics_flag=plot_diagnostics_flag, config=config)
     return posterior, results, MAP
 
 
@@ -546,14 +549,15 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
                                        target=target, ground_truth=groung_truth, config=config,  label=label,
                                        n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                                        results=results_i, iR=iR, save_samples=save_samples,
-                                       plot_flag=plot_flag, verbosity=verbosity)[1]
+                                       plot_flag=plot_flag, plot_diagnostics_flag=False, verbosity=verbosity)[1]
             if verbosity:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
         # Plot with samples from all runs!:
         if verbosity:
             print("Plotting samples from all %d runs together..." % config.N_FIT_RUNS)
         plot_infer(samples=None, results=results_i, points=None, metric="MAP",
-                   iR=None, label=joinstr([label, config.ALL_RUNS_LABEL]), config=config)
+                   iR=None, label=joinstr([label, config.ALL_RUNS_LABEL]),
+                   plot_diagnostics_flag=True, config=config)
     if verbosity:
         print("\n\nFitting with all samples!..\n")
     results = infer_workflow(train_params_samples, sim_res, priors=priors,
@@ -561,7 +565,7 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
                              label=joinstr([label, config.ALL_SAMPLES_LABEL]),
                              n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                              results=None, iR=None, save_samples=save_samples,
-                             plot_flag=plot_flag, verbosity=verbosity)[1]
+                             plot_flag=plot_flag, plot_diagnostics_flag=True, verbosity=verbosity)[1]
     return results, results_i
 
 
