@@ -427,7 +427,7 @@ def get_diagnostic(diagnostic, samples, config, params=None, iR=None):
 
 
 def plot_diagnostics(samples, config,
-                     diagnostics=["MAP", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
+                     diagnostics=["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"],
                      params=None, iR=None, label="", figsize=None, figname=None, figpath=None):
     res = []
     dnames = []
@@ -461,7 +461,7 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
     if samples is None:
         if results is None:
             raise ValueError("Either samples or results dict must be given to plot_infer()!")
-        samples = np.hstack(np.array(results['samples'])[iRinds].tolist()).squeeze()
+        samples = np.vstack(np.vstack(results["samples"])[iRinds]).squeeze()
     if metric is None:
         metric = config.OPT_RES_MODE
     try:
@@ -529,7 +529,7 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
     if priors is None:
         priors = build_priors(config)
     results_i = None
-    if config.N_FIT_RUNS:
+    if config.N_FIT_RUNS > 1:
         n_samples = train_params_samples.shape[0]
         all_inds = list(range(n_samples))
         n_train_samples = int(np.ceil(1.0 * n_samples * config.SPLIT_RUN_SAMPLES))
