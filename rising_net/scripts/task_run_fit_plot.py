@@ -180,11 +180,13 @@ def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None
     return res
 
 
-def load_sims_to_xarrays(path=None, config=None, iP=None, iR=None, modes=None, measures="COH",
+def load_sims_to_xarrays(path=None, config=None, iP=None, iR=None, label="", modes=None, measures="COH",
                          average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if path is None:
         path = config.out.FOLDER_RES
+    if len(label):
+        path = os.path.join(path, label)
     return load_sims_to_xarrays_for_iP(load_task_sims_to_xarrays, measures, path,
                                        config, iP=iP, iR=iR,
                                        average_repetitions=average_repetitions,
@@ -291,7 +293,8 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         plt.savefig(os.path.join(folder, "COHs.png"))
 
 
-def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
+def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="",
+                              folderstr=NSDSTR, resstr=RESSTR, **kwargs):
 
     # CONFIGURATION:
     FUNCMODE = kwargs.get("FUNCMODE", "SIM")
@@ -302,7 +305,7 @@ def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, folders
     if len(folder):
         path = os.path.join(os.path.dirname(config.out.FOLDER_RES), folder)
 
-    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, modes=TESTS, measures=["COH", "PSD"],
+    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, label=label, modes=TESTS, measures=["COH", "PSD"],
                                     average_repetitions=False, folderstr=folderstr, resstr=resstr)
     Nps = len(iPs)
     if Nps == 0:
@@ -534,13 +537,13 @@ def target_COHM1S1diffratioDistRatioDist(config, target=None):
 
 
 def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                      config=None, iP=None, folderstr=NSDSTR, resstr=RESSTR):
+                      config=None, iP=None, label="", folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
         sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
     # Load priors' samples
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
-    sim_res, iPs = load_sims_to_xarrays(sim_res_path, config, iP=iP, iR=None, modes=None, measures="COH",
+    sim_res, iPs = load_sims_to_xarrays(sim_res_path, config, iP=iP, iR=None, label=label, modes=None, measures="COH",
                                         average_repetitions=True, folderstr=folderstr, resstr=resstr)
     sim_res = sim_res["COH"]
     # Reverse the dimensions of modes and parameters:
