@@ -300,11 +300,16 @@ def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="
     FUNCMODE = kwargs.get("FUNCMODE", "SIM")
     config, plotter = assert_config(config, return_plotter=True, **kwargs)
     folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
-    path = config.out.FOLDER_RES
-    figsfolder = config.figures.FOLDER_FIGURES
     if len(folder):
         path = os.path.join(os.path.dirname(config.out.FOLDER_RES), folder)
-
+        figsfolder = path
+        if len(label):
+            figsfolder = os.path.join(figsfolder, label)
+    else:
+        path = config.out.FOLDER_RES
+        figsfolder = os.path.join(config.figures.FOLDER_FIGURES)
+        if len(label):
+            figsfolder = os.path.join(figsfolder, label)
     res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, label=label, modes=TESTS, measures=["COH", "PSD"],
                                     average_repetitions=False, folderstr=folderstr, resstr=resstr)
     Nps = len(iPs)
@@ -313,10 +318,12 @@ def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="
 
     for iiP, iP in enumerate(iPs):
         if iP is not None:
-            figsfolder = os.path.join(path, iPstr(iP, Nsims=Nps, resstr=resstr))
-            figsfolder = os.path.join(figsfolder, "figs")
-            safe_makedirs(figsfolder)
-        plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder)
+            figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=Nps, resstr=resstr))
+        else:
+            figsfolder_iiP = figsfolder
+        figsfolder_iiP = os.path.join(figsfolder_iiP, "figs")
+        safe_makedirs(figsfolder_iiP)
+        plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder_iiP)
 
 
 def M1S1_pairs_fun():
@@ -553,7 +560,7 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
 def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
                                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                         target=None, target_fun=target_COHM1S1diffratio_fun,
-                                        config=None, folderstr=NSDSTR, resstr=RESSTR):
+                                        config=None, label="", folderstr=NSDSTR, resstr=RESSTR):
     # Rebuild priors if not provided in the input:
     if priors is None:
         priors = build_priors(config)
@@ -568,7 +575,7 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
     # Load training simulation results if not provided in the input:
     if sim_res is None:
         sim_res = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                    config=config, iP=None, folderstr=folderstr, resstr=resstr)[0]
+                                    config=config, iP=None, label=label, folderstr=folderstr, resstr=resstr)[0]
     if target is None:
         target = target_fun(config, target)
     return priors, train_params_samples, sim_res, target
@@ -585,7 +592,7 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            config, folderstr, resstr)
+                                            label, config, folderstr, resstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
                           results, iR, save_samples, plot_flag, plot_diagnostics_flag, verbosity)
@@ -601,7 +608,7 @@ def infer_nRuns_for_task(priors=None, train_params_samples=None,
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            config, folderstr, resstr)
+                                            label, config, folderstr, resstr)
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
                        config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, verbosity)
 
@@ -612,14 +619,15 @@ def load_stat_sims_for_task(stat="PPC", label="",
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
         sim_res_path = get_path(config, folder=get_simres_folder_name(config, "%sSIM" % stat.upper()))
-    if len(label):
-        sim_res_path = os.path.join(sim_res_path, label)
     # Load training simulation results:
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
     sim_res, iPs = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                     config=config, iP=iP, folderstr=folderstr, resstr=resstr)
+                                     config=config, iP=iP, label=label, folderstr=folderstr, resstr=resstr)
     if sim_res.ndim < 2:
-        sim_res = sim_res.expand_dims(dim=None, axis=0, create_index_for_new_dim=True, Simulations=np.array([0]))
+        if isinstance(sim_res, np.ndarray):
+            sim_res = sim_res[np.newaxis]
+        else:
+            sim_res = sim_res.expand_dims(dim=None, axis=0, create_index_for_new_dim=True, Simulations=np.array([0]))
     if len(iPs) == 1:
         iPs = iPs[0]
     return sim_res, iPs
@@ -632,9 +640,10 @@ def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label=""
     config = assert_config(config, return_plotter=False)
     sim_res, iP = load_stat_sims_for_task(stat=stat, label=label,
                                           sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                          iP=iP, config=config, folderstr=folderstr, resstr=resstr)
-    sim_res = sim_res.values.astype('float32')
-    params, fitlabel, params_string = \
+                                          iP=iP, config=config,  folderstr=folderstr, resstr=resstr)
+    if not isinstance(sim_res, numpy.ndarray):
+        sim_res = sim_res.values.astype('float32')
+    params, iP, fitlabel, params_string = \
         get_stats_params(config, stat=stat, FUNCMODE=None, iG=None, iP=iP, iF=iF, fitlabel=label)
 
     if target is None:
