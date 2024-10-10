@@ -281,8 +281,8 @@ def configure(**ARGS):
     config.MEAN_FOLDER = "mean_sims"
     config.MAP_FOLDER = "MAP_sims"
     config.ALL_SAMPLES_LABEL = "allsamples"
-    config.ALL_RUNS_LABEL = "allsamples"
-    config.FIT_DIAGNOSTICS = ["mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
+    config.ALL_RUNS_LABEL = "allruns"
+    config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
         DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
                                    "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
