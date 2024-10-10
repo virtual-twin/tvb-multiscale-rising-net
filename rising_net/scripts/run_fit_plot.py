@@ -95,11 +95,12 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
         if config.ALL_SAMPLES_LABEL not in fitlabel and config.ALL_RUNS_LABEL not in fitlabel:
             fitlabel = joinstr([fitlabel, config.ALL_RUNS_LABEL])
     else:
-        Nf = len(ensure_list(iF))
+        iF = ensure_list(iF)
+        Nf = len(iF)
         if Nf > 1:
             iFstr = "iF_%s" % str(iF)
         else:
-            iFstr = "iF%s" % istr(iF, Ns=config.N_FIT_RUNS)
+            iFstr = "iF%s" % istr(iF[0], Ns=config.N_FIT_RUNS)
         if verbosity:
             params_string = "%s PARAMETERS_%s" % (joinstr([FUNCMODE, labeliG]), iFstr)
         fitlabel = joinstr([fitlabel, iFstr])
@@ -114,8 +115,8 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
                 params_string += "_iP%s" % istr(iP, Ns=config.N_PPC_SIMS)
         try:
             # If iF is None, choose among the posterior samples of all runs:
-            #                                                [Run][param_set, params]
-            params_vals = np.vstack(np.squeeze(np.array(samples["samples"])[iF]))[iP].squeeze()
+            #                                                 [Run(s)][param_set(s), params]
+            params_vals = np.vstack(np.vstack(samples["samples"])[iF])[iP].squeeze()
         except Exception as e:
             print("\nFailed to get sample for %s\n"
                   "with iF = %s, iP = %s from samples of shape %s!"
@@ -128,7 +129,7 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
         else:
             stat = "map"
         try:
-            params_vals = np.array(samples[stat])[iF].squeeze()
+            params_vals = np.vstack(samples[stat])[iF].mean(axis=0)
         except Exception as e:
             print("\nFailed to get %s for %s\n"
                   "with iF = %s from an array of shape %s!"
