@@ -259,25 +259,21 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         results["fgm"] = fgm  # gamma frequency vector inds
         # pairs of regions of coherences where i, j in [0, config.TASKINDS.size]:
         results["ij"] = all_task_pairs_fun(len(results["inds"]))  # pathway_pairs_fun()
-
     figR, axR, figL, axL = plot_pathway_psd_coh(results, inds,
                                                 tests=modes, colors=colors,
                                                 percentile_min=1, percentile_max=99, n=1,
                                                 plot_mean=True, plot_median=False, modePSD="semilog", modeCOH="linear",
                                                 alpha=0.5, figsize=config.figures.LARGE_SIZE, fontsize=16)
-
     if plotter.config.SAVE_FLAG:
         for fig, hemi in zip([figR, figL], ["Right", "Left"]):
             plt.figure(fig.number)
             plt.savefig(os.path.join(folder, "Pathway_PSD_COH_%s.png" % hemi))
-
     figPSD, axesPSD = psd_percent_plot(results,
                                        inds=None,
                                        tests=modes, colors=colors,
                                        percentile_min=1, percentile_max=99, n=1,
                                        plot_mean=False, plot_median=True,
                                        alpha=0.5, figsize=config.figures.DEFAULT_SIZE, fontsize=16)
-
     if plotter.config.SAVE_FLAG:
         plt.figure(figPSD.number)
         plt.savefig(os.path.join(folder, "PSDs.png"))
@@ -287,7 +283,6 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
                                               resnames=['COHth', 'COHgm'],
                                               bands=["theta", "gamma"],
                                               figsize=config.figures.DEFAULT_SIZE, fontsize=16)
-
     if plotter.config.SAVE_FLAG:
         plt.figure(figCOH.number)
         plt.savefig(os.path.join(folder, "COHs.png"))
@@ -295,7 +290,6 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
 
 def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="",
                               folderstr=NSDSTR, resstr=RESSTR, **kwargs):
-
     # CONFIGURATION:
     FUNCMODE = kwargs.get("FUNCMODE", "SIM")
     config, plotter = assert_config(config, return_plotter=True, **kwargs)
@@ -315,7 +309,6 @@ def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="
     Nps = len(iPs)
     if Nps == 0:
         iPs = [None]
-
     for iiP, iP in enumerate(iPs):
         if iP is not None:
             figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=Nps, resstr=resstr))
