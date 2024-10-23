@@ -12,6 +12,7 @@ import shutil
 from collections import OrderedDict
 
 import dill
+import matplotlib.pyplot as plt
 import numpy
 import numpy as np
 import pandas as pd
@@ -27,7 +28,7 @@ from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, \
     compute_target_PSDs, compute_PSD_target_and_data
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
-from rising_net.scripts.sbi_script import build_priors, \
+from rising_net.scripts.sbi_script import fitfigs_filepath, build_priors, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
@@ -43,6 +44,9 @@ from examples.plot_write_results import plot_write_spiking_network_results
 
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
+
+
+REST_FIT_MEASURE_LABELS_FOR_PLOT = ["log(PSD) LM1", "log(PSD) RM1", "log(PSD) LS1", "log(PSD) RS1"]
 
 
 def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
@@ -220,11 +224,39 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
     return priors, train_params_samples, sim_res, target
 
 
+def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
+                                           measure_labels=REST_FIT_MEASURE_LABELS_FOR_PLOT, config=None):
+    config = assert_config(config, return_plotter=False)
+    if target is None:
+        target = target_PSD_fun(config)
+    Nf = int(target.shape[0] / 4)
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    inds = np.arange(Nf).astype("i")
+    for iM, ml in enumerate(measure_labels):
+        iC = np.mod(iM, 2)
+        iR = int(iM / 2)
+        axes[iR, iC] = percent_plot(config.TARGET_FREQS, measures[:, inds],
+                                    percentile_min=10, percentile_max=90, n=5,
+                                    plot_mean=True, plot_median=False,
+                                    color='b', alpha=0.5, ax=axes[iR, iC], mode="linear")
+        if target is not None:
+            axes[iR, iC].plot(config.TARGET_FREQS, target[inds], color='r', linewidth=2)
+        inds += Nf
+        axes[iR, iC].set_title(ml)
+    if config.figures.SAVE_FLAG:
+        plt.savefig(fitfigs_filepath(config, "measure_vs_target_plot.png", label=label))
+    if config.figures.SHOW_FLAG:
+        plt.show()
+    else:
+        plt.close(fig)
+    return fig, axes
+
+
 def infer_workflow_for_iG(iG,
                           priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
                           target=None, ground_truth=None,
                           config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                          label="", n_samples_per_run=None, measure_labels=None,
+                          label="", n_samples_per_run=None,
                           results=None, iR=None, save_samples=True,
                           plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
@@ -233,15 +265,16 @@ def infer_workflow_for_iG(iG,
                                                    config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
-                          config, label, n_samples_per_run, measure_labels,
-                          results, iR, save_samples, plot_flag, plot_diagnostics_flag, verbosity)
+                          config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT,
+                          results, iR, save_samples, plot_flag, plot_PSDs_samples_measures_and_targets,
+                          plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_iG(iG,
                        priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
                        target=None, ground_truth=None,
                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                       label="", n_samples_per_run=None, measure_labels=None,
+                       label="", n_samples_per_run=None,
                        save_samples=True, plot_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi_for_iG(iG,
@@ -249,7 +282,8 @@ def infer_nRuns_for_iG(iG,
                                                    config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
-                       config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, verbosity)
+                       config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT, save_samples,
+                       plot_flag, plot_PSDs_samples_measures_and_targets, verbosity)
 
 
 def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
@@ -274,13 +308,13 @@ def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
     return sim_res, iG, iPs
 
 
-def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="", sim_res_path=None, config=None,
-                                        target=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="", sim_res_path=None, target=None,
+                                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iG, iP = load_stat_sims_for_iG(iG, stat=stat, label=label, sim_res_path=sim_res_path, iP=iP,
                                             config=config,  igstr=igstr, folderstr=folderstr, resstr=resstr)
     sim_res = sim_res.values.astype('float32')
-    params, fitlabel, params_string = \
+    params, iP, fitlabel, params_string = \
         get_stats_params(config, stat=stat, FUNCMODE=None, iG=iG, iP=iP, iF=iF, fitlabel=label)
 
     if target is None:
@@ -290,8 +324,7 @@ def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label=
 
 def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
                                                  sim_res_path=None, target=None,
-                                                 config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                                                 measure_labels=None):
+                                                 config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, target,
@@ -300,14 +333,14 @@ def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=Non
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
     return plot_stats(sim_res, stat, target, params_vals,
-                      joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]), measure_labels, config)
+                      joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
+                      REST_FIT_MEASURE_LABELS_FOR_PLOT, plot_PSDs_samples_measures_and_targets, config)
 
 
 def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
                                                       sim_res_path=None,
                                                       target=None, target_dist_fun=correlation_distance, Nbest=None,
-                                                      config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                                                      measure_labels=None):
+                                                      config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path,  target,
@@ -315,7 +348,9 @@ def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, i
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
                                              label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
-                                             measure_labels=measure_labels, config=config)
+                                             measure_labels=REST_FIT_MEASURE_LABELS_FOR_PLOT,
+                                             measures_plot_fun=plot_PSDs_samples_measures_and_targets,
+                                             config=config)
 
 
 if __name__ == "__main__":
