@@ -46,7 +46,7 @@ from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-REST_FIT_MEASURE_LABELS_FOR_PLOT = ["log(PSD) LM1", "log(PSD) RM1", "log(PSD) LS1", "log(PSD) RS1"]
+REST_FIT_MEASURE_LABELS_FOR_PLOT = ["log(PSD) RM1", "log(PSD) LM1", "log(PSD) RS1", "log(PSD) LS1"]
 
 
 def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
