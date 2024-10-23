@@ -355,46 +355,51 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
 
 
 def plot_samples_measures_and_targets(measures, target=None,
-                                      label="", measure_labels=None, config=None):
-    config = assert_config(config, return_plotter=False)
-    metric = "target"
-    if measures.shape[1] <= 10:
-        points = target
-        if points is None:
-            metric = "mean"
-            points = measures.mean(axis=0)
-        fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
-                                 figpath=fitfigs_filepath(config, "measures_pairplot.png", label=label),
-                                 save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
+                                      label="", measure_labels=None, measures_plot_fun=None, config=None):
+    if measures_plot_fun is not None:
+        return measures_plot_fun(measures, target=target,  label=label, measure_labels=measure_labels, config=config)
     else:
-        x = np.arange(measures.shape[1])
-        axes = percent_plot(x, measures,
-                            percentile_min=10, percentile_max=90, n=5,
-                            plot_mean=True, plot_median=False,
-                            color='b', alpha=0.5, ax=None, mode="linear")
-        if target is not None:
-            axes.plot(x, target, color='r', linewidth=2)
-        fig = plt.gcf()
-        if config.figures.SAVE_FLAG:
-            plt.savefig(fitfigs_filepath(config, "measure_vs_target_plot.png", label=label))
-        if config.figures.SHOW_FLAG:
-            plt.show()
+        config = assert_config(config, return_plotter=False)
+        metric = "target"
+        if measures.shape[1] <= 10:
+            points = target
+            if points is None:
+                metric = "mean"
+                points = measures.mean(axis=0)
+            fig, axes = sbi_pairplot(measures, points=points, metric=metric, labels=measure_labels,
+                                     figpath=fitfigs_filepath(config, "measures_pairplot.png", label=label),
+                                     save_flag=config.figures.SAVE_FLAG, show_flag=config.figures.SHOW_FLAG)
         else:
-            plt.close(fig)
-    return fig, axes
+            x = np.arange(measures.shape[1])
+            axes = percent_plot(x, measures,
+                                percentile_min=10, percentile_max=90, n=5,
+                                plot_mean=True, plot_median=False,
+                                color='b', alpha=0.5, ax=None, mode="linear")
+            if target is not None:
+                axes.plot(x, target, color='r', linewidth=2)
+            fig = plt.gcf()
+            if config.figures.SAVE_FLAG:
+                plt.savefig(fitfigs_filepath(config, "measure_vs_target_plot.png", label=label))
+            if config.figures.SHOW_FLAG:
+                plt.show()
+            else:
+                plt.close(fig)
+        return fig, axes
 
 
 def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="",
                                measures=None, measure_labels=None,
-                               config=None, verbosity=None, plot_flag=True):
+                               config=None, verbosity=None, plot_flag=True,
+                               measures_plot_fun=None):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
     if plot_flag and measures is not None:
-        plot_samples_measures_and_targets(measures, target=target,
-                                          label=label, measure_labels=measure_labels, config=config)
+        plot_samples_measures_and_targets(measures, target=target, label=label,
+                                          measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
+                                          config=config)
     return sbi_estimate(posterior, target, n_samples_per_run, verbosity)
 
 
@@ -488,7 +493,7 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
 def infer_workflow(train_params_samples, sim_res, priors=None, target=None, ground_truth=None, config=None,
                    label="", n_samples_per_run=None, measure_labels=None,
                    results=None, iR=None, save_samples=True,
-                   plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
+                   plot_flag=True, measures_plot_fun=None, plot_diagnostics_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
@@ -505,7 +510,8 @@ def infer_workflow(train_params_samples, sim_res, priors=None, target=None, grou
     posterior, samples, MAP = estimate_posterior_samples(target, posterior,
                                                          n_samples_per_run=n_samples_per_run, label=labeliR,
                                                          measures=sim_res, measure_labels=measure_labels,
-                                                         config=config, verbosity=verbosity, plot_flag=plot_flag)
+                                                         config=config, verbosity=verbosity, plot_flag=plot_flag,
+                                                         measures_plot_fun=measures_plot_fun)
     results_i = compute_diagnostics(samples, config, priors=priors, map=MAP, ground_truth=ground_truth)
     results_i["params"] = train_params_samples
     results_i["measures"] = sim_res
@@ -520,7 +526,7 @@ def infer_workflow(train_params_samples, sim_res, priors=None, target=None, grou
 
 def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_truth=None, config=None,
                 label="", n_samples_per_run=None, measure_labels=None,
-                save_samples=True, plot_flag=True, verbosity=None):
+                save_samples=True, plot_flag=True, measures_plot_fun=None, verbosity=None):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
         verbosity = config.VERBOSITY
@@ -549,7 +555,8 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
                                        target=target, ground_truth=groung_truth, config=config,  label=label,
                                        n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                                        results=results_i, iR=iR, save_samples=save_samples,
-                                       plot_flag=plot_flag, plot_diagnostics_flag=False, verbosity=verbosity)[1]
+                                       plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
+                                       plot_diagnostics_flag=False, verbosity=verbosity)[1]
             if verbosity:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
         # Plot with samples from all runs!:
@@ -565,15 +572,18 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
                              label=joinstr([label, config.ALL_SAMPLES_LABEL]),
                              n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                              results=None, iR=None, save_samples=save_samples,
-                             plot_flag=plot_flag, plot_diagnostics_flag=True, verbosity=verbosity)[1]
+                             plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
+                             plot_diagnostics_flag=True, verbosity=verbosity)[1]
     return results, results_i
 
 
-def plot_stats(measures, stat="PPC", target=None, params=None, label="", measure_labels=None, config=None):
-    config = assert_config(config, return_plotter=False, plot_flag=False)
+def plot_stats(measures, stat="PPC", target=None, params=None, label="",
+               measure_labels=None, measures_plot_fun=None, config=None):
+    config = assert_config(config, return_plotter=False, plot_flag=False, measures_plot_fun=None)
     fig1, axes1 = plot_samples_measures_and_targets(measures, target=target,
                                                     label="%s_%s" % (stat, label),
-                                                    measure_labels=measure_labels, config=config)
+                                                    measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
+                                                    config=config)
     if params is not None:
         fig2, axes2 = params_pairplot(params, points=params.mean(axis=0), metric="mean", config=config,
                                       figpath=fitfigs_filepath(config, "params_pairplot.png",
@@ -623,7 +633,7 @@ def get_best_stat_sims_params_target(measures, target, params=None, label="",
 
 def plot_best_stat_sims_params_target(measures, target, stat="PPC", params=None, label="",
                                       target_dist_fun=correlation_distance, Nbest=None,
-                                      measure_labels=None, config=None):
+                                      measure_labels=None, measures_plot_fun=None, config=None):
     config = assert_config(config, return_plotter=False)
     measures, params, label = get_best_stat_sims_params_target(measures, target, params, label, target_dist_fun, Nbest)
-    return plot_stats(measures, stat, target, params, label, measure_labels, config)
+    return plot_stats(measures, stat, target, params, label, measure_labels, measures_plot_fun, config)
