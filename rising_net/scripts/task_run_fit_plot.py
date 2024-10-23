@@ -288,7 +288,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         plt.savefig(os.path.join(folder, "COHs.png"))
 
 
-def load_and_plot_comparisons(TESTS=None, config=None, iP=None, iR=None, label="",
+def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], config=None, iP=None, iR=None, label="",
                               folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     # CONFIGURATION:
     FUNCMODE = kwargs.get("FUNCMODE", "SIM")
@@ -580,7 +580,7 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                             config=None, folderstr=NSDSTR, resstr=RESSTR,
                             label="", n_samples_per_run=None, measure_labels=None,
                             results=None, iR=None, save_samples=True,
-                            plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
+                            plot_flag=True, measures_plot_fun=None, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
@@ -588,7 +588,7 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                                             label, config, folderstr, resstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
-                          results, iR, save_samples, plot_flag, plot_diagnostics_flag, verbosity)
+                          results, iR, save_samples, plot_flag, measures_plot_fun, plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_task(priors=None, train_params_samples=None,
@@ -645,10 +645,10 @@ def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label=""
 
 
 def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label="",
-                                                  sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                                  target=None, target_fun=target_COHM1S1diffratio_fun,
-                                                  config=None, folderstr=NSDSTR, resstr=RESSTR,
-                                                  measure_labels=None):
+                                                   sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+                                                   target=None, target_fun=target_COHM1S1diffratio_fun,
+                                                   config=None, folderstr=NSDSTR, resstr=RESSTR,
+                                                   measure_labels=None, plot_comparisons=True):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_task(stat=stat, iF=iF, iP=iP, label=label,
@@ -658,7 +658,11 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None,
     params_vals = np.array(list(params.values())).T
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
-    return plot_stats(sim_res, stat, target, params_vals, label, measure_labels, config)
+    outputs = plot_stats(sim_res, stat, target, params_vals, label, measure_labels, None, config)
+    if plot_comparisons:
+        load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], config=config, iP=iP, iR=None, label=label,
+                                  folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
+    return outputs
 
 
 def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label="",
@@ -676,7 +680,8 @@ def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
                                              label=label,
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
-                                             measure_labels=measure_labels, config=config)
+                                             measure_labels=measure_labels, measures_plot_fun=None,
+                                             config=config)
 
 
 if __name__ == "__main__":
