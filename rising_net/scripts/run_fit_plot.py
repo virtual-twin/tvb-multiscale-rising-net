@@ -274,9 +274,9 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
     results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
 
     if "REST" in config.MODE:
-        # Return only the M1 <-> PSD fitting target
+        # Return the M1 <-> PSD fitting target
         if "PSD" not in results.keys():
-            PSD, PSD_target = compute_PSD_target_and_data(config, results[0], inds, transient,
+            PSD, PSD_target = compute_PSD_target_and_data(config, results["source_ts"], inds, transient,
                                                           write_files=FUNCMODE.upper() == "SIM",
                                                           plotter=None)
             results = {"PSD": PSD, "f": PSD_target['f']}
