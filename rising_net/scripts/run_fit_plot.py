@@ -281,15 +281,14 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                                                           plotter=None)
             results = {"PSD": PSD, "f": PSD_target['f']}
 
-        if FUNCMODE.upper() != "SIM":
-            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
-                for key in results.keys():
-                    if key not in ["PSD", "f", "regions"]:
-                        del results[key]
-            if config.VERBOSITY:
-                print("\nWriting results %s\nto file %s...\n" %
-                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
-            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
+        if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+            for key in results.keys():
+                if key not in ["PSD", "f", "regions"]:
+                    del results[key]
+        if config.VERBOSITY:
+            print("\nWriting results %s\nto file %s...\n" %
+                  (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
+        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
     else:
         # Return PSD and COH along the task pathway fitting targets:
         n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
@@ -308,15 +307,14 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
         results["regions"] = simulator.connectivity.region_labels[taskinds]
 
         results_keys = list(results.keys())
-        if FUNCMODE.upper() != "SIM":
-            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
-                for key in results_keys:
-                    if key not in ["PSD", "f", "COH", "pairs", "regions"]:
-                        del results[key]
-            if config.VERBOSITY:
-                print("\nWriting results %s\nto file %s...\n" %
-                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
-            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
+        if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+            for key in results_keys:
+                if key not in ["PSD", "f", "COH", "pairs", "regions"]:
+                    del results[key]
+        if config.VERBOSITY:
+            print("\nWriting results %s\nto file %s...\n" %
+                  (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
+        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
 
     return results, simulator, nest_network, config, inds
 
