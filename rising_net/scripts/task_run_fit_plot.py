@@ -39,6 +39,7 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 
 
 MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF"]
+SIMULATION_MODE_STR = "Simulation mode"
 
 
 def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
@@ -119,7 +120,7 @@ def find_all_modes_folders(path, modes=MODES):
         folder = os.path.join(path, mode)
         if os.path.isdir(folder):
             resfiles = glob.glob(os.path.join(folder, "res", "res_*.pkl"))
-            Nf =len(resfiles)
+            Nf = len(resfiles)
             if Nf == 1:
                 modes_found.append(mode)
             elif Nf > 1:
@@ -175,7 +176,7 @@ def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None
                 res[measure].append(psd_to_xarray(res_i))
             res[measure][-1].name += " %s: %s" % (mode, path)
     for measure in measures:
-        res[measure] = concat(res[measure], dim=Index(modes, name="Simulation mode"))
+        res[measure] = concat(res[measure], dim=Index(modes, name=SIMULATION_MODE_STR))
         res[measure].name = "%s %s: %s" % (measure, str(modes), folder)
     return res
 
@@ -208,6 +209,26 @@ def all_task_pairs_fun(N):
         return np.array(list(zip(Y[mask].flatten(), X[mask].flatten())))
     else:
         return np.array([[]])
+
+
+def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iP=None, iR=None, label="",
+                           measures=["COH", "PSD"], folderstr=NSDSTR, resstr=RESSTR, **kwargs):
+    # CONFIGURATION:
+    config = assert_config(config, return_plotter=False, **kwargs)
+    if path is None:
+        FUNCMODE = kwargs.get("FUNCMODE", "SIM")
+        BASENAME = kwargs.get("BASENAME", "")
+        if len(BASENAME):
+            path = os.path.join(config.out.FOLDER_RES.split(BASENAME)[0],
+                                BASENAME)
+        else:
+            path = os.path.dirname(os.path.dirname(config.out.FOLDER_RES))
+        folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
+        if len(folder):
+            path = os.path.join(path, folder)
+    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, label=label, modes=TESTS, measures=measures,
+                                    average_repetitions=False, folderstr=folderstr, resstr=resstr)
+    return res, iPs, path, config
 
 
 def plot_comparisons(COH, PSD, config, plotter, folder=None):
@@ -243,15 +264,23 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
     f = COH.coords["f"].values
     fth = np.where(np.logical_and(f > THETA[0], f < THETA[1]))[0]
     fgm = np.where(np.logical_and(f > GAMMA[0], f < GAMMA[1]))[0]
-    modes = COH.coords[COH.dims[1]].values.tolist()
+    modes = COH.coords[COH.dims[COH.dims.index(SIMULATION_MODE_STR)]].values.tolist()
     colors = []
     for mode, col in zip(MODES, ["g", "r", "b", "m"]):
         if mode in modes:
             colors.append(col)
+
+    def assert_ndims(datarr, ndim):
+        while datarr.ndim < ndim:
+            datarr = datarr[np.newaxis]
+        return datarr
+
+    PSD = assert_ndims(PSD.values, 4)
+    COH = assert_ndims(COH.values, 5)
     for iM, mode in enumerate(modes):
         results[mode] = {}
-        results[mode]['PSD'] = PSD[:, iM].values
-        results[mode]['COH'] = COH[:, iM].values
+        results[mode]['PSD'] = PSD[:, iM]
+        results[mode]['COH'] = COH[:, iM]
         results[mode]['COHth'] = results[mode]['COH'][:, :, :, fth].mean(axis=-1)
         results[mode]['COHgm'] = results[mode]['COH'][:, :, :, fgm].mean(axis=-1)
         results["f"] = f  # frequency vector
@@ -288,35 +317,25 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         plt.savefig(os.path.join(folder, "COHs.png"))
 
 
-def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], config=None, iP=None, iR=None, label="",
+def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iP=None, iR=None, label="",
                               folderstr=NSDSTR, resstr=RESSTR, **kwargs):
-    # CONFIGURATION:
-    FUNCMODE = kwargs.get("FUNCMODE", "SIM")
     config, plotter = assert_config(config, return_plotter=True, **kwargs)
-    folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
-    if len(folder):
-        path = os.path.join(os.path.dirname(config.out.FOLDER_RES), folder)
-        figsfolder = path
-        if len(label):
-            figsfolder = os.path.join(figsfolder, label)
+    res, iPs, figsfolder, config = load_results_for_tests(TESTS=TESTS, path=path, config=config,
+                                                          iP=iP, iR=iR, label=label, measures=["COH", "PSD"],
+                                                          folderstr=folderstr, resstr=resstr, **kwargs)
+    if len(label):
+        figsfolder = os.path.join(figsfolder, label)
+    if iPs is None:
+        figsfolder = os.path.join(figsfolder, "figs")
+        safe_makedirs(figsfolder)
+        plot_comparisons(res["COH"], res["PSD"], config, plotter, figsfolder)
     else:
-        path = config.out.FOLDER_RES
-        figsfolder = os.path.join(config.figures.FOLDER_FIGURES)
-        if len(label):
-            figsfolder = os.path.join(figsfolder, label)
-    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, label=label, modes=TESTS, measures=["COH", "PSD"],
-                                    average_repetitions=False, folderstr=folderstr, resstr=resstr)
-    Nps = len(iPs)
-    if Nps == 0:
-        iPs = [None]
-    for iiP, iP in enumerate(iPs):
-        if iP is not None:
-            figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=Nps, resstr=resstr))
-        else:
-            figsfolder_iiP = figsfolder
-        figsfolder_iiP = os.path.join(figsfolder_iiP, "figs")
-        safe_makedirs(figsfolder_iiP)
-        plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder_iiP)
+        iPs = ensure_list(iPs)
+        Nps = len(iPs)
+        for iiP, iP in enumerate(iPs):
+            figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=Nps, resstr=resstr), "figs")
+            safe_makedirs(figsfolder_iiP)
+            plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder_iiP)
 
 
 def M1S1_pairs_fun():
@@ -660,7 +679,7 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None,
         params_vals = params_vals[np.newaxis]
     outputs = plot_stats(sim_res, stat, target, params_vals, label, measure_labels, None, config)
     if plot_comparisons:
-        load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], config=config, iP=iP, iR=None, label=label,
+        load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=config, iP=iP, iR=None, label=label,
                                   folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
     return outputs
 
