@@ -395,7 +395,7 @@ def run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
 
     parser = args_parser(funname, defargs)
 
-    arguments = {'function': ['func', str, 'Function name to run', "cosim_run_plot"],
+    arguments = {'function': ['func', str, 'Function name to run', "sim_run_plot"],
                  'iG': ['ig', int, "G values' index", None],
                  'iR': ['ir', int, 'Repetition index', None],
                  'iP': ['ip', int, 'Parameter sample index', None],

@@ -26,7 +26,8 @@ from rising_net.scripts.sbi_script import build_priors, \
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
 from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_simres_folder_name, simres_folder, \
-    process_funcmode, get_stats_params, sim_run_plot, run_fit_plot_args_parser, load_sims_to_xarrays_for_iP
+    process_funcmode, get_stats_params, sim_run_plot, run_fit_plot_args_parser, load_sims_to_xarrays_for_iP, \
+    sim_run_plot
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
