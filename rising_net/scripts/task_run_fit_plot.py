@@ -15,7 +15,7 @@ from pandas import Index
 from scipy.interpolate import interp1d
 
 from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args_parser, parse_args
-from rising_net.scripts.filepaths import get_path, simres_filepath, construct_filepath
+from rising_net.scripts.filepaths import simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import build_priors, \
@@ -161,6 +161,8 @@ def psd_to_xarray(res):
 def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None, measures="COH"):
     if modes is None:
         modes = find_all_modes_folders(folder, modes=MODES)
+    if len(modes) == 0:
+        raise ValueError("No modes found in path %s!" % folder)
     measures = ensure_list(measures)
     for iM, measure in enumerate(measures):
         measures[iM] = measure.upper()
@@ -168,8 +170,6 @@ def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None
     for mode in modes:
         path = construct_filepath(os.path.join(folder, mode, resstr), default_filename=config.SIM_RES_FILE, iR=iR)
         res_i = load_pickled_dict(path)
-        # TODO: REMOVE THIS HACK!
-        res_i["regions"] = correct_regions(config)
         for measure in measures:
             if "COH" in measure:
                 res[measure].append(coh_to_xarray(res_i))
@@ -217,13 +217,8 @@ def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None
     # CONFIGURATION:
     config = assert_config(config, return_plotter=False, **kwargs)
     if path is None:
-        FUNCMODE = kwargs.get("FUNCMODE", "SIM")
-        BASENAME = kwargs.get("BASENAME", "")
-        if len(BASENAME):
-            path = os.path.join(config.out.FOLDER_RES.split(BASENAME)[0],
-                                BASENAME)
-        else:
-            path = os.path.dirname(os.path.dirname(config.out.FOLDER_RES))
+        FUNCMODE = kwargs.get("FUNCMODE", "SIM").upper()
+        path = config.HEADPATH
         folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
         if len(folder):
             path = os.path.join(path, folder)
@@ -560,7 +555,7 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
                       config=None, iP=None, label="", folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
-        sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
+        sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
     # Load priors' samples
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
     sim_res, iPs = load_sims_to_xarrays(sim_res_path, config, iP=iP, iR=None, label=label, modes=None, measures="COH",
@@ -574,6 +569,7 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
                                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                         target=None, target_fun=target_COHM1S1diffratio_fun,
                                         config=None, label="", folderstr=NSDSTR, resstr=RESSTR):
+    config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild priors if not provided in the input:
     if priors is None:
         priors = build_priors(config)
@@ -630,8 +626,9 @@ def load_stat_sims_for_task(stat="PPC", label="",
                             sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                             iP=None, config=None, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
+    stat = stat.upper()
     if sim_res_path is None:
-        sim_res_path = get_path(config, folder=get_simres_folder_name(config, "%sSIM" % stat.upper()))
+        sim_res_path = os.path.join(config.HEADPATH, getattr(config, "%s_FOLDER" % stat))
     # Load training simulation results:
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
     sim_res, iPs = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
@@ -669,7 +666,7 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None,
                                                    target=None, target_fun=target_COHM1S1diffratio_fun,
                                                    config=None, folderstr=NSDSTR, resstr=RESSTR,
                                                    measure_labels=None, plot_comparisons=True):
-    config = assert_config(config, return_plotter=False)
+    config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_task(stat=stat, iF=iF, iP=iP, label=label,
                                               sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
