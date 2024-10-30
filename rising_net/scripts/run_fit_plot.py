@@ -282,7 +282,8 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             results.update({"PSD": PSD, "f": PSD_target['f']})
 
         if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
-            for key in results.keys():
+            results_keys = list(results.keys())
+            for key in results_keys:
                 if key not in ["PSD", "f", "regions"]:
                     del results[key]
         if config.VERBOSITY:
