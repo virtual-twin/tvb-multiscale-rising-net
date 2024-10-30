@@ -279,7 +279,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             PSD, PSD_target = compute_PSD_target_and_data(config, results["source_ts"], inds, transient,
                                                           write_files=FUNCMODE.upper() == "SIM",
                                                           plotter=None)
-            results = {"PSD": PSD, "f": PSD_target['f']}
+            results.update({"PSD": PSD, "f": PSD_target['f']})
 
         if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
             for key in results.keys():
