@@ -106,7 +106,7 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
         fitlabel = joinstr([fitlabel, iFstr])
     if FUNCMODE == "PPCSIM":
         if iP is None:  # simulations for fitting
-            raise ValueError("Parameter sample index iP is None for Post Predictive Check simulations!")
+            warnings.warn("Parameter sample index iP is None for Post Predictive Check simulations!")
         if verbosity:
             Np = len(ensure_list(iP))
             if Np > 1:
@@ -146,11 +146,11 @@ def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=N
     if FUNCMODE in ["TRAINSIM", "PPCSIM", "MEANSIM", "MAPSIM"]:  # this is only for sampling parameters
         # In all these cases we need to load parameters from files
         if "REST" in MODE and iG is None:
-            raise ValueError("G parameter index iG is None for REST %s simulations!" % FUNCMODE)
+            warnings.warn("G parameter index iG is None for REST %s simulations!" % FUNCMODE)
         if FUNCMODE == "TRAINSIM":
             # In this case we need to load parameters from a .pt file after sampling prior distributions with torch
             if iP is None:  # simulations for fitting
-                raise ValueError("Parameter sample index iP is None for training simulations!")
+                warnings.warn("Parameter sample index iP is None for training simulations!")
             params = dict(zip(config.PRIORS_PARAMS_NAMES,
                               load_train_params_samples_selection(iP, config,
                                                                   # iR=parameters_iR,
