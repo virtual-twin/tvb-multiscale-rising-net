@@ -212,7 +212,7 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
     # Load training simulation results if not provided in the input:
     if sim_res is None:
         if sim_res_path is None:
-            sim_res_path = get_path(config, folder=config.TRAIN_SIMS_FOLDER)
+            sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
         # Load priors' samples
         # By default, we load all parameters and all simulation repetitions and we average across repetitions.
         sim_res = \
@@ -289,8 +289,9 @@ def infer_nRuns_for_iG(iG,
 def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
                           config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
+    stat = stat.upper()
     if sim_res_path is None:
-        sim_res_path = get_path(config, folder=get_simres_folder_name(config, "%sSIM" % stat.upper()))
+        sim_res_path = os.path.join(config.HEADPATH, getattr(config, "%s_FOLDER" % stat))
     if len(label):
         sim_res_path = os.path.join(sim_res_path, label)
     # Load training simulation results:
