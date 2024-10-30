@@ -600,15 +600,15 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                             config=None, folderstr=NSDSTR, resstr=RESSTR,
                             label="", n_samples_per_run=None, measure_labels=None,
                             results=None, iR=None, save_samples=True,
-                            plot_flag=True, measures_plot_fun=None, plot_diagnostics_flag=True, verbosity=None):
+                            plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            label, config, folderstr, resstr)
+                                            config, label, folderstr, resstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
-                          results, iR, save_samples, plot_flag, measures_plot_fun, plot_diagnostics_flag, verbosity)
+                          results, iR, save_samples, plot_flag, None, plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_task(priors=None, train_params_samples=None,
@@ -621,9 +621,9 @@ def infer_nRuns_for_task(priors=None, train_params_samples=None,
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            label, config, folderstr, resstr)
+                                            config, label,  folderstr, resstr)
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
-                       config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, verbosity)
+                       config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, None, verbosity)
 
 
 def load_stat_sims_for_task(stat="PPC", label="",
