@@ -137,16 +137,9 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
 def load_sims_PSD_to_xarrays(folder, config, iR=None, resstr=RESSTR, **kwargs):  # measures = "PSD" not really needed!
     path = construct_filepath(os.path.join(folder, resstr), default_filename=config.SIM_RES_FILE, iR=iR)
     res = load_pickled_dict(path)
-    # TODO: Remove this transitory hack:
-    f = res.get("f", np.arange(5.0, 48.0, 1.0))
-    regions = res.get("regions",
-                      np.array(['Right Primary motor area',
-                                'Left Primary motor area',
-                                'Right Primary somatosensory area, barrel field',
-                                'Left Primary somatosensory area, barrel field']))
-    indf = pd.Index(f, name='f')
-    indr = pd.Index(regions, name='Regions')
-    indPSD = pd.MultiIndex.from_product([indr, indf], names=[indf.name, indr.name])
+    indPSD = pd.MultiIndex.from_product([pd.Index(res["regions"], name='Regions'),
+                                         pd.Index(res["f"], name='f')],
+                                        names=[indf.name, indr.name])
     name = joinstr(indPSD.names, " - ")
     # To unravel index:
     # PSD.unstack(PSD.dims[0]).shape = (nregs, nfreqs)
