@@ -40,19 +40,11 @@ def build_priors(config):
     return priors
 
 
-def samples_filepath(config, default_filename="", folder="", iR=None, label="", filepath=None, extension=None):
-    if len(default_filename) == 0:
-        default_filename = config.SAMPLES_FILE
-    return construct_filepath(get_res_path(config, folder),
+def fitres_filepath(config, default_filename, iR=None, label="", filepath=None, extension=None):
+    return construct_filepath(os.path.join(config.HEADPATH, config.FIT_FOLDER, "res"),
                               default_filename,
                               iR=iR, label=label,
                               filepath=filepath, extension=extension)
-
-
-def fitres_filepath(config, filename, iR=None, label="", filepath=None, extension=None):
-    return simres_filepath(config, filename, folder=config.FIT_FOLDER,
-                           iR=iR, label=label,
-                           filepath=filepath, extension=extension)
 
 
 def train_params_filepath(config, iR=None, label="", filepath=None, extension=None):
@@ -74,15 +66,8 @@ def posterior_filepath(config, iR=None, label="", filepath=None, extension=None)
 
 
 def posterior_samples_filepath(config, label="", filepath=None, extension=None):
-    return samples_filepath(config, config.SAMPLES_FILE,
-                            folder=config.FIT_FOLDER,
-                            label=label, filepath=filepath, extension=extension)
-
-
-def PPC_samples_filepath(config, label="", filepath=None, extension=None):
-    return samples_filepath(config, config.SAMPLES_FILE,
-                            folder=config.PPC_FOLDER,
-                            label=label, filepath=filepath, extension=extension)
+    return fitres_filepath(config, config.SAMPLES_FILE,
+                           label=label, filepath=filepath, extension=extension)
 
 
 def params_pairplot(samples, points=None, metric=None, config=None, figname=None, figpath=None):
