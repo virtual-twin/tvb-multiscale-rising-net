@@ -263,7 +263,7 @@ def infer_workflow_for_iG(iG,
         load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
                                                    config, igstr, folderstr, resstr)
-    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT,
                           results, iR, save_samples, plot_flag, plot_PSDs_samples_measures_and_targets,
@@ -280,7 +280,7 @@ def infer_nRuns_for_iG(iG,
         load_priors_target_and_sims_for_sbi_for_iG(iG,
                                                    priors, train_params_samples, sim_res, sim_res_path, target,
                                                    config, igstr, folderstr, resstr)
-    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs))], igstr=igstr)
+    label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
                        config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT, save_samples,
                        plot_flag, plot_PSDs_samples_measures_and_targets, verbosity)
