@@ -138,8 +138,7 @@ def load_sims_PSD_to_xarrays(folder, config, iR=None, resstr=RESSTR, **kwargs): 
     path = construct_filepath(os.path.join(folder, resstr), default_filename=config.SIM_RES_FILE, iR=iR)
     res = load_pickled_dict(path)
     indPSD = pd.MultiIndex.from_product([pd.Index(res["regions"], name='Regions'),
-                                         pd.Index(res["f"], name='f')],
-                                        names=[indf.name, indr.name])
+                                         pd.Index(res["f"], name='f')])
     name = joinstr(indPSD.names, " - ")
     # To unravel index:
     # PSD.unstack(PSD.dims[0]).shape = (nregs, nfreqs)
