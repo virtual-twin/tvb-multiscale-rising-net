@@ -260,9 +260,9 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 2  # 3 - 10
-    config.N_SIMULATIONS = 5  # 1000, 1200
-    config.N_SIMS_PER_PARAM = 2
+    config.N_FIT_RUNS = 10
+    config.N_SIMULATIONS = 1000
+    config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.6
     config.N_TRAIN_SAMPLES = 5  #  1000
     config.TEST_SAMPLES_RATIO = 0.25
@@ -410,3 +410,4 @@ def logprint(msg, logger, verbosity):
         pass
     if verbosity:
         print(msg)
+
