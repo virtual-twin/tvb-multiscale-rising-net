@@ -25,5 +25,5 @@ echo ${CMD1}
 CMD2="$CMD $CMD_PATH/$CMD_SCRIPT ${CMD_ARGS2}"
 echo ${CMD2}
 
- ${CMD1}
- ${CMD2}
+${CMD1}
+${CMD2}
