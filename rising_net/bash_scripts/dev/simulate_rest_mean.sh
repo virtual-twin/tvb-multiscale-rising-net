@@ -1,5 +1,7 @@
 #!/bin/bash
 
+$DOCKER_PYTHONPATH_CMD
+
 CMD="python"
 CMD_PATH='/home/docker/packages/tvb-multiscale/rising_net/scripts'
 CMD_SCRIPT="rest_run_fit_plot.py"

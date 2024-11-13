@@ -8,6 +8,8 @@ CMD_SCRIPTID="bash_utils.py"
 CMDID="simulate_rest_mapmean_ids_args"
 DEF_ARGS="--FUNCMODE MEANSIM --MODE TVB --BASENAME FIT_REST --fitlabel allsamples"
 
+$DOCKER_PYTHONPATH_CMD
+
 CMDIDS="$CMD $CMD_PATH/$CMD_SCRIPTID $CMDID $JOBARRID"
 echo ${CMDIDS}
 

@@ -8,6 +8,8 @@ CMD_SCRIPTID="bash_utils.py"
 CMDID="simulate_task_mapmean_ids_args"
 DEF_ARGS="--FUNCMODE MAPSIM --BASENAME FIT_TASK --fitlabel allsamples"
 
+$DOCKER_PYTHONPATH_CMD
+
 CMDIDS="$CMD $CMD_PATH/$CMD_SCRIPTID $CMDID $JOBARRID"
 echo ${CMDIDS}
 
