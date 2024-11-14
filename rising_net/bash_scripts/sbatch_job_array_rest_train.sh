@@ -9,5 +9,6 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --mail-user=dionysios.perdikis@bih-charite.de
 
-CMD="sh simulate_rest_train_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
+CMD_PATH="/home/docker/packages/tvb-multiscale/rising_net/bash_scripts/"
+CMD="sh ${CMD_PATH}simulate_rest_train_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
 apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
