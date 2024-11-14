@@ -101,7 +101,7 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     #     "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
     #                   "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
     #     "NOISE": 1e-6,
-    #     "SIMULATION_LENGTH": 2 ** 10 + 1.0,
+    #     "SIMULATION_LENGTH": 2 ** 13 + 1.0,
     #     "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
     #     'output_folder': "", 'verbosity': 1, 'plot_flag': True}
 
