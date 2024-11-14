@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=FIT_REST
 #SBATCH --output=./outputs/FIT_REST/logs/FIT_REST_%A_%a.out
-#SBATCH --error=./outputs/FIT_REST/errors/FIT_REST_%A_%a.out
+#SBATCH --error=./outputs/FIT_REST/errors/FIT_REST_%A_%a.err
 #SBATCH --array=0-3%2
 #SBATCH --time=12:00
 #SBATCH --cpus-per-task=1
