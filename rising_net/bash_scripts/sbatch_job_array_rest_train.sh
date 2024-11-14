@@ -3,9 +3,11 @@
 #SBATCH --job-name=FIT_REST
 #SBATCH --output=./outputs/FIT_REST/logs/FIT_REST_%A_%a.out
 #SBATCH --error=./outputs/FIT_REST/errors/FIT_REST_%A_%a.out
-#SBATCH --array=0-32999%330
+#SBATCH --array=0-3%2
 #SBATCH --time=12:00
-#SBATCH --mem=2G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=2G
+#SBATCH --mail-user=dionysios.perdikis@bih-charite.de
 
 CMD="sh simulate_rest_train_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
 apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
