@@ -144,7 +144,7 @@ def configure(**ARGS):
     config.BASENAME = BASENAME
     config.HEADPATH = os.path.join(config.out.FOLDER_RES.split(BASENAME)[0], BASENAME)
     # Testing: 10: 1025, 11: 2049.0, Fitting: 13: 8193.0, BOLD: 16: 65537
-    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 10 + 1.0)
+    config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 13 + 1.0)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
     config.AFFERENT_TS_PATH = os.path.join(config.out.FOLDER_RES, "afferent_ts.pkl")
