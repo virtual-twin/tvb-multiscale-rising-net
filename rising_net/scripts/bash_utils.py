@@ -36,6 +36,21 @@ def simulate_task_mapmean_ids_args(jobarr_id, Nreps=3):
     return output
 
 
+def fit_rest(jobarr_id):
+    from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR
+    from rising_net.scripts.rest_run_fit_plot import get_config, infer_nRuns_for_iG
+
+    # Fitting:
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
+
+    return infer_nRuns_for_iG(int(jobarr_id),
+                              priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                              target=None, ground_truth=None,
+                              config=config, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                              label="", n_samples_per_run=None,
+                              save_samples=True, plot_flag=True, verbosity=2)
+
+
 def multiply(x, y):
     output = print(x*y)
     return output
@@ -69,3 +84,5 @@ if __name__ == '__main__':
         simulate_task_train_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
         simulate_task_ppc_ids_args(*sys.argv[2:])
+    elif sys.argv[1] == "fit_rest":
+        fit_rest(*sys.argv[2:])
