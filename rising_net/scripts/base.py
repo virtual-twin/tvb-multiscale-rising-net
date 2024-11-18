@@ -260,7 +260,7 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 10
+    config.N_FIT_RUNS = 3
     config.N_SIMULATIONS = 1000
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.8
