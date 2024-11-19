@@ -247,12 +247,11 @@ def configure(**ARGS):
          "MEDULLAS1_GAIN": {"min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
          "M1S1_GAIN": {"min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
-    config.SBI_NUM_WORKERS = 1
-    config.SBI_ALGORITHM = 'SNPE'
+    config.SBI_NUM_WORKERS = 4  # 1
+    config.SBI_ALGORITHM = 'SNLE' # 'SNPE'
     config.SBI_TRAIN_KWARGS = {}
-    config.SBI_BUILD_KWARGS = {}
-    config.SBI_SAMPLE_KWARGS = {}
-    config.SBI_SAMPLE_KWARGS = {}
+    config.SBI_BUILD_KWARGS = {"sample_with": "mcmc"}
+    config.SBI_SAMPLE_KWARGS = {"method": "nuts", "num_chains": 4, "warmup_steps": 50}
     config.TARGET_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
@@ -264,7 +263,7 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 3
+    config.N_FIT_RUNS = 1
     config.N_SIMULATIONS = 1000
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.8
