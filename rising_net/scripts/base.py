@@ -248,7 +248,7 @@ def configure(**ARGS):
          "M1S1_GAIN": {"min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
     config.SBI_NUM_WORKERS = 4  # 1
-    config.SBI_ALGORITHM = 'SNLE' # 'SNPE'
+    config.SBI_ALGORITHM = 'SNLE'  # 'SNPE'
     config.SBI_TRAIN_KWARGS = {}
     config.SBI_BUILD_KWARGS = {"sample_with": "mcmc"}
     config.SBI_SAMPLE_KWARGS = {"method": "nuts", "num_chains": 4, "warmup_steps": 50}
