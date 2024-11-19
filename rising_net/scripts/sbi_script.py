@@ -13,7 +13,7 @@ from pandas import Index
 from xarray import DataArray, concat
 import torch
 from sbi.inference.base import infer, prepare_for_sbi, simulate_for_sbi
-from sbi.inference import SNPE
+from sbi import inference as sbi_inference
 from sbi import utils as utils
 from sbi import analysis as analysis
 
@@ -262,12 +262,13 @@ def add_posterior_samples_iR(all_samples, samples_iR):
     return all_samples
 
 
-def sbi_train(priors, train_params_samples, sim_res, verbosity):
+def sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
+              train_kwargs=dict(), build_kwargs=dict()):
     # Initialize the inference algorithm class instance:
-    inference = SNPE(prior=priors)
+    inference = getattr(sbi_inference, sbi_algorithm)(prior=priors)
     # Append to the inference the training parameter samples and simulations results
     # and train the network:
-    density_estimator = inference.append_simulations(train_params_samples, sim_res).train()
+    density_estimator = inference.append_simulations(train_params_samples, sim_res).train(**train_kwargs)
     keep_building = -10
     posterior = None
     exception = "None"
@@ -276,9 +277,7 @@ def sbi_train(priors, train_params_samples, sim_res, verbosity):
             # Build the posterior:
             if verbosity:
                 print("\nBuilding the posterior...")
-            posterior = inference.build_posterior(density_estimator,
-                                                  # sample_with="mcmc"
-                                                  )
+            posterior = inference.build_posterior(density_estimator, **build_kwargs)
             keep_building = 0
         except Exception as e:
             exception = e
@@ -309,16 +308,29 @@ def train_posterior(train_params_samples, measures, priors=None,
     posterior = sbi_train(priors,
                           torch.Tensor(train_params_samples),
                           torch.Tensor(measures),
-                          verbosity)
+                          config.SBI_ALGORITHM,
+                          verbosity,
+                          train_kwargs=config.SBI_TRAIN_KWARGS, build_kwargs=config.SBI_BUILD_KWARGS
+                          )
     return posterior
 
 
-def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1):
-    posterior.set_default_x(target)
+def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwargs=dict()):
+    for key, val in sample_kwargs.items():
+        setattr(posterior, key, val)
+    posterior = posterior.set_default_x(target)
     if verbosity:
         print("\nSetting estimation target...")
         if verbosity > 1:
             print("\ntarget = %s" % str(target))
+    # If this is posterior is a Variational Inference one:
+    if hasattr(posterior, "vi_method"):
+        if verbosity:
+            print("\nTraining Variational Inference posterior...")
+            tic = time.time()
+            posterior = posterior.train()
+            if verbosity:
+                print("\nDONE training Variational Inference posterior in %g secs!" % (time.time() - tic))
     if verbosity:
         print("\nSampling %d samples from the posterior..." % n_samples_per_run)
         tic = time.time()
@@ -385,13 +397,15 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
         plot_samples_measures_and_targets(measures, target=target, label=label,
                                           measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
                                           config=config)
-    return sbi_estimate(posterior, target, n_samples_per_run, verbosity)
+    return sbi_estimate(posterior, target, n_samples_per_run, verbosity, config.SBI_SAMPLE_KWARGS)
 
 
-def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target, verbosity):
+def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target,
+              sbi_algorithm, verbosity, train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
-    return sbi_estimate(sbi_train(priors, train_params_samples, sim_res, verbosity),
-                        target, n_samples_per_run, verbosity)
+    return sbi_estimate(
+                sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity, train_kwargs, build_kwargs),
+                target, n_samples_per_run, verbosity, sample_kwargs)
 
 
 def get_diagnostic(diagnostic, samples, config, params=None, iR=None):
