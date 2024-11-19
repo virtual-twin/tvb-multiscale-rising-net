@@ -248,7 +248,11 @@ def configure(**ARGS):
          "M1S1_GAIN": {"min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
     config.SBI_NUM_WORKERS = 1
-    config.SBI_METHOD = 'SNPE'
+    config.SBI_ALGORITHM = 'SNPE'
+    config.SBI_TRAIN_KWARGS = {}
+    config.SBI_BUILD_KWARGS = {}
+    config.SBI_SAMPLE_KWARGS = {}
+    config.SBI_SAMPLE_KWARGS = {}
     config.TARGET_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
