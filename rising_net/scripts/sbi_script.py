@@ -397,6 +397,7 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
         plot_samples_measures_and_targets(measures, target=target, label=label,
                                           measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
                                           config=config)
+    posterior.num_workers = config.SBI_NUM_WORKERS
     return sbi_estimate(posterior, target, n_samples_per_run, verbosity, config.SBI_SAMPLE_KWARGS)
 
 
