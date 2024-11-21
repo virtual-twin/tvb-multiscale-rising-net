@@ -82,13 +82,21 @@ if __name__ == '__main__':
             condition(x, float(sys.argv[3]))
         else:
             condition(x)
+    elif sys.argv[1] == "fit_rest":
+        fit_rest(*sys.argv[2:])
     elif sys.argv[1] == "simulate_rest_train_ids_args":
         simulate_rest_train_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_rest_ppc_ids_args":
         simulate_rest_ppc_ids_args(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_rest_mapmean_ids_args":
+        simulate_rest_mapmean_ids_args(*sys.argv[2:])
+    # elif sys.argv[1] == "fit_task":
+    #     fit_task(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_train_ids_args":
         simulate_task_train_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
         simulate_task_ppc_ids_args(*sys.argv[2:])
-    elif sys.argv[1] == "fit_rest":
-        fit_rest(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_task_mapmean_ids_args":
+        simulate_task_mapmean_ids_args(*sys.argv[2:])
+
+
