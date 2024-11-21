@@ -228,10 +228,10 @@ def configure(**ARGS):
     # Fitting
     config.PRIORS_DIST = args.get('PRIORS_DIST', "normal")  # "normal" or "uniform"
     config.PRIORS_DEF = \
-        {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.05},
+        {"I_s": {"min": -0.1, "max": 0.2, "loc": 0.1, "sc": 0.1},
          "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
-         "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.3, "sc": 0.05},
+         "FIC_SPLIT": {"min": 0.0, "max": 0.5, "loc": 0.4, "sc": 0.1},
          # "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
          # "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
