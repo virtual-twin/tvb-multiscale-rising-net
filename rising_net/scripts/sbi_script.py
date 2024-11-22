@@ -28,15 +28,16 @@ from rising_net.scripts.utils import dump_pickled_dict
 
 
 def build_priors(config):
-    if config.PRIORS_DIST.lower() == "normal":
-        priors_normal = torch.distributions.Normal(loc=torch.as_tensor(config.prior_loc),
-                                                   scale=torch.as_tensor(config.prior_sc))
-        #     priors = torch.distributions.MultivariateNormal(loc=torch.as_tensor(config.prior_loc),
-        #                                                     scale_tril=torch.diag(torch.as_tensor(config.prior_sc)))
-        priors = torch.distributions.Independent(priors_normal, 1)
-    else:
-        priors = utils.torchutils.BoxUniform(low=torch.as_tensor(config.prior_min),
-                                             high=torch.as_tensor(config.prior_max))
+    priors = []
+    for iP, pdist in enumerate(config.prior_dist):
+        if pdist == "normal":
+            priors.append(torch.distributions.Normal(loc=config.prior_loc[iP]*torch.ones(1),
+                                                     scale=config.prior_sc[iP]*torch.ones(1)))
+        elif pdist == "uniform":
+            priors.append(torch.distributions.Uniform(low=config.prior_min[iP]*torch.ones(1),
+                                                      high=config.prior_max[iP]*torch.ones(1)))
+    dummy_sim = lambda priors: priors
+    simulator, priors = prepare_for_sbi(dummy_sim, priors)
     return priors
 
 
