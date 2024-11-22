@@ -226,27 +226,29 @@ def configure(**ARGS):
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
     # Fitting
-    config.PRIORS_DIST = args.get('PRIORS_DIST', "normal")  # "normal" or "uniform"
     config.PRIORS_DEF = \
-        {"I_s": {"min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
-         "I_e": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "FIC": {"min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
-         "FIC_SPLIT": {"min": 0.0, "max": 0.6, "loc": 0.3, "sc": 0.05},
-         # "STIMULUS": {"min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
-         # "STIMULUS_BASELINE": {"min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
-         "I_w": {"min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "G_w": {"min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
-         "M1FACIAL_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "WHISKERS_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "TRIG_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "MEDULLA_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CEREB_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CNM1_GAIN": {"min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CNS1_GAIN": {"min": 1.0, "max": 90.0, "loc": 30.0, "sc": 6.0},
-         "TRIGS1_GAIN": {"min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
-         "MEDULLAS1_GAIN": {"min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
-         "M1S1_GAIN": {"min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
+        {"I_s": {"prior_dist": "normal", "min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
+         "I_e": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         "FIC": {"prior_dist": "uniform", "min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
+         "FIC_SPLIT": {"prior_dist": "uniform", "min": 0.0, "max": 0.6, "loc": 0.3, "sc": 0.05},
+         # "STIMULUS": {"prior_dist": "normal", "min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
+         # "STIMULUS_BASELINE": {"prior_dist": "normal", "min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
+         "I_w": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         "G_w": {"prior_dist": "normal", "min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
+         "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CEREB_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CNM1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "CNS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 30.0, "sc": 6.0},
+         "TRIGS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         "MEDULLAS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         "M1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
+    config.PRIORS_DIST = args.get('PRIORS_DIST', dict())
+    for pname, pd in config.PRIORS_DIST.items():
+        config.PRIORS_DEF[pname]["prior_dist"] = pd
     config.SBI_NUM_WORKERS = 4  # 1
     config.SBI_ALGORITHM = 'SNLE'  # 'SNPE'
     config.SBI_TRAIN_KWARGS = {}
@@ -297,6 +299,7 @@ def configure(**ARGS):
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
+    config.prior_dist = []
     # Uniform priors:
     config.prior_min = []
     config.prior_max = []  
@@ -304,6 +307,7 @@ def configure(**ARGS):
     config.prior_loc = []  
     config.prior_sc = []
     for pname in config.PRIORS_PARAMS_NAMES:
+        config.prior_dist.append(config.PRIORS_DEF[pname]['prior_dist'])
         config.prior_min.append(config.PRIORS_DEF[pname]['min'])
         config.prior_max.append(config.PRIORS_DEF[pname]['max'])
         config.prior_loc.append(config.PRIORS_DEF[pname]['loc'])
