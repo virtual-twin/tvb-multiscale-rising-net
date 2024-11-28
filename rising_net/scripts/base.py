@@ -50,7 +50,7 @@ DEFAULT_ARGS = {# TVB model:
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
-                "NOISE": 1e-6, "NOISE_SEED": 0,
+                "NOISE": 1e-4, "NOISE_SEED": 0,
                 "SIMULATION_LENGTH": 2 ** 13 + 1.0,
                 "MODE": "TVB",  # "NEST", "COSIM", + "_CEREBOFF" to turn off Cerebellum
                 "BASENAME": "", 'output_folder': "", 'verbosity': 1, 'plot_flag': True}
@@ -151,7 +151,7 @@ def configure(**ARGS):
     config.BOLD_TS_PATH = os.path.join(config.out.FOLDER_RES, "bold_ts.pkl")
     # Integration
     config.DEFAULT_DT = 0.1
-    config.DEFAULT_NSIG = args.get("NOISE", 1e-6)  # NOISE strength
+    config.DEFAULT_NSIG = args.get("NOISE", 1e-4)  # NOISE strength
     config.NOISE_SEED = int(args.get("NOISE_SEED", 0))
     config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + config.NOISE_SEED
     config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + config.NOISE_SEED
@@ -250,10 +250,10 @@ def configure(**ARGS):
     for pname, pd in config.PRIORS_DIST.items():
         config.PRIORS_DEF[pname]["prior_dist"] = pd
     config.SBI_NUM_WORKERS = 4  # 1
-    config.SBI_ALGORITHM = 'SNLE'  # 'SNPE'
+    config.SBI_ALGORITHM = SNPE  # 'SNLE'  # 'SNPE'
     config.SBI_TRAIN_KWARGS = {}
-    config.SBI_BUILD_KWARGS = {"sample_with": "mcmc"}
-    config.SBI_SAMPLE_KWARGS = {"method": "nuts", "num_chains": 4, "warmup_steps": 50}
+    config.SBI_BUILD_KWARGS = {}  # {"sample_with": "mcmc"}
+    config.SBI_SAMPLE_KWARGS = {}  # {"method": "nuts", "num_chains": 4, "warmup_steps": 50}
     config.TARGET_POPA_PATH = popa_freqs_path
     config.PSD_TARGET_PATH = os.path.join(config.out.FOLDER_RES, "PSD_target.npy")
     config.PSD_DATA_PATH = os.path.join(config.out.FOLDER_RES, "PSD_data.npy")
@@ -265,7 +265,7 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 1
+    config.N_FIT_RUNS = 10
     config.N_SIMULATIONS = 1000
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.8
