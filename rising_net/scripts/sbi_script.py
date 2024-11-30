@@ -342,11 +342,22 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwarg
         print("\nSampling to find MAP with %d initial samples and %d samples to optimize..." %
               (n_samples_per_run, int(0.1*n_samples_per_run)))
         tic = time.time()
-    MAP = posterior.map(num_init_samples=n_samples_per_run,
-                        num_to_optimize=int(0.1 * n_samples_per_run),
-                        show_progress_bars=verbosity>0).numpy().squeeze()
-    if verbosity:
-        print("\nDONE sampling for MAP in %g secs!" % (time.time() - tic))
+    MAP = None
+    trials = 0
+    while MAP is None and trials < 10:
+        try:
+            MAP = posterior.map(num_init_samples=n_samples_per_run,
+                                num_to_optimize=int(0.1 * n_samples_per_run),
+                                show_progress_bars=verbosity>0).numpy().squeeze()
+        except Exception as e:
+            warnings.warn("\nFailed to estimate MAP at trial %d with error:\n%s\n\nTrying again...\n" % (trial, str(e)))
+            trials += 1
+    if MAP is None:
+        warnings.warn("\nFailed to estimate MAP after %d trials!" % (trial+1))
+        MAP = samples.mean(axis=0)
+        warnings.warn("\nSetting MAP equal to mean = \n%s" % str(MAP))
+    elif verbosity:
+        print("\nDONE sampling for MAP in %d trials and %g secs!" % (trials+1, time.time() - tic))
         if verbosity > 1:
             print("\nMAP = %s" % str(MAP))
     return posterior, samples, MAP
