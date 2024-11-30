@@ -249,7 +249,7 @@ def configure(**ARGS):
     config.PRIORS_DIST = args.get('PRIORS_DIST', dict())
     for pname, pd in config.PRIORS_DIST.items():
         config.PRIORS_DEF[pname]["prior_dist"] = pd
-    config.SBI_NUM_WORKERS = 4  # 1
+    config.SBI_NUM_WORKERS = 1
     config.SBI_ALGORITHM = "SNPE"  # 'SNLE'  # 'SNPE'
     config.SBI_TRAIN_KWARGS = {}
     config.SBI_BUILD_KWARGS = {}  # {"sample_with": "mcmc"}
