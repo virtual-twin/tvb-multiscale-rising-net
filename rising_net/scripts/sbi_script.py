@@ -350,10 +350,10 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwarg
                                 num_to_optimize=int(0.1 * n_samples_per_run),
                                 show_progress_bars=verbosity>0).numpy().squeeze()
         except Exception as e:
-            warnings.warn("\nFailed to estimate MAP at trial %d with error:\n%s\n\nTrying again...\n" % (trial, str(e)))
+            warnings.warn("\nFailed to estimate MAP at trial %d with error:\n%s\n\nTrying again...\n" % (trials, str(e)))
             trials += 1
     if MAP is None:
-        warnings.warn("\nFailed to estimate MAP after %d trials! Setting it to np.nan!" % (trial+1))
+        warnings.warn("\nFailed to estimate MAP after %d trials! Setting it to np.nan!" % (trials+1))
         MAP = np.nan
     elif verbosity:
         print("\nDONE sampling for MAP in %d trials and %g secs!" % (trials+1, time.time() - tic))
