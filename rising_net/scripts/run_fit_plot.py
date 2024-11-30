@@ -129,7 +129,7 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
         else:
             stat = "map"
         try:
-            params_vals = np.vstack(samples[stat])[iF].mean(axis=0)
+            params_vals = np.nanmean(np.vstack(samples[stat])[iF], axis=0)
         except Exception as e:
             print("\nFailed to get %s for %s\n"
                   "with iF = %s from an array of shape %s!"

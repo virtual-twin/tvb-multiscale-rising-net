@@ -353,9 +353,8 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwarg
             warnings.warn("\nFailed to estimate MAP at trial %d with error:\n%s\n\nTrying again...\n" % (trial, str(e)))
             trials += 1
     if MAP is None:
-        warnings.warn("\nFailed to estimate MAP after %d trials!" % (trial+1))
-        MAP = samples.mean(axis=0)
-        warnings.warn("\nSetting MAP equal to mean = \n%s" % str(MAP))
+        warnings.warn("\nFailed to estimate MAP after %d trials! Setting it to np.nan!" % (trial+1))
+        MAP = np.nan
     elif verbosity:
         print("\nDONE sampling for MAP in %d trials and %g secs!" % (trials+1, time.time() - tic))
         if verbosity > 1:
@@ -396,6 +395,14 @@ def plot_samples_measures_and_targets(measures, target=None,
         return fig, axes
 
 
+def check_for_MAP(MAP, config):
+    if MAP is None or MAP == np.nan:
+        # MAP = samples.mean(axis=0)
+        if config.OPT_RES_MODE == "map":
+            warnings.warn("\nSetting config.OPT_RES_MODE equal to 'mean' because of failure to compute MAP statistic!")
+    return MAP, config
+
+
 def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="",
                                measures=None, measure_labels=None,
                                config=None, verbosity=None, plot_flag=True,
@@ -410,15 +417,19 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
                                           measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
                                           config=config)
     posterior.num_workers = config.SBI_NUM_WORKERS
-    return sbi_estimate(posterior, target, n_samples_per_run, verbosity, config.SBI_SAMPLE_KWARGS)
+    posterior, samples, MAP = sbi_estimate(posterior, target, n_samples_per_run, verbosity, config.SBI_SAMPLE_KWARGS)
+    MAP, config = check_for_MAP(MAP, config)
+    return posterior, samples, MAP
 
 
 def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target,
               sbi_algorithm, verbosity, train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
-    return sbi_estimate(
+    posterior, samples, MAP =  sbi_estimate(
                 sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity, train_kwargs, build_kwargs),
                 target, n_samples_per_run, verbosity, sample_kwargs)
+    MAP, config = check_for_MAP(MAP, config)
+    return posterior, samples, MAP
 
 
 def get_diagnostic(diagnostic, samples, config, params=None, iR=None):
@@ -484,9 +495,9 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
     try:
         if points is None:
             if results is not None:
-                points = np.vstack(results[config.OPT_RES_MODE])[iRinds].mean(axis=0).squeeze()
+                points = np.nanmean(np.vstack(results[metric])[iRinds], axis=0).squeeze()
     except Exception as e:
-        warnings.warn("Failed to get metric %s!\n%s" % str(e))
+        warnings.warn("Failed to get metric %s!\n%s" % (metric.upper(), str(e)))
         metric = None
         points = None
     if config.figures.SAVE_FLAG:
