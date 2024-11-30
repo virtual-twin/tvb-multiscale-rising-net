@@ -3,7 +3,7 @@
 #SBATCH --job-name=FIT_REST_MEAN
 #SBATCH --output=./outputs/FIT_REST/mean_sims/logs/FIT_REST_MEAN_%A_%a.out
 #SBATCH --error=./outputs/FIT_REST/mean_sims/errors/FIT_REST_MEAN_%A_%a.err
-#SBATCH --array=0-29
+#SBATCH --array=0-32
 #SBATCH --time=30:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G

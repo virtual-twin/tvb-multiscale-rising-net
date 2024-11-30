@@ -16,18 +16,18 @@ def simulate_rest_train_ids_args(jobarr_id, Nps=1000, Ngs=11, Nreps=3):
     return output
 
 
-def simulate_rest_ppc_ids_args(jobarr_id, Nps=100, Ngs=10, Nreps=3):
+def simulate_rest_ppc_ids_args(jobarr_id, Nps=100, Ngs=11, Nreps=3):
     # TODO: Correct this if iG = 0 comes back!
     iP, iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs), int(Nreps)])
-    iG = iG + 1
+    # iG = iG + 1
     iP = iP*10
     output = print("--iP %d --iG %d --iR %d" % (iP, iG, iR))
     return output
 
 
-def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=10, Nreps=3):
+def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=11, Nreps=3):
     iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nreps)])
-    iG = iG + 1
+    # iG = iG + 1
     output = print("--iG %d --iR %d" % (iG, iR))
     return output
 
