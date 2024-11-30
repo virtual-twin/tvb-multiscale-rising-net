@@ -5,8 +5,8 @@
 #SBATCH --error=./outputs/FIT_REST/fit/errors/FIT_REST_%A_%a.err
 #SBATCH --array=0-10
 #SBATCH --time=24:00:00
-#SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=2G
 #SBATCH --mail-user=dionysios.perdikis@bih-charite.de
 
 CMD_PATH="/home/docker/packages/tvb-multiscale/rising_net/bash_scripts/"
