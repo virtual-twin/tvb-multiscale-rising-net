@@ -354,7 +354,7 @@ def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwarg
             trials += 1
     if MAP is None:
         warnings.warn("\nFailed to estimate MAP after %d trials! Setting it to np.nan!" % (trials+1))
-        MAP = np.nan
+        MAP = np.nan*np.ones((samples.shape[1], ))
     elif verbosity:
         print("\nDONE sampling for MAP in %d trials and %g secs!" % (trials+1, time.time() - tic))
         if verbosity > 1:
@@ -396,7 +396,7 @@ def plot_samples_measures_and_targets(measures, target=None,
 
 
 def check_for_MAP(MAP, config):
-    if MAP is None or MAP == np.nan:
+    if MAP is None or np.any(np.isnan(MAP)):
         # MAP = samples.mean(axis=0)
         if config.OPT_RES_MODE == "map":
             warnings.warn("\nSetting config.OPT_RES_MODE equal to 'mean' because of failure to compute MAP statistic!")
