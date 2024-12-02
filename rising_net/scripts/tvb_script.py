@@ -901,15 +901,16 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
 
     # Set monitors:
     monitors = ()
-    if config.RAW_PERIOD > config.DEFAULT_DT:
-        monitors += (TemporalAverage(period=config.RAW_PERIOD), )  # ms
-        if config.AFFERENT_MONITOR:
-            monitors += (AfferentCouplingTemporalAverage(period=config.RAW_PERIOD,
-                                                         variables_of_interest=np.array([0, 1, 2])), )
-    else:
-        monitors += (Raw(), )
-        if config.AFFERENT_MONITOR:
-            monitors += (AfferentCoupling(variables_of_interest=np.array([0, 1, 2])), )
+    if config.TIME_SERIES_MONITORS:
+        if config.RAW_PERIOD > config.DEFAULT_DT:
+            monitors += (TemporalAverage(period=config.RAW_PERIOD), )  # ms
+            if config.AFFERENT_MONITOR:
+                monitors += (AfferentCouplingTemporalAverage(period=config.RAW_PERIOD,
+                                                             variables_of_interest=np.array([0, 1, 2])), )
+        else:
+            monitors += (Raw(), )
+            if config.AFFERENT_MONITOR:
+                monitors += (AfferentCoupling(variables_of_interest=np.array([0, 1, 2])), )
     if config.BOLD_PERIOD:
         monitors += (Bold(period=config.BOLD_PERIOD, variables_of_interest=np.array([2])), )
     simulator.monitors = monitors
@@ -1111,6 +1112,57 @@ def compute_data_PSDs_m1s1brl(raw_results, PSD_target, inds,
     return Pxx_den.flatten()
 
 
+def tvb_res_to_bold_time_series(results, simulator, config, write_files=True):
+    config = assert_config(config, return_plotter=False)
+    bold_ts = None
+    outputs = {}
+    try:
+        bold_ts = TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
+            data=results[1], time=results[0],
+            connectivity=simulator.connectivity,
+            labels_ordering=["Time", "State Variable", "Region", "Neurons"],
+            labels_dimensions={"State Variable": ["BOLD"],
+                               "Region": simulator.connectivity.region_labels.tolist()},
+            sample_period=simulator.monitors[-1].period)
+        bold_ts.configure()
+
+        if config.VERBOSITY > 1:
+            print("BOLD ts:\n%s" % str(bold_ts))
+
+        outputs["bold_ts"] = bold_ts
+
+    except Exception as e:
+        outputs["bold_ts"] = results
+        warnings.warn("Failed to construct BOLD time series with error!:\n%s" % str(e))
+        if write_files:
+            if config.VERBOSITY:
+                print("Pickle-dumping BOLD TVB monitor output to %s!" % config.BOLD_TS_PATH)
+            try:
+                dump_pickled_dict({"bold_ts": results[1],
+                                   "bold_t": results[0],
+                                   "regions": simulator.connectivity.region_labels},
+                                  config.BOLD_TS_PATH)
+            except Exception as e:
+                warnings.warn("Failed to pickle dump BOLD TVB monitor output with error!:\n%s" % str(e))
+
+    if bold_ts is not None:
+        if write_files:
+            if config.VERBOSITY:
+                print("Pickle-dumping bold_ts to %s!" % config.BOLD_TS_PATH)
+            dump_pickled_time_series(bold_ts, config.BOLD_TS_PATH)
+
+            # # Write to file
+            # if writer:
+            #     try:
+            #         write_RegionTimeSeriesXarray_to_h5(bold_ts, writer,
+            #                                            os.path.join(config.out.FOLDER_RES,
+            #                                                         bold_ts.title) + ".h5")
+            #     except Exception as e:
+            #         warnings.warn("Failed to to write BOLD time series to file with error!:\n%s" % str(e))
+
+    return outputs
+
+
 def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
 
     config = assert_config(config, return_plotter=False)
@@ -1177,48 +1229,8 @@ def tvb_res_to_time_series(results, simulator, config=None, write_files=True):
             #     print("Raw ts:\n%s" % str(source_ts))
 
         if len(results) > 2:
-            try:
-                bold_ts = TimeSeriesXarray(  # substitute with TimeSeriesRegion fot TVB like functionality
-                    data=results[2][1], time=results[2][0],
-                    connectivity=simulator.connectivity,
-                    labels_ordering=["Time", "State Variable", "Region", "Neurons"],
-                    labels_dimensions={"State Variable": ["BOLD"],
-                                       "Region": simulator.connectivity.region_labels.tolist()},
-                    sample_period=simulator.monitors[2].period)
-                bold_ts.configure()
-
-                if config.VERBOSITY > 1:
-                    print("BOLD ts:\n%s" % str(bold_ts))
-
-                outputs["bold_ts"] = bold_ts
-
-            except Exception as e:
-                outputs["bold_ts"] = results[2]
-                warnings.warn("Failed to construct BOLD time series with error!:\n%s" % str(e))
-                if write_files:
-                    if config.VERBOSITY:
-                        print("Pickle-dumping BOLD TVB monitor output to %s!" % config.BOLD_TS_PATH)
-                    try:
-                        dump_pickled_dict({"bold_ts": results[2][1],
-                                           "bold_t": results[2][0]},
-                                          config.BOLD_TS_PATH)
-                    except Exception as e:
-                        warnings.warn("Failed to pickle dump BOLD TVB monitor output with error!:\n%s" % str(e))
-
-            if bold_ts is not None:
-                if write_files:
-                    if config.VERBOSITY:
-                        print("Pickle-dumping bold_ts to %s!" % config.BOLD_TS_PATH)
-                    dump_pickled_time_series(bold_ts, config.BOLD_TS_PATH)
-
-                # # Write to file
-                # if writer:
-                #     try:
-                #         write_RegionTimeSeriesXarray_to_h5(bold_ts, writer,
-                #                                            os.path.join(config.out.FOLDER_RES,
-                #                                                         bold_ts.title) + ".h5")
-                #     except Exception as e:
-                #         warnings.warn("Failed to to write BOLD time series to file with error!:\n%s" % str(e))
+            outputs.update(
+                tvb_res_to_bold_time_series(results[2], simulator, config, write_files=write_files))
 
     return outputs
 
