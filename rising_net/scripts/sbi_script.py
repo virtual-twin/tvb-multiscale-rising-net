@@ -464,11 +464,12 @@ def plot_diagnostics(samples, config,
             res.append(get_diagnostic(d, samples, config, params=params, iR=iR))
             dnames.append(d)
     res = concat(res, dim=Index(dnames, name="Inference diagnostics"))
+    res.name = "Inference diagnostics"
     if figsize is None:
         figsize = config.figures.DEFAULT_SIZE
     if res.ndim > 2:
         res.plot.line(x=res.dims[1], row=res.dims[0], hue=res.dims[2],
-                      marker="*", markersize=10, figsize=figsize)
+                      marker="*", markersize=10, figsize=figsize, sharey=False)
     else:
         res.to_series().unstack().plot.bar(figsize=figsize)
     if config.figures.SAVE_FLAG:
