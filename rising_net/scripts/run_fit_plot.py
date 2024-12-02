@@ -13,7 +13,7 @@ from rising_net.scripts.nest_script import build_NEST_network
 from rising_net.scripts.sbi_script import load_posterior_samples, load_train_params_samples_selection
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity, build_model, build_simulator, \
-    simulate, plot_tvb, tvb_res_to_time_series, compute_PSD_target_and_data
+    simulate, plot_tvb, tvb_res_to_time_series, tvb_res_to_bold_time_series, compute_PSD_target_and_data
 from rising_net.scripts.utils import compute_selected_spectra_coherence, joinstr
 from tvb_multiscale.core.utils.data_structures_utils import narray_summary_info
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict, load_pickled_dict
@@ -47,6 +47,8 @@ def get_simres_folder_name(config, FUNCMODE="SIM"):
         return config.MEAN_FOLDER
     elif FUNCMODE.upper() == "MAPSIM":
         return config.MAP_FOLDER
+    elif FUNCMODE.upper() == "BOLDSIM":
+        return config.BOLD_FOLDER
     else:
         return ""
 
@@ -256,66 +258,68 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
 
     # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
 
-    # Compute transient
-    transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
-    if config.RAW_PERIOD > config.DEFAULT_DT:
-        transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD
-
-    if plotter:
-        results = plot_tvb(transient, inds,
-                           results=results, simulator=simulator, plotter=plotter, config=config,
-                           write_files=FUNCMODE.upper() == "SIM")
-        # if "COSIM" in config.MODE::
-        #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-        #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
-        #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+    if "BOLD" in FUNCMODE:
+        results = tvb_res_to_bold_time_series(results[0], simulator, config, write_files=True)
     else:
-        results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
-    results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
+        # Compute transient
+        transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
+        if config.RAW_PERIOD > config.DEFAULT_DT:
+            transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD
+        if plotter:
+            results = plot_tvb(transient, inds,
+                               results=results, simulator=simulator, plotter=plotter, config=config,
+                               write_files=FUNCMODE.upper() == "SIM")
+            # if "COSIM" in config.MODE::
+            #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+            #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
+            #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+        else:
+            results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
+        results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
 
-    if "REST" in config.MODE:
-        # Return the M1 <-> PSD fitting target
-        if "PSD" not in results.keys():
-            PSD, PSD_target = compute_PSD_target_and_data(config, results["source_ts"], inds, transient,
-                                                          write_files=FUNCMODE.upper() == "SIM",
-                                                          plotter=None)
-            results.update({"PSD": PSD, "f": PSD_target['f']})
+        if "REST" in config.MODE:
+            # Return the M1 <-> PSD fitting target
+            if "PSD" not in results.keys():
+                PSD, PSD_target = compute_PSD_target_and_data(config, results["source_ts"], inds, transient,
+                                                              write_files=FUNCMODE.upper() == "SIM",
+                                                              plotter=None)
+                results.update({"PSD": PSD, "f": PSD_target['f']})
 
-        if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+                results_keys = list(results.keys())
+                for key in results_keys:
+                    if key not in ["PSD", "f", "regions"]:
+                        del results[key]
+            if config.VERBOSITY:
+                print("\nWriting results %s\nto file %s...\n" %
+                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
+            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
+        else:
+            # Return PSD and COH along the task pathway fitting targets:
+            n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
+
+            source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
+            taskinds = np.arange(source_ts.shape[2]).astype("i")
+
+            # Power Spectra and Coherence for M1 - S1 barrel field
+            PSD, COH, f, pairs = \
+                compute_selected_spectra_coherence(source_ts, taskinds, source_ts.sample_period,
+                                                   transient=0, nperseg=1024, ftarg=config.FREQS)
+            results["PSD"] = PSD
+            results["f"] = f
+            results["COH"] = COH
+            results["pairs"] = pairs
+            results["regions"] = simulator.connectivity.region_labels[taskinds]
+
             results_keys = list(results.keys())
-            for key in results_keys:
-                if key not in ["PSD", "f", "regions"]:
-                    del results[key]
-        if config.VERBOSITY:
-            print("\nWriting results %s\nto file %s...\n" %
-                  (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
-        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
-    else:
-        # Return PSD and COH along the task pathway fitting targets:
-        n_transient = int(np.ceil(transient / results["source_ts"].sample_period))
-
-        source_ts = results["source_ts"][n_transient:, [0], config.TASKINDS]
-        taskinds = np.arange(source_ts.shape[2]).astype("i")
-
-        # Power Spectra and Coherence for M1 - S1 barrel field
-        PSD, COH, f, pairs = \
-            compute_selected_spectra_coherence(source_ts, taskinds, source_ts.sample_period,
-                                               transient=0, nperseg=1024, ftarg=config.FREQS)
-        results["PSD"] = PSD
-        results["f"] = f
-        results["COH"] = COH
-        results["pairs"] = pairs
-        results["regions"] = simulator.connectivity.region_labels[taskinds]
-
-        results_keys = list(results.keys())
-        if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
-            for key in results_keys:
-                if key not in ["PSD", "f", "COH", "pairs", "regions"]:
-                    del results[key]
-        if config.VERBOSITY:
-            print("\nWriting results %s\nto file %s...\n" %
-                  (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
-        dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
+            if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+                for key in results_keys:
+                    if key not in ["PSD", "f", "COH", "pairs", "regions"]:
+                        del results[key]
+            if config.VERBOSITY:
+                print("\nWriting results %s\nto file %s...\n" %
+                      (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
+            dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
 
     return results, simulator, nest_network, config, inds
 
