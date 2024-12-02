@@ -120,9 +120,16 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
 
     iG, kwargs = get_G(config, iG=iG, **kwargs)
 
+    if FUNCMODE == "BOLDSIM":
+        kwargs["TIME_SERIES_MONITORS"] = kwargs.get("TIME_SERIES_MONITORS", False)
+        kwargs["SIMULATION_LENGTH"] = kwargs.get("SIMULATION_LENGTH", config.BOLD_SIMULATION_LENGTH)
+        kwargs["TRANSIENT_RATIO"] = kwargs.get("TRANSIENT_RATIO",
+                                               np.minimum(0.25, 2**14 / kwargs["SIMULATION_LENGTH"]).item())
+        effective_FUNCMODE = "%sSIM" % config.OPT_RES_MODE.upper()
+    else:
+        effective_FUNCMODE = FUNCMODE
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
-        process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
-
+        process_funcmode(effective_FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
     if "SIM" in FUNCMODE:
         kwargs["output_folder"] = os.path.dirname(
             os.path.dirname(
