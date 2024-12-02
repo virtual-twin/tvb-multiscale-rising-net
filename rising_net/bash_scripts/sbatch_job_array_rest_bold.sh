@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=FIT_REST_BOLD
-#SBATCH --output=./outputs/FIT_REST/mean_sims/logs/FIT_REST_BOLD_%A_%a.out
-#SBATCH --error=./outputs/FIT_REST/mean_sims/errors/FIT_REST_BOLD_%A_%a.err
+#SBATCH --output=./outputs/FIT_REST/BOLD_sims/logs/FIT_REST_BOLD_%A_%a.out
+#SBATCH --error=./outputs/FIT_REST/BOLD_sims/errors/FIT_REST_BOLD_%A_%a.err
 #SBATCH --array=0-10
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
