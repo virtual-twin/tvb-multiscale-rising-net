@@ -143,7 +143,10 @@ def configure(**ARGS):
     config.TASK = TASK
     config.BASENAME = BASENAME
     config.HEADPATH = os.path.join(config.out.FOLDER_RES.split(BASENAME)[0], BASENAME)
-    # Testing: 10: 1025, 11: 2049.0, Fitting: 13: 8193.0, BOLD: 16: 65537
+    # Testing: 10: 1025, 11: 2049.0, Fitting: 13: 8193.0, BOLD: 10 mins
+    config.TEST_SIMULATION_LENGTH = 2 ** 10 + 1.0
+    config.FIT_SIMULATION_LENGTH = 2 ** 13 + 1.0
+    config.BOLD_SIMULATION_LENGTH = 10 * 60 * 2**10 + 1.0  # = 10 mins * 60 secs * 2 ** 10 + 1
     config.SIMULATION_LENGTH = args.get("SIMULATION_LENGTH", 2 ** 13 + 1.0)
     config.TRANSIENT_RATIO = args.get("TRANSIENT_RATIO", 0.25)
     config.SOURCE_TS_PATH = os.path.join(config.out.FOLDER_RES, "source_ts.pkl")
@@ -180,6 +183,7 @@ def configure(**ARGS):
     for pg, pgdef in PATHWAY_GAINS.items():
         setattr(config, pg, args[pg] * config.PATHWAY_GAIN)
     # TVB Monitors:
+    config.TIME_SERIES_MONITORS = args.get("TIME_SERIES_MONITORS", True)
     config.RAW_PERIOD = 1.0
     config.BOLD_PERIOD = 1024.0  # 1024.0 or None, If None, BOLD will not be computed
     config.AFFERENT_MONITOR = True
@@ -286,6 +290,7 @@ def configure(**ARGS):
     config.PPC_FOLDER = "PPC_sims"
     config.MEAN_FOLDER = "mean_sims"
     config.MAP_FOLDER = "MAP_sims"
+    config.BOLD_FOLDER = "BOLD_sims"
     config.ALL_SAMPLES_LABEL = "allsamples"
     config.ALL_RUNS_LABEL = "allruns"
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
