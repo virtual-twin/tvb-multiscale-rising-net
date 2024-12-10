@@ -136,7 +136,8 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
                 rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE, fitlabel)))
     config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
 
-    print(config.model_params)
+    if config.VERBOSITY:
+        print(config.model_params)
 
     return config, plotter
 
