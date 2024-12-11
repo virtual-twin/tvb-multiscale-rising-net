@@ -25,7 +25,7 @@ from rising_net.scripts.sbi_script import build_priors, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_simres_folder_name, simres_folder, \
+from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_G, get_simres_folder_name, simres_folder, \
     process_funcmode, get_stats_params, sim_run_plot, run_fit_plot_args_parser, load_sims_to_xarrays_for_iP, \
     sim_run_plot
 from rising_net.scripts.utils import *
@@ -112,9 +112,11 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
     iG = kwargs.pop("iG", None)
+    iG, kwargs = get_G(config, iG=iG, **kwargs)
+
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
         process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
-    print("params1=%s" % str(params))
+
     if len(REST_BASENAME):
         # Load REST parameters from previous REST fitting:
         paramsRest = {}
@@ -124,9 +126,8 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
                                                     BASENAME=REST_BASENAME,
                                                     verbosity=verbosity))
         params.update(paramsRest)
-        print("params2=%s" % str(params))
     kwargs.update(params)
-    print("kwargs=%s" % str(kwargs))
+
     if "SIM" in FUNCMODE:
         for md in ["COSIM_CEREBOFF", "TVB_CEREBOFF", "COSIM", "TVB"]:
             if md in MODE:
@@ -738,7 +739,6 @@ def task_run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
                  'restfitlabel':  ['rflbl', str,
                                    'Specific fitting label name for rest fitting results to load', "allsamples"]
                  }
-    args = deepcopy(defargs)
     for arg, vals in arguments.items():
         args[arg] = vals[-1]
         parser.add_argument('--%s' % arg,
