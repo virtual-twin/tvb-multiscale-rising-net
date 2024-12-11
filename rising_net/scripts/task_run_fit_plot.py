@@ -728,7 +728,7 @@ def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=
 
 def task_run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
 
-    parser = run_fit_plot_args_parser(funname, defargs)
+    parser, args = run_fit_plot_args_parser(funname, defargs)
 
     arguments = {'REST_BASENAME': ['rbsnm', str, 'Rest fitting base folder name', ""],
                  'restfitlabel':  ['rflbl', str,
