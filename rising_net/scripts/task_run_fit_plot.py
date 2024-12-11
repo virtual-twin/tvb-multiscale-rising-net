@@ -123,6 +123,7 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
                                                     BASENAME=REST_BASENAME,
                                                     verbosity=verbosity))
         params.update(paramsRest)
+    kwargs.update(params)
     if "SIM" in FUNCMODE:
         for md in ["COSIM_CEREBOFF", "TVB_CEREBOFF", "COSIM", "TVB"]:
             if md in MODE:
