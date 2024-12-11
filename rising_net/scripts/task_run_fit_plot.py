@@ -114,6 +114,7 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     iG = kwargs.pop("iG", None)
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
         process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
+    print("params1=%s" % str(params))
     if len(REST_BASENAME):
         # Load REST parameters from previous REST fitting:
         paramsRest = {}
@@ -123,7 +124,9 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
                                                     BASENAME=REST_BASENAME,
                                                     verbosity=verbosity))
         params.update(paramsRest)
+        print("params2=%s" % str(params))
     kwargs.update(params)
+    print("kwargs=%s" % str(kwargs))
     if "SIM" in FUNCMODE:
         for md in ["COSIM_CEREBOFF", "TVB_CEREBOFF", "COSIM", "TVB"]:
             if md in MODE:
