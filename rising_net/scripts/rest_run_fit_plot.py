@@ -23,7 +23,7 @@ from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args
 from rising_net.scripts.filepaths import get_path, simres_filepath, construct_filepath
 from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, get_simres_folder_name, \
     simres_folder, get_stats_params, process_funcmode, find_all_folders, load_sims_to_xarrays_for_iP, \
-    run_fit_plot_args_parser, sim_run_plot
+    run_fit_plot_args_parser, sim_run_plot, get_G
 from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare_connectome, build_connectivity, \
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, \
     compute_target_PSDs, compute_PSD_target_and_data
@@ -55,19 +55,6 @@ def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
     return simres_filepath(config, config.SIM_RES_FILE, folder,
                            iR=iR, label="",
                            filepath=filepath, extension=extension)
-
-
-def get_G(config, iG=None, **kwargs):
-    if iG is None:
-        G = kwargs.get("G", None)
-        if G is not None:
-            try:
-                iG = config.Gs.tolist().index(G)
-            except:
-                iG = None
-    else:
-        kwargs["G"] = config.Gs[int(iG)]
-    return iG, kwargs
 
 
 # iP: parameter sample index

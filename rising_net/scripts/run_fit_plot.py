@@ -38,6 +38,19 @@ def iRstr(iR, Nreps=10, nsdstr=NSDSTR):
     return nsdstr + istr(int(iR), Ns=Nreps)
 
 
+def get_G(config, iG=None, **kwargs):
+    if iG is None:
+        G = kwargs.get("G", None)
+        if G is not None:
+            try:
+                iG = config.Gs.tolist().index(G)
+            except:
+                iG = None
+    else:
+        kwargs["G"] = config.Gs[int(iG)]
+    return iG, kwargs
+
+
 def get_simres_folder_name(config, FUNCMODE="SIM"):
     if FUNCMODE.upper() == "TRAINSIM":
         return config.TRAIN_SIMS_FOLDER
