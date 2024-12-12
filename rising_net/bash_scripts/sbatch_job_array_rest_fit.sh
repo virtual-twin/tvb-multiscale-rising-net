@@ -10,5 +10,5 @@
 #SBATCH --mail-user=dionysios.perdikis@bih-charite.de
 
 CMD_PATH="/home/docker/packages/tvb-multiscale/rising_net/bash_scripts/"
-CMD="sh ${CMD_PATH}fit_rest_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
+CMD="bash ${CMD_PATH}fit_rest_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
 apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
