@@ -25,9 +25,9 @@ from rising_net.scripts.sbi_script import build_priors, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
-from rising_net.scripts.run_fit_plot import RESSTR, NSDSTR, iPstr, get_G, get_simres_folder_name, simres_folder, \
-    process_funcmode, get_stats_params, sim_run_plot, run_fit_plot_args_parser, load_sims_to_xarrays_for_iP, \
-    sim_run_plot
+from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, iPstr, get_G, \
+    get_simres_folder_name, simres_folder, process_funcmode, get_stats_params, sim_run_plot, run_fit_plot_args_parser, \
+    load_sims_to_xarrays_for_iP, sim_run_plot
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
 
@@ -70,7 +70,7 @@ def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE=
 
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
-def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
+def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
                REST_BASENAME="", restfitlabel="",
                # parameters_iR=None, parameters_label, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
@@ -111,7 +111,6 @@ def get_config(iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     verbosity = kwargs.pop("verbosity", 1)
     config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
-    iG = kwargs.pop("iG", None)
     iG, kwargs = get_G(config, iG=iG, **kwargs)
 
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
@@ -212,17 +211,20 @@ def load_task_sims_to_xarrays(folder, config, iR=None, resstr=RESSTR, modes=None
     return res
 
 
-def load_sims_to_xarrays(path=None, config=None, iP=None, iR=None, label="", modes=None, measures="COH",
-                         average_repetitions=True, folderstr=NSDSTR, resstr=RESSTR):
+def load_sims_to_xarrays(path=None, config=None, iG=None, iP=None, iR=None, label="", modes=None, measures="COH",
+                         average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if path is None:
         path = config.out.FOLDER_RES
     if len(label):
         path = os.path.join(path, label)
-    return load_sims_to_xarrays_for_iP(load_task_sims_to_xarrays, measures, path,
-                                       config, iP=iP, iR=iR,
-                                       average_repetitions=average_repetitions,
-                                       folderstr=folderstr, resstr=resstr, modes=modes)
+    if iG is not None:
+        path = os.path.join(path, iGstr(iG, Ngs=len(config.Gs), igstr=igstr))
+    res, iPs = load_sims_to_xarrays_for_iP(load_task_sims_to_xarrays, measures, path,
+                                           config, iP=iP, iR=iR,
+                                           average_repetitions=average_repetitions,
+                                           folderstr=folderstr, resstr=resstr, modes=modes)
+    return res, iPs, path
 
 
 def pathway_pairs_fun():
@@ -242,8 +244,8 @@ def all_task_pairs_fun(N):
         return np.array([[]])
 
 
-def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iP=None, iR=None, label="",
-                           measures=["COH", "PSD"], folderstr=NSDSTR, resstr=RESSTR, **kwargs):
+def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iG=None, iP=None, iR=None, label="",
+                           measures=["COH", "PSD"], igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     # CONFIGURATION:
     config = assert_config(config, return_plotter=False, **kwargs)
     if path is None:
@@ -252,8 +254,10 @@ def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None
         folder = get_simres_folder_name(config, FUNCMODE=FUNCMODE)
         if len(folder):
             path = os.path.join(path, folder)
-    res, iPs = load_sims_to_xarrays(path, config, iP=iP, iR=iR, label=label, modes=TESTS, measures=measures,
-                                    average_repetitions=False, folderstr=folderstr, resstr=resstr)
+
+    res, iPs, path = load_sims_to_xarrays(path, config, iG=iG, iP=iP, iR=iR, label=label,
+                                          modes=TESTS, measures=measures,
+                                          average_repetitions=False, igstr=igstr, folderstr=folderstr, resstr=resstr)
     return res, iPs, path, config
 
 
@@ -343,12 +347,16 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         plt.savefig(os.path.join(folder, "COHs.png"))
 
 
-def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iP=None, iR=None, label="",
-                              folderstr=NSDSTR, resstr=RESSTR, **kwargs):
-    config, plotter = assert_config(config, return_plotter=True, **kwargs)
+def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iG=None, iP=None, iR=None,
+                              label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
+    if config is None:
+        config, plotter = get_config(iP=iP, iR=iR, fitlabel=label, **kwargs)
+    else:
+        config, plotter = assert_config(config, return_plotter=True, **kwargs)
+    # config, plotter = assert_config(config, return_plotter=True, **kwargs)
     res, iPs, figsfolder, config = load_results_for_tests(TESTS=TESTS, path=path, config=config,
-                                                          iP=iP, iR=iR, label=label, measures=["COH", "PSD"],
-                                                          folderstr=folderstr, resstr=resstr, **kwargs)
+                                                          iG=iG, iP=iP, iR=iR, label=label, measures=["COH", "PSD"],
+                                                          igstr=igstr, folderstr=folderstr, resstr=resstr, **kwargs)
     if len(label):
         figsfolder = os.path.join(figsfolder, label)
     if iPs is None:
@@ -582,14 +590,15 @@ def target_COHM1S1diffratioDistRatioDist(config, target=None):
 
 
 def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                      config=None, iP=None, label="", folderstr=NSDSTR, resstr=RESSTR):
+                      config=None, iG=None, iP=None, label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
         sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
     # Load priors' samples
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
-    sim_res, iPs = load_sims_to_xarrays(sim_res_path, config, iP=iP, iR=None, label=label, modes=None, measures="COH",
-                                        average_repetitions=True, folderstr=folderstr, resstr=resstr)
+    sim_res, iPs = load_sims_to_xarrays(sim_res_path, config, iG=iG, iP=iP, iR=None, label=label, modes=None,
+                                        measures="COH",  average_repetitions=True,
+                                        igstr=igstr, folderstr=folderstr, resstr=resstr)[:2]
     sim_res = sim_res["COH"]
     # Reverse the dimensions of modes and parameters:
     return sim_res_fun(sim_res.transpose(*np.array(sim_res.dims)[[1, 0, 2, 3, 4]].tolist()), config), iPs
@@ -598,7 +607,7 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
 def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
                                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                         target=None, target_fun=target_COHM1S1diffratio_fun,
-                                        config=None, label="", folderstr=NSDSTR, resstr=RESSTR):
+                                        config=None, label="", iG=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild priors if not provided in the input:
     if priors is None:
@@ -614,7 +623,8 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
     # Load training simulation results if not provided in the input:
     if sim_res is None:
         sim_res = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                    config=config, iP=None, label=label, folderstr=folderstr, resstr=resstr)[0]
+                                    config=config, iG=iG, iP=None, label=label,
+                                    igstr=igstr, folderstr=folderstr, resstr=resstr)[0]
     if target is None:
         target = target_fun(config, target)
     return priors, train_params_samples, sim_res, target
@@ -623,15 +633,15 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
 def infer_workflow_for_task(priors=None, train_params_samples=None,
                             sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                             target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
-                            config=None, folderstr=NSDSTR, resstr=RESSTR,
+                            config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                             label="", n_samples_per_run=None, measure_labels=None,
-                            results=None, iR=None, save_samples=True,
+                            results=None, iG=None, iR=None, save_samples=True,
                             plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            config, label, folderstr, resstr)
+                                            config, label, iG, igstr, folderstr, resstr)
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
                           results, iR, save_samples, plot_flag, None, plot_diagnostics_flag, verbosity)
@@ -640,21 +650,21 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
 def infer_nRuns_for_task(priors=None, train_params_samples=None,
                          sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                          target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
-                         config=None, folderstr=NSDSTR, resstr=RESSTR,
-                         label="", n_samples_per_run=None, measure_labels=None,
+                         config=None,  igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                         label="", n_samples_per_run=None, measure_labels=None, iG=None,
                          save_samples=True, plot_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
         load_priors_target_and_sims_for_sbi(priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
-                                            config, label,  folderstr, resstr)
+                                            config, label, iG, igstr, folderstr, resstr)
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
                        config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, None, verbosity)
 
 
 def load_stat_sims_for_task(stat="PPC", label="",
                             sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                            iP=None, config=None, folderstr=NSDSTR, resstr=RESSTR):
+                            iG=None, iP=None, config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     stat = stat.upper()
     if sim_res_path is None:
@@ -662,7 +672,8 @@ def load_stat_sims_for_task(stat="PPC", label="",
     # Load training simulation results:
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
     sim_res, iPs = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                     config=config, iP=iP, label=label, folderstr=folderstr, resstr=resstr)
+                                     config=config, iG=iG, iP=iP, label=label,
+                                     igstr=igstr, folderstr=folderstr, resstr=resstr)
     if sim_res.ndim < 2:
         if isinstance(sim_res, np.ndarray):
             sim_res = sim_res[np.newaxis]
@@ -673,57 +684,58 @@ def load_stat_sims_for_task(stat="PPC", label="",
     return sim_res, iPs
 
 
-def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label="",
+def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
                                           sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                           target=None, target_fun=target_COHM1S1diffratio_fun,
-                                          config=None, folderstr=NSDSTR, resstr=RESSTR):
+                                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iP = load_stat_sims_for_task(stat=stat, label=label,
                                           sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
-                                          iP=iP, config=config,  folderstr=folderstr, resstr=resstr)
+                                          iG=iG, iP=iP, config=config, igstr=igstr, folderstr=folderstr, resstr=resstr)
     if not isinstance(sim_res, numpy.ndarray):
         sim_res = sim_res.values.astype('float32')
     params, iP, fitlabel, params_string = \
-        get_stats_params(config, stat=stat, FUNCMODE=None, iG=None, iP=iP, iF=iF, fitlabel=label)
+        get_stats_params(config, stat=stat, FUNCMODE=None, iG=iG, iP=iP, iF=iF, fitlabel=label)
 
     if target is None:
         target = target_fun(config, target)
     return sim_res, iP, target, params
 
 
-def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label="",
+def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
                                                    sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                                    target=None, target_fun=target_COHM1S1diffratio_fun,
-                                                   config=None, folderstr=NSDSTR, resstr=RESSTR,
+                                                   config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                    measure_labels=None, plot_comparisons=True):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     sim_res, iP, target, params = \
-        load_stat_sims_params_target_for_task(stat=stat, iF=iF, iP=iP, label=label,
+        load_stat_sims_params_target_for_task(stat=stat, iF=iF, iG=iG, iP=iP, label=label,
                                               sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
                                               target=target, target_fun=target_fun,
-                                              config=config, folderstr=folderstr, resstr=resstr)
+                                              config=config, igstr=igstr, folderstr=folderstr, resstr=resstr)
     params_vals = np.array(list(params.values())).T
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
     outputs = plot_stats(sim_res, stat, target, params_vals, label, measure_labels, None, config)
     if plot_comparisons:
-        load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=config, iP=iP, iR=None, label=label,
-                                  folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
+        load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=config,
+                                  iG=iG, iP=iP, iR=None, label=label,
+                                  igstr=igstr, folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
     return outputs
 
 
-def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iP=None, label="",
+def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
                                                         sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
                                                         target=None, target_fun=target_COHM1S1diffratio_fun,
                                                         target_dist_fun=correlation_distance, Nbest=None,
-                                                        config=None, folderstr=NSDSTR, resstr=RESSTR,
+                                                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                         measure_labels=None):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
-        load_stat_sims_params_target_for_task(stat=stat, iF=iF, iP=iP, label=label,
+        load_stat_sims_params_target_for_task(stat=stat, iF=iF, iG=iG, iP=iP, label=label,
                                               sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
                                               target=target, target_fun=target_fun,
-                                              config=config, folderstr=folderstr, resstr=resstr)
+                                              config=config, igstr=igstr, folderstr=folderstr, resstr=resstr)
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
                                              label=label,
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
