@@ -31,23 +31,15 @@ def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=11, Nreps=3):
     return output
 
 
-def simulate_task_ids_args(jobarr_id, Nreps=3):
-    output = print("--iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Nreps)]))
+def simulate_task_train_ids_args(jobarr_id, Nps=1000, Ngs=11):
+    iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs)])
+    output = print("--iG %d --iP %d" % (iG, iP))
     return output
 
 
-def simulate_task_train_ids_args(jobarr_id, Nps=1000, Nreps=3):
-    output = print("--iP %d --iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Nreps)]))
-    return output
-
-
-def simulate_task_ppc_ids_args(jobarr_id, Nps=100, Nreps=3):
-    output = print("--iP %d --iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Nreps)]))
-    return output
-
-
-def simulate_task_mapmean_ids_args(jobarr_id, Nreps=3):
-    output = print("--iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Nreps)]))
+def simulate_task_ppc_ids_args(jobarr_id, Nps=100, Ngs=11):
+    iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs)])
+    output = print("--iG %d --iP %d" % (iG, iP))
     return output
 
 
@@ -103,13 +95,7 @@ if __name__ == '__main__':
         simulate_rest_mapmean_ids_args(*sys.argv[2:])
     # elif sys.argv[1] == "fit_task":
     #     fit_task(*sys.argv[2:])
-    elif sys.argv[1] == "simulate_task_ids_args":
-        simulate_task_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_train_ids_args":
         simulate_task_train_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
         simulate_task_ppc_ids_args(*sys.argv[2:])
-    elif sys.argv[1] == "simulate_task_mapmean_ids_args":
-        simulate_task_mapmean_ids_args(*sys.argv[2:])
-
-
