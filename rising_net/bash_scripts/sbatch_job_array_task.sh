@@ -4,7 +4,7 @@
 #SBATCH --output=./outputs/REST/logs/TASK_%A_%a.out
 #SBATCH --error=./outputs/REST/errors/TASK_%A_%a.err
 #SBATCH --array=0-10
-#SBATCH --time=02:00:00
+#SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
 #SBATCH --mail-user=dionysios.perdikis@bih-charite.de
