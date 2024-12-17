@@ -261,14 +261,27 @@ def load_results_for_tests(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None
     return res, iPs, path, config
 
 
+def get_task_regions(config=None):
+    if config is None:
+        config = configure(plot_flag=False, PATHWAY_GAIN=1.0, verbosity=0, BASENAME="tmp123456789")[0]
+        shutil.rmtree(config.HEADPATH)
+        connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
+        connectivity = build_connectivity(connectome, inds, config)
+        return config.TASKINDS, connectivity.region_labels[config.TASKINDS], inds
+    else:
+        try:
+            connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
+            connectivity = build_connectivity(connectome, inds, config)
+            return config.TASKINDS, connectivity.region_labels[config.TASKINDS], inds
+        except Exception as e:
+            warnings.warn(str(e))
+            return get_task_regions()
+
+
 def plot_comparisons(COH, PSD, config, plotter, folder=None):
 
     if folder is None:
         folder = config.figures.FOLDER_FIGURES
-
-    # CONNECTIVITY:
-    connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=None)
-    connectivity = build_connectivity(connectome, inds, config)
 
     # # Results path:
     # if config.VERBOSITY > 1: print("FOLDER_RES: ", config.out.FOLDER_RES)
@@ -279,8 +292,8 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
     # config.out._out_base = TESTSPATH
     # config.figures._out_base = TESTSPATH
 
-    # Task related regions' labels:
-    REGION_LABELS = connectivity.region_labels[config.TASKINDS]
+    # Task related regions' labels, and indices:
+    TASKINDS, REGION_LABELS, inds = get_task_regions(config)
     # Task related regions' abreviated labels:
     SHORT_LABELS = [shorten_region_name(reg, exclude=["of", "the", "to"]) for reg in REGION_LABELS]
 
@@ -288,7 +301,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
     GAMMA = config.GAMMA[[0, -1]]  # Hz
 
     # results dictionary:
-    results = {"inds": config.TASKINDS,
+    results = {"inds": TASKINDS,
                "region_labels": REGION_LABELS, "short_labels": SHORT_LABELS,
                "theta": THETA, "gamma": GAMMA}
     f = COH.coords["f"].values
@@ -316,7 +329,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
         results["f"] = f  # frequency vector
         results["fth"] = fth  # theta frequency vector inds
         results["fgm"] = fgm  # gamma frequency vector inds
-        # pairs of regions of coherences where i, j in [0, config.TASKINDS.size]:
+        # pairs of regions of coherences where i, j in [0, TASKINDS.size]:
         results["ij"] = all_task_pairs_fun(len(results["inds"]))  # pathway_pairs_fun()
     figR, axR, figL, axL = plot_pathway_psd_coh(results, inds,
                                                 tests=modes, colors=colors,
@@ -350,7 +363,8 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
 def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iG=None, iP=None, iR=None,
                               label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     if config is None:
-        config, plotter = get_config(iP=iP, iR=iR, fitlabel=label, **kwargs)
+        kwargs["plot_flag"] = True
+        config, plotter = get_config(fitlabel=label, **kwargs)
     else:
         config, plotter = assert_config(config, return_plotter=True, **kwargs)
     # config, plotter = assert_config(config, return_plotter=True, **kwargs)
@@ -365,9 +379,8 @@ def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=N
         plot_comparisons(res["COH"], res["PSD"], config, plotter, figsfolder)
     else:
         iPs = ensure_list(iPs)
-        Nps = len(iPs)
         for iiP, iP in enumerate(iPs):
-            figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=Nps, resstr=resstr), "figs")
+            figsfolder_iiP = os.path.join(figsfolder, iPstr(iP, Nsims=config.N_SIMULATIONS, resstr=resstr), "figs")
             safe_makedirs(figsfolder_iiP)
             plot_comparisons(res["COH"][iiP], res["PSD"][iiP], config, plotter, figsfolder_iiP)
 
