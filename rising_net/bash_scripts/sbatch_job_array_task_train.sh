@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=TASK
-#SBATCH --output=./outputs/TASK/logs/TASK_%A_%a.out
-#SBATCH --error=./outputs/TASK/errors/TASK_%A_%a.err
+#SBATCH --job-name=FIT_TASK
+#SBATCH --output=./outputs/FIT_TASK/logs/FIT_TASK_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASK/errors/FIT_TASK_%A_%a.err
 #SBATCH --array=4000-8999
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
