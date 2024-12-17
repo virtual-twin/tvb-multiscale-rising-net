@@ -326,8 +326,12 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
 
             results_keys = list(results.keys())
             if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
+                keys_to_keep =  ["PSD", "f", "COH", "pairs", "regions"]
+                if FUNCMODE.upper == "TRAINSIM":
+                    keys_to_keep.append("source_ts")
+                    results["source_ts"] = results["source_ts"][:, :, inds["m1s1brl"]]
                 for key in results_keys:
-                    if key not in ["PSD", "f", "COH", "pairs", "regions"]:
+                    if key not in keys_to_keep:
                         del results[key]
             if config.VERBOSITY:
                 print("\nWriting results %s\nto file %s...\n" %
