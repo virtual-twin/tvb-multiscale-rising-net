@@ -79,7 +79,7 @@ def configure(**ARGS):
     # STIMULUS = defargs.get("STIMULUS", 0)
     G_w = args.get("G_w", 0)
     WHISKERS_GAIN = args.get("WHISKERS_GAIN", 50.0)
-    if G_w * WHISKERS_GAIN > 0.0:
+    if np.any(G_w * WHISKERS_GAIN > 0.0):
         WHISKERS = 1
     else:
         WHISKERS = 0
