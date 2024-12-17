@@ -122,7 +122,8 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
     if FUNCMODE == "PPCSIM":
         if iP is None:  # simulations for fitting
             warnings.warn("Parameter sample index iP is None for Post Predictive Check simulations!")
-        if verbosity:
+            iP = slice(None)
+        elif verbosity:
             Np = len(ensure_list(iP))
             if Np > 1:
                 params_string += "_iP_%s" % str(iP)
@@ -173,7 +174,7 @@ def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=N
                                                                   # filepath=parameters_filepath,
                                                                   # extension=parameters_filepath_ext
                                                                   ).numpy().squeeze()))
-            if verbosity:
+            if verbosity and iP is not None:
                 params_string = "%s PARAMETERS%s" % (FUNCMODE, istr(iP, Ns=config.N_SIMULATIONS))
         elif FUNCMODE in ["PPCSIM", "MEANSIM", "MAPSIM"]:
             params, iP, fitlabel, params_string = \
@@ -326,12 +327,8 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
 
             results_keys = list(results.keys())
             if FUNCMODE.upper() in ["TRAINSIM", "PPCSIM"]:
-                keys_to_keep =  ["PSD", "f", "COH", "pairs", "regions"]
-                if FUNCMODE.upper == "TRAINSIM":
-                    keys_to_keep.append("source_ts")
-                    results["source_ts"] = results["source_ts"][:, :, inds["m1s1brl"]]
                 for key in results_keys:
-                    if key not in keys_to_keep:
+                    if key not in ["PSD", "f", "COH", "pairs", "regions"]:
                         del results[key]
             if config.VERBOSITY:
                 print("\nWriting results %s\nto file %s...\n" %
