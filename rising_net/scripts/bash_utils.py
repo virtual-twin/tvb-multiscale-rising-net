@@ -58,6 +58,22 @@ def fit_rest(jobarr_id):
                               save_samples=True, plot_flag=True, verbosity=2)
 
 
+def fit_task(jobarr_id):
+    from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR
+    from rising_net.scripts.task_run_fit_plot import get_config, infer_nRuns_for_task
+
+    # Fitting:
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
+
+    return infer_nRuns_for_task(iG=int(jobarr_id),
+                                priors=None, train_params_samples=None,
+                                sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+                                target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
+                                config=config, folderstr=NSDSTR, resstr=RESSTR,
+                                label="", n_samples_per_run=None, measure_labels=measure_labels,
+                                save_samples=True, plot_flag=True, verbosity=2)
+
+
 def multiply(x, y):
     output = print(x*y)
     return output
@@ -93,8 +109,8 @@ if __name__ == '__main__':
         simulate_rest_ppc_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_rest_mapmean_ids_args":
         simulate_rest_mapmean_ids_args(*sys.argv[2:])
-    # elif sys.argv[1] == "fit_task":
-    #     fit_task(*sys.argv[2:])
+    elif sys.argv[1] == "fit_task":
+        fit_task(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_train_ids_args":
         simulate_task_train_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
