@@ -60,7 +60,8 @@ def fit_rest(jobarr_id):
 
 def fit_task(jobarr_id):
     from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR
-    from rising_net.scripts.task_run_fit_plot import get_config, infer_nRuns_for_task
+    from rising_net.scripts.task_run_fit_plot import \
+        get_config, get_sim_res_COHM1S1diffratio, target_COHM1S1diffratio_fun, infer_nRuns_for_task
 
     # Fitting:
     config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
