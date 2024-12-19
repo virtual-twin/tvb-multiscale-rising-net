@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=FIT_TASK
-#SBATCH --output=./outputs/FIT_TASK/fit/logs/TASK_%A_%a.out
-#SBATCH --error=./outputs/FIT_TASK/fit/errors/TASK_%A_%a.err
+#SBATCH --job-name=FTf
+#SBATCH --output=./outputs/FIT_TASK/fit/logs/FIT_TASK_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASK/fit/errors/FIT_TASK_%A_%a.err
 #SBATCH --array=4-8
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
