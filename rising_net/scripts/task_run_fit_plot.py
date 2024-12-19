@@ -362,7 +362,6 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
 
 def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iG=None, iP=None, iR=None,
                               label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
-    label = kwargs.get("fitlabel", label)
     if config is None:
         kwargs["plot_flag"] = True
         config, plotter = get_config(iG=iG, **kwargs)
