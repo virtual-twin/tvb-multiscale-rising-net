@@ -64,7 +64,7 @@ def fit_task(jobarr_id):
         get_config, get_sim_res_COHM1S1diffratio, target_COHM1S1diffratio_fun, infer_nRuns_for_task
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASK")[0]
 
     if config.COHERENCE_FISHER_Z_TRANSFORM:
         measure_labels = ["M1S1R_ThCOHFisherZdiffratio", "M1S1L_ThCOHFisherZdiffratio",
