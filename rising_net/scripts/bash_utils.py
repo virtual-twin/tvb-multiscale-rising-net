@@ -38,7 +38,7 @@ def simulate_task_train_ids_args(jobarr_id, Nps=1000, Ngs=11):
 
 
 def simulate_task_ppc_ids_args(jobarr_id, Nps=100, Ngs=11):
-    iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs)])
+    iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
     output = print("--iG %d --iP %d" % (iG, iP))
     return output
 
