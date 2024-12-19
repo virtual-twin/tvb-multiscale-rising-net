@@ -362,6 +362,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
 
 def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=None, iG=None, iP=None, iR=None,
                               label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
+    loadlabel = kwargs.get("fitlabel", label)
     if config is None:
         kwargs["plot_flag"] = True
         config, plotter = get_config(iG=iG, **kwargs)
@@ -369,7 +370,7 @@ def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=N
         config, plotter = assert_config(config, return_plotter=True, **kwargs)
     # config, plotter = assert_config(config, return_plotter=True, **kwargs)
     res, iPs, figsfolder, config = load_results_for_tests(TESTS=TESTS, path=path, config=config,
-                                                          iG=iG, iP=iP, iR=iR, label=label, measures=["COH", "PSD"],
+                                                          iG=iG, iP=iP, iR=iR, label=loadlabel, measures=["COH", "PSD"],
                                                           igstr=igstr, folderstr=folderstr, resstr=resstr, **kwargs)
     if len(label):
         figsfolder = os.path.join(figsfolder, label)
