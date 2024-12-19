@@ -364,7 +364,7 @@ def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=N
                               label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR, **kwargs):
     if config is None:
         kwargs["plot_flag"] = True
-        config, plotter = get_config(fitlabel=label, **kwargs)
+        config, plotter = get_config(**kwargs)
     else:
         config, plotter = assert_config(config, return_plotter=True, **kwargs)
     # config, plotter = assert_config(config, return_plotter=True, **kwargs)
