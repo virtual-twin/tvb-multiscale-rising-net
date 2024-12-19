@@ -734,11 +734,11 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None,
     params_vals = np.array(list(params.values())).T
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
-    outputs = plot_stats(sim_res, stat, target, params_vals, label, measure_labels, None, config)
+    outputs = plot_stats(sim_res, stat, target, params_vals,
+                         joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]), measure_labels, None, config)
     if plot_comparisons:
         load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=config,
-                                  iG=iG, iP=iP, iR=None,
-                                  label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
+                                  iG=iG, iP=iP, iR=None, label=label,
                                   igstr=igstr, folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
     return outputs
 
