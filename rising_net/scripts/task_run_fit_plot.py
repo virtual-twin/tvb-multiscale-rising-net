@@ -655,6 +655,8 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
                                             config, label, iG, igstr, folderstr, resstr)
+    if iG is not None:
+        label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
                           results, iR, save_samples, plot_flag, None, plot_diagnostics_flag, verbosity)
@@ -671,6 +673,8 @@ def infer_nRuns_for_task(priors=None, train_params_samples=None,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
                                             config, label, iG, igstr, folderstr, resstr)
+    if iG is not None:
+        label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
                        config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, None, verbosity)
 
