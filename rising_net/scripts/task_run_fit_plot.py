@@ -737,7 +737,8 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None,
     outputs = plot_stats(sim_res, stat, target, params_vals, label, measure_labels, None, config)
     if plot_comparisons:
         load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=config,
-                                  iG=iG, iP=iP, iR=None, label=label,
+                                  iG=iG, iP=iP, iR=None,
+                                  label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                   igstr=igstr, folderstr=folderstr, resstr=resstr, FUNCMODE="%sSIM" % stat.upper())
     return outputs
 
@@ -755,7 +756,7 @@ def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=
                                               target=target, target_fun=target_fun,
                                               config=config, igstr=igstr, folderstr=folderstr, resstr=resstr)
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
-                                             label=label,
+                                             label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
                                              measure_labels=measure_labels, measures_plot_fun=None,
                                              config=config)
