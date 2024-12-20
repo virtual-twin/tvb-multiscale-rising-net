@@ -457,19 +457,15 @@ def get_sim_res_COHM1S1andDiff(COHs, config):
     return COHs
 
 
-def get_sim_res_COHM1S1diffratio(COHs, config):
+def get_sim_res_COHM1S1diffratios(COHs, bandsinds, config):
     pathway_pairs = M1S1_pairs_fun()
     COHs = COHs[:, :, :, :, :].isel(
         Region1=DataArray(pathway_pairs[:, 0], dims="Region1-Region2"),
         Region2=DataArray(pathway_pairs[:, 1], dims="Region1-Region2"))
     if config.COHERENCE_FISHER_Z_TRANSFORM:
         COHs = np.arctanh(COHs)
-    thetaInds = np.logical_and(COHs.coords["f"] >= config.THETA[0], COHs.coords["f"] <= config.THETA[-1])
-    betaInds = np.logical_and(COHs.coords["f"] >= config.BETA[0], COHs.coords["f"] <= config.BETA[-1])
-    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
-    # COHsPerBand = []
     COHsDiffsPerBandRatio = []
-    for inds in [thetaInds, betaInds, gammaInds]:
+    for inds in bandsinds:
         # Average the coherence band:
         COHsPerBand = COHs[:, :, :, inds].mean(axis=-1)
         # Diff conditions and normalize with TVB with CEREBON coherence, and average over frequency band
@@ -480,9 +476,21 @@ def get_sim_res_COHM1S1diffratio(COHs, config):
     return COHs
 
 
+def get_sim_res_COHM1S1diffratio_allbands(COHs, config):
+    thetaInds = np.logical_and(COHs.coords["f"] >= config.THETA[0], COHs.coords["f"] <= config.THETA[-1])
+    betaInds = np.logical_and(COHs.coords["f"] >= config.BETA[0], COHs.coords["f"] <= config.BETA[-1])
+    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
+    return get_sim_res_COHM1S1diffratios(COHs, [thetaInds, betaInds, gammaInds], config)
+
+
+def get_sim_res_COHM1S1diffratio_gamma(COHs, config):
+    gammaInds = np.logical_and(COHs.coords["f"] >= config.GAMMA[0], COHs.coords["f"] <= config.GAMMA[-1])
+    return get_sim_res_COHM1S1diffratios(COHs, [gammaInds], config)
+
+
 def get_sim_res_COHM1S1diffratioDist(COHs, config):
-    COHs =  get_sim_res_COHM1S1diffratio(COHs, config)
-    target = target_COHM1S1diffratio_fun(config).numpy()
+    COHs = get_sim_res_COHM1S1diffratio_allbands(COHs, config)
+    target = target_COHM1S1diffratio_allbands_fun(config).numpy()
     for iB, w in enumerate(config.FREQ_BAND_FITNESS_WEIGHTS):
         iC = 2*iB
         for iH in range(2):
@@ -495,8 +503,8 @@ def get_sim_res_COHM1S1diffratioDist2Sum(COHs, config):
 
 
 def get_sim_res_COHM1S1diffratioDistRatio(COHs, config):
-    COHs =  get_sim_res_COHM1S1diffratio(COHs, config)
-    target = target_COHM1S1diffratio_fun(config).numpy()
+    COHs = get_sim_res_COHM1S1diffratio_allbands(COHs, config)
+    target = target_COHM1S1diffratio_allbands_fun(config).numpy()
     for iB, w in enumerate(config.FREQ_BAND_FITNESS_WEIGHTS):
         iC = 2*iB
         for iH in range(2):
@@ -575,20 +583,30 @@ def target_COHM1S1andDiff_fun(config, target=None):
     return torch.Tensor(target)
 
 
-def target_COHM1S1diffratio_fun(config, target=None):
+def target_COHM1S1diffratio_fun(config, bandsinds, target=None):
     if target is None:
         COH = load_Popa_etal_COH(config)
         if config.COHERENCE_FISHER_Z_TRANSFORM:
             COH = np.arctanh(COH)
-        thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
-        betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
-        gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
-        target = np.array([[np.mean((COH[0, thetaInds] - COH[1, thetaInds])/COH[0, thetaInds])]*2,
-                           [np.mean((COH[0, betaInds] - COH[1, betaInds])/COH[0, betaInds])]*2,
-                           [np.mean((COH[0, gammaInds] - COH[1, gammaInds])/COH[0, gammaInds])]*2]).flatten()
+        target = []
+        for inds in bandsinds:
+            target.append([np.mean((COH[0, inds] - COH[1, inds])/COH[0, inds])]*2)
+        target = np.array(target).flatten()
     else:
-        target = target * np.ones((6,))
+        target = target * np.ones((2*len(bands),))
     return torch.Tensor(target)
+
+
+def target_COHM1S1diffratio_allbands_fun(config, target=None):
+    thetaInds = np.logical_and(config.TARGET_FREQS >= config.THETA[0], config.TARGET_FREQS <= config.THETA[-1])
+    betaInds = np.logical_and(config.TARGET_FREQS >= config.BETA[0], config.TARGET_FREQS <= config.BETA[-1])
+    gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
+    return target_COHM1S1diffratio_fun(config, [thetaInds, betaInds, gammaInds], target=target)
+
+
+def target_COHM1S1diffratio_gamma_fun(config, target=None):
+    gammaInds = np.logical_and(config.TARGET_FREQS >= config.GAMMA[0], config.TARGET_FREQS <= config.GAMMA[-1])
+    return target_COHM1S1diffratio_fun(config, [gammaInds], target=target)
 
 
 def target_COHM1S1diffratioDist_fun(config, target=None):
@@ -603,7 +621,7 @@ def target_COHM1S1diffratioDistRatioDist(config, target=None):
     return torch.Tensor(np.zeros((1,)))
 
 
-def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                       config=None, iG=None, iP=None, label="", igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     if sim_res_path is None:
@@ -619,8 +637,8 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
 
 
 def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
-                                        sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                        target=None, target_fun=target_COHM1S1diffratio_fun,
+                                        sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                        target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                         config=None, label="", iG=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild priors if not provided in the input:
@@ -645,8 +663,8 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
 
 
 def infer_workflow_for_task(priors=None, train_params_samples=None,
-                            sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                            target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
+                            sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                            target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
                             config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                             label="", n_samples_per_run=None, measure_labels=None,
                             results=None, iG=None, iR=None, save_samples=True,
@@ -664,9 +682,9 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
 
 
 def infer_nRuns_for_task(priors=None, train_params_samples=None,
-                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                         target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
-                         config=None,  igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
+                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                         target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
+                         config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                          label="", n_samples_per_run=None, measure_labels=None, iG=None,
                          save_samples=True, plot_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
@@ -681,7 +699,7 @@ def infer_nRuns_for_task(priors=None, train_params_samples=None,
 
 
 def load_stat_sims_for_task(stat="PPC", label="",
-                            sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
+                            sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                             iG=None, iP=None, config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     stat = stat.upper()
@@ -703,8 +721,8 @@ def load_stat_sims_for_task(stat="PPC", label="",
 
 
 def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
-                                          sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                          target=None, target_fun=target_COHM1S1diffratio_fun,
+                                          sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                          target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                           config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iP = load_stat_sims_for_task(stat=stat, label=label,
@@ -721,8 +739,8 @@ def load_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None,
 
 
 def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
-                                                   sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                                   target=None, target_fun=target_COHM1S1diffratio_fun,
+                                                   sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                                   target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                                    config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                    measure_labels=None, plot_comparisons=True):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
@@ -744,8 +762,8 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None,
 
 
 def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
-                                                        sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                                        target=None, target_fun=target_COHM1S1diffratio_fun,
+                                                        sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                                        target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                                         target_dist_fun=correlation_distance, Nbest=None,
                                                         config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                                                         measure_labels=None):
