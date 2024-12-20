@@ -202,8 +202,7 @@ def plot_pathway_psd_coh_old(results, inds, tests=["tvb-only", "cerebOFF"],
                         mean = np.log(results[test]['COH'][:,  pair[0], pair[1], results[f]]).mean()
                     else:
                         mean = results[test]['COH'][:,  pair[0], pair[1], results[f]].mean()
-                    ax.plot(results[band], [mean] * 2,
-                            color=col, linewidth=2.0)
+                    ax.plot(results[band], [mean] * 2, color=col, linewidth=2.0)
             ax.set_title("%s - %s" % (results['short_labels'][pair[0]],
                                       results['short_labels'][pair[1]]), fontsize=fontsize)
             if mode == "semilog":
