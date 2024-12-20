@@ -61,24 +61,26 @@ def fit_rest(jobarr_id):
 def fit_task(jobarr_id):
     from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR
     from rising_net.scripts.task_run_fit_plot import \
-        get_config, get_sim_res_COHM1S1diffratio, target_COHM1S1diffratio_fun, infer_nRuns_for_task
+        get_config, get_sim_res_COHM1S1diffratio_gamma, target_COHM1S1diffratio_gamma_fun, infer_nRuns_for_task
 
     # Fitting:
     config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASK")[0]
 
     if config.COHERENCE_FISHER_Z_TRANSFORM:
-        measure_labels = ["M1S1R_ThCOHFisherZdiffratio", "M1S1L_ThCOHFisherZdiffratio",
-                          "M1S1R_BtCOHFisherZdiffratio", "M1S1L_BtCOHFisherZdiffratio",
+        measure_labels = [
+                          # "M1S1R_ThCOHFisherZdiffratio", "M1S1L_ThCOHFisherZdiffratio",
+                          # "M1S1R_BtCOHFisherZdiffratio", "M1S1L_BtCOHFisherZdiffratio",
                           "M1S1R_GmCOHFisherZdiffratio", "M1S1L_GmCOHFisherZdiffratio"]
     else:
-        measure_labels = ["M1S1R_ThCOHdiffratio", "M1S1L_ThCOHdiffratio",
-                          "M1S1R_BtCOHdiffratio", "M1S1L_BtCOHdiffratio",
+        measure_labels = [
+                          # "M1S1R_ThCOHdiffratio", "M1S1L_ThCOHdiffratio",
+                          # "M1S1R_BtCOHdiffratio", "M1S1L_BtCOHdiffratio",
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
     return infer_nRuns_for_task(iG=int(jobarr_id),
                                 priors=None, train_params_samples=None,
-                                sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio,
-                                target=None, target_fun=target_COHM1S1diffratio_fun, ground_truth=None,
+                                sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_gamma,
+                                target=None, target_fun=target_COHM1S1diffratio_gamma_fun, ground_truth=None,
                                 config=config, folderstr=NSDSTR, resstr=RESSTR,
                                 label="", n_samples_per_run=None, measure_labels=measure_labels,
                                 save_samples=True, plot_flag=True, verbosity=2)
