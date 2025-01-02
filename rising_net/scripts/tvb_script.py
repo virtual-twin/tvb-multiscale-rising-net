@@ -216,13 +216,13 @@ def build_connectivity(connectome, inds, config):
                                             connectivity.tract_lengths)
     if config.WHISKERS:
         connectivity.weights[inds["whiskers"], inds["facial"]] = 1.0
-        connectivity.weights[inds["trigeminal"], inds["whiskers"]] = config.WHISKERS_GAIN
+        connectivity.weights[inds["trigeminal"], inds["whiskers"]] = 1.0
     connectivity.configure()
     if config.WHISKERS * config.VERBOSITY:
-        print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["whiskers"], inds["facial"]]))
-        print("Facial -> Whiskers delays!:\n%s" % str(connectivity.delays[inds["whiskers"], inds["facial"]]))
-        print("Facial -> Whiskers weights!:\n%s" % str(connectivity.weights[inds["trigeminal"], inds["whiskers"]]))
-        print("Facial -> Whiskers delays!:\n%s" % str(connectivity.delays[inds["trigeminal"], inds["whiskers"]]))
+        print("Facial -> Whiskers weight!:\n%s" % str(connectivity.weights[inds["whiskers"], inds["facial"]]))
+        print("Facial -> Whiskers delay!:\n%s" % str(connectivity.delays[inds["whiskers"], inds["facial"]]))
+        print("Whiskers -> Trigeminal weight!:\n%s" % str(connectivity.weights[inds["trigeminal"], inds["whiskers"]]))
+        print("Whiskers -> Trigeminal delay!:\n%s" % str(connectivity.delays[inds["trigeminal"], inds["whiskers"]]))
 
     #if "w" in config.THAL_CRTX_FIX:
     # Fix the thalamocortical weights to 1.0:
@@ -554,6 +554,13 @@ def apply_pathway_gains(weights, inds, config):
 
     indegree_ratios = {}
 
+    # WHISKERS:
+    if config.WHISKERS_GAIN > 1.0:
+        weights[inds["whiskers"], inds["facial"]] = 1.0
+        weights[inds["trigeminal"], inds["whiskers"]] = config.WHISKERS_GAIN
+        if config.VERBOSITY:
+            print("Whiskers -> Trigeminal weight!:\n%s" % str(weights[inds["trigeminal"], inds["whiskers"]]))
+            print("-" * 50 + "\n")
     # A. INPUT CEREB PATHWAY:
 
     # 1. PosSens Trigeminal (Medulla) <- Trigeminal (stimulus)
@@ -812,6 +819,38 @@ def apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter=None):
     return simulator
 
 
+def distribute_pathway_gain(config):
+    if config.VERBOSITY:
+        print("\n")
+        print("-"*50)
+        print("-"*50)
+        print("Distributing pathway gains with config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
+        print("-" * 50)
+    # Main pathway gets PATHWAY_GAIN
+    for gain in ["M1FACIAL_GAIN", "WHISKERS_GAIN",
+                 "TRIG_GAIN", "MEDULLA_GAIN",
+                 "CEREB_GAIN",
+                 "CNM1_GAIN", "CNS1_GAIN",
+                 "M1S1_GAIN"]:
+        setattr(config, gain, float(config.PATHWAY_GAIN))
+        if config.VERBOSITY:
+            print("config.%s = %g" % (gain, getattr(config, gain)))
+    # All other connections get 1.0
+    for gain in ["TRIGS1_GAIN", "MEDULLAS1_GAIN",
+                 "FACIALTRIG_GAIN"]:
+        setattr(config, gain, 1.0)
+        if config.VERBOSITY:
+            print("config.%s = %g" % (gain, getattr(config, gain)))
+    config.PATHWAY_GAIN = 1.0
+    if config.VERBOSITY:
+        print("-" * 50)
+        print("Resetting now config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
+        print("-" * 50)
+        print("-" * 50)
+        print("\n")
+    return config
+
+
 def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     from tvb_multiscale.core.tvb.cosimulator.cosimulator_serial import CoSimulatorSerial
     from tvb_multiscale.core.tvb.cosimulator.models.wc_thalamocortical_cereb import SigmoidalPreThalamoCortical
@@ -881,7 +920,9 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
         simulator = apply_fic(simulator, inds, config, plotter)
 
     # Apply pathway gain and adjust FIC for changed indegrees:
-    if config.PATHWAY_GAIN:
+    if config.PATHWAY_GAIN >= 1:
+        if config.PATHWAY_GAIN > 2.0:
+            config = distribute_pathway_gain(config)
         simulator = apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter)
 
     # for regs in ["facial", "trigeminal", "medulla", "ansilob"]:  # , "cereb_nuclei"
