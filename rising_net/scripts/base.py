@@ -22,13 +22,22 @@ from tvb.simulator.integrators import EulerStochastic
 from rising_net.scripts.utils import joinstr
 
 
-PATHWAY_GAINS = {"TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
-                 "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
-                 "CNM1_GAIN": 50.0,
-                 "M1S1_GAIN": 10.0,
-                 "M1FACIAL_GAIN": 50.0,   # 50.0,
+PATHWAY_GAINS = {"TRIG_GAIN": 60.0, "MEDULLA_GAIN": 60.0, "CEREB_GAIN": 60.0,
+                 "TRIGS1_GAIN": 1.0, "MEDULLAS1_GAIN": 1.0, "CNS1_GAIN": 20.0,
+                 "CNM1_GAIN": 20.0,
+                 "M1S1_GAIN": 1.0,
+                 "M1FACIAL_GAIN": 90.0,   # 50.0,
                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
-                 "WHISKERS_GAIN": 50.0}
+                 "WHISKERS_GAIN": 60.0}
+
+
+# PATHWAY_GAINS = {"TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
+#                  "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
+#                  "CNM1_GAIN": 50.0,
+#                  "M1S1_GAIN": 10.0,
+#                  "M1FACIAL_GAIN": 50.0,   # 50.0,
+#                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
+#                  "WHISKERS_GAIN": 50.0}
 
 
 DEFAULT_ARGS = {# TVB model:
@@ -239,16 +248,17 @@ def configure(**ARGS):
          # "STIMULUS_BASELINE": {"prior_dist": "normal", "min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "G_w": {"prior_dist": "normal", "min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
-         "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CEREB_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CNM1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
-         "CNS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 30.0, "sc": 6.0},
-         "TRIGS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
-         "MEDULLAS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
-         "M1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
+         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 60.0, "sc": 10.0},
+         # "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "CEREB_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "CNM1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         # "CNS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 30.0, "sc": 6.0},
+         # "TRIGS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         # "MEDULLAS1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 30.0, "loc": 10.0, "sc": 2.0},
+         # "M1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 10.0, "sc": 2.0}
          }
     config.PRIORS_DIST = args.get('PRIORS_DIST', dict())
     for pname, pd in config.PRIORS_DIST.items():
@@ -295,12 +305,13 @@ def configure(**ARGS):
     config.ALL_RUNS_LABEL = "allruns"
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
-        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
-                                   "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
-                                   "MEDULLA_GAIN", "CEREB_GAIN",
-                                   "CNM1_GAIN", "CNS1_GAIN",
-                                   "TRIGS1_GAIN", "MEDULLAS1_GAIN",
-                                   "M1S1_GAIN"]
+        # DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
+        #                            "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
+        #                            "MEDULLA_GAIN", "CEREB_GAIN",
+        #                            "CNM1_GAIN", "CNS1_GAIN",
+        #                            "TRIGS1_GAIN", "MEDULLAS1_GAIN",
+        #                            "M1S1_GAIN"]
+        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN"]
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
