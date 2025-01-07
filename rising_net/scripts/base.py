@@ -306,15 +306,15 @@ def configure(**ARGS):
     config.ALL_RUNS_LABEL = "allruns"
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
-        if config.PATHWAY_GAIN > 2.0:
-            DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN", "M1FACIAL_GAIN", "CNM1S1_GAIN"]
-        else:
-            DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
-                                       "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
-                                       "MEDULLA_GAIN", "CEREB_GAIN",
-                                       "CNM1_GAIN", "CNS1_GAIN",
-                                       "TRIGS1_GAIN", "MEDULLAS1_GAIN",
-                                       "M1S1_GAIN"]
+        # if config.PATHWAY_GAIN > 2.0:
+        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN", "M1FACIAL_GAIN", "CNM1S1_GAIN"]
+        # else:
+        #     DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
+        #                                "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
+        #                                "MEDULLA_GAIN", "CEREB_GAIN",
+        #                                "CNM1_GAIN", "CNS1_GAIN",
+        #                                "TRIGS1_GAIN", "MEDULLAS1_GAIN",
+        #                                "M1S1_GAIN"]
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
