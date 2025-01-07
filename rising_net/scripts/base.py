@@ -180,8 +180,11 @@ def configure(**ARGS):
     config.FIC_SPLIT = args.get('FIC_SPLIT', 0.0)  # 0.31 with FIC = 1.11
     # Pathway gains:
     config.PATHWAY_GAIN = args["PATHWAY_GAIN"]
+    gain_factor = 1.0
+    if config.PATHWAY_GAIN <= 2.0:
+        gain_factor = config.PATHWAY_GAIN
     for pg, pgdef in PATHWAY_GAINS.items():
-        setattr(config, pg, args[pg] * config.PATHWAY_GAIN)
+        setattr(config, pg, gain_factor * args[pg])
     # TVB Monitors:
     config.TIME_SERIES_MONITORS = args.get("TIME_SERIES_MONITORS", True)
     config.RAW_PERIOD = 1.0
