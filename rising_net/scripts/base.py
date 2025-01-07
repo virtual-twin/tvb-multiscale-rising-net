@@ -241,15 +241,16 @@ def configure(**ARGS):
     # Fitting
     config.PRIORS_DEF = \
         {"I_s": {"prior_dist": "normal", "min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
-         "I_e": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         # "I_e": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "FIC": {"prior_dist": "uniform", "min": 0.0, "max": 2.0, "loc": 1.0, "sc": 0.25},
          "FIC_SPLIT": {"prior_dist": "uniform", "min": 0.0, "max": 0.6, "loc": 0.3, "sc": 0.05},
          # "STIMULUS": {"prior_dist": "normal", "min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
          # "STIMULUS_BASELINE": {"prior_dist": "normal", "min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
-         "I_w": {"prior_dist": "normal", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "G_w": {"prior_dist": "normal", "min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
+         "I_w": {"prior_dist": "uniform", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
+         "G_w": {"prior_dist": "uniform", "min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
          "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 60.0, "sc": 10.0},
-         # "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
+         "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 75.0, "sc": 5.0},
+         "CNM1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 99.0, "loc": 30.0, "sc": 10.0},
          # "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
@@ -280,7 +281,7 @@ def configure(**ARGS):
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
     config.N_FIT_RUNS = 10
-    config.N_SIMULATIONS = 1000
+    config.N_SIMULATIONS = 2000
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.8
     # config.N_TRAIN_SAMPLES = 5  #  1000
@@ -305,13 +306,15 @@ def configure(**ARGS):
     config.ALL_RUNS_LABEL = "allruns"
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
-        # DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
-        #                            "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
-        #                            "MEDULLA_GAIN", "CEREB_GAIN",
-        #                            "CNM1_GAIN", "CNS1_GAIN",
-        #                            "TRIGS1_GAIN", "MEDULLAS1_GAIN",
-        #                            "M1S1_GAIN"]
-        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN"]
+        if config.PATHWAY_GAIN > 2.0:
+            DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN", "M1FACIAL_GAIN", "CNM1S1_GAIN"]
+        else:
+            DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
+                                       "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
+                                       "MEDULLA_GAIN", "CEREB_GAIN",
+                                       "CNM1_GAIN", "CNS1_GAIN",
+                                       "TRIGS1_GAIN", "MEDULLAS1_GAIN",
+                                       "M1S1_GAIN"]
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
