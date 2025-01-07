@@ -1,22 +1,27 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
+NG = 11
+NP = 2000
+NPP = 100
+NR = 3
+
 
 def jobarr_id_to_task_ids(args):
     return np.unravel_index(args[0], args[1:], order='C')
 
 
-def simulate_rest_ids_args(jobarr_id, Ngs=11, Nreps=3):
+def simulate_rest_ids_args(jobarr_id, Ngs=NG, Nreps=NR):
     output = print("--iG %d --iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nreps)]))
     return output
 
 
-def simulate_rest_train_ids_args(jobarr_id, Nps=1000, Ngs=11, Nreps=3):
+def simulate_rest_train_ids_args(jobarr_id, Nps=NP, Ngs=NG, Nreps=NR):
     output = print("--iP %d --iG %d --iR %d" % jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs), int(Nreps)]))
     return output
 
 
-def simulate_rest_ppc_ids_args(jobarr_id, Nps=100, Ngs=11, Nreps=3):
+def simulate_rest_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG, Nreps=NR):
     # TODO: Correct this if iG = 0 comes back!
     iP, iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs), int(Nreps)])
     # iG = iG + 1
@@ -25,19 +30,19 @@ def simulate_rest_ppc_ids_args(jobarr_id, Nps=100, Ngs=11, Nreps=3):
     return output
 
 
-def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=11, Nreps=3):
+def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=NG, Nreps=NR):
     iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nreps)])
     output = print("--iG %d --iR %d" % (iG, iR))
     return output
 
 
-def simulate_task_train_ids_args(jobarr_id, Nps=1000, Ngs=11):
+def simulate_task_train_ids_args(jobarr_id, Nps=NP, Ngs=NG):
     iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
     output = print("--iG %d --iP %d" % (iG, iP))
     return output
 
 
-def simulate_task_ppc_ids_args(jobarr_id, Nps=100, Ngs=11):
+def simulate_task_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG):
     iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
     output = print("--iG %d --iP %d" % (iG, iP))
     return output
