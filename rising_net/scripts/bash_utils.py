@@ -36,7 +36,7 @@ def simulate_rest_mapmean_ids_args(jobarr_id, Ngs=NG, Nreps=NR):
     return output
 
 
-def simulate_task_train_ids_args(jobarr_id, Nps=NP, Ngs=NG):
+def simulate_task_train_ids_args(jobarr_id, Nps=NP, Ngs=5):
     iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
     iG += 4
     output = print("--iG %d --iP %d" % (iG, iP))
