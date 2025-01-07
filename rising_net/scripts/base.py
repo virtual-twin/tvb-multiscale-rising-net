@@ -23,21 +23,12 @@ from rising_net.scripts.utils import joinstr
 
 
 PATHWAY_GAINS = {"TRIG_GAIN": 60.0, "MEDULLA_GAIN": 60.0, "CEREB_GAIN": 60.0,
-                 "TRIGS1_GAIN": 1.0, "MEDULLAS1_GAIN": 1.0, "CNS1_GAIN": 20.0,
-                 "CNM1_GAIN": 20.0,
+                 "TRIGS1_GAIN": 1.0, "MEDULLAS1_GAIN": 1.0,
+                 "CNS1_GAIN": 20.0, "CNM1_GAIN": 20.0, "CNM1S1_GAIN": 20.0,
                  "M1S1_GAIN": 1.0,
                  "M1FACIAL_GAIN": 90.0,   # 50.0,
                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
                  "WHISKERS_GAIN": 60.0}
-
-
-# PATHWAY_GAINS = {"TRIG_GAIN": 50.0, "MEDULLA_GAIN": 50.0, "CEREB_GAIN": 50.0,
-#                  "TRIGS1_GAIN": 10.0, "MEDULLAS1_GAIN": 10.0, "CNS1_GAIN": 30.0,
-#                  "CNM1_GAIN": 50.0,
-#                  "M1S1_GAIN": 10.0,
-#                  "M1FACIAL_GAIN": 50.0,   # 50.0,
-#                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
-#                  "WHISKERS_GAIN": 50.0}
 
 
 DEFAULT_ARGS = {# TVB model:
@@ -397,8 +388,8 @@ def args_parser(funname, defargs=DEFAULT_ARGS):
 
     PATHWAY_GAINS_SHORTS = \
         {"TRIG_GAIN": "trg", "MEDULLA_GAIN": "mdg", "CEREB_GAIN": "cbg",
-         "TRIGS1_GAIN": "trs1g", "MEDULLAS1_GAIN": "mds1g", "CNS1_GAIN": "cnsg",
-         "CNM1_GAIN": "cnmg",
+         "TRIGS1_GAIN": "trs1g", "MEDULLAS1_GAIN": "mds1g",
+         "CNS1_GAIN": "cnsg", "CNM1_GAIN": "cnmg", "CNM1S1_GAIN": "cnmsg",
          "M1S1_GAIN": "msg",
          "M1FACIAL_GAIN": "mfg",  # 50.0,
          "FACIALTRIG_GAIN": "ftg",  # 50.0,
