@@ -826,28 +826,29 @@ def distribute_pathway_gain(config):
         print("-"*50)
         print("Distributing pathway gains with config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
         print("-" * 50)
+    config.PATHWAY_GAIN = float(config.PATHWAY_GAIN)
+    # Input connection:
+    if config.VERBOSITY:
+        print("M1FACIAL_GAIN= % g" % config.M1FACIAL_GAIN)
     # Main pathway gets PATHWAY_GAIN
-    for gain in ["M1FACIAL_GAIN"]:
-        setattr(config, gain, 1.5*float(config.PATHWAY_GAIN))
-        if config.VERBOSITY:
-            print("config.%s = %g" % (gain, getattr(config, gain)))
     for gain in ["WHISKERS_GAIN",
                  "TRIG_GAIN", "MEDULLA_GAIN",
                  "CEREB_GAIN"]:
-        setattr(config, gain, float(config.PATHWAY_GAIN))
+        setattr(config, gain, config.PATHWAY_GAIN)
         if config.VERBOSITY:
             print("config.%s = %g" % (gain, getattr(config, gain)))
+    # Output connections get CNM1S1_GAIN
     for gain in ["CNM1_GAIN", "CNS1_GAIN"]:
-        setattr(config, gain, float(config.PATHWAY_GAIN)/3)
+        setattr(config, gain, config.CNM1S1_GAIN)
         if config.VERBOSITY:
-            print("config.%s = %g" % (gain, getattr(config, gain)))
+            print("%g = CNM1S1_GAIN = %g" % (gain, getattr(config, gain)))
     # All other connections get 1.0
     for gain in ["TRIGS1_GAIN", "MEDULLAS1_GAIN",
                  "FACIALTRIG_GAIN",
                  "M1S1_GAIN"]:
         setattr(config, gain, 1.0)
         if config.VERBOSITY:
-            print("config.%s = %g" % (gain, getattr(config, gain)))
+            print("%s = %g" % (gain, getattr(config, gain)))
     config.PATHWAY_GAIN = 1.0
     if config.VERBOSITY:
         print("-" * 50)
