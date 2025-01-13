@@ -281,7 +281,7 @@ def configure(**ARGS):
     # config.N_TRAIN_SAMPLES = 5  #  1000
     # config.TEST_SAMPLES_RATIO = 0.25
     config.N_POSTERIOR_SAMPLES_PER_RUN = 1000
-    config.N_PPC_SIMS = 100
+    config.N_PPC_SIMS = 1000
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(0.0, 11.0)
     config.Gs[config.Gs == 0.0] = 0.1

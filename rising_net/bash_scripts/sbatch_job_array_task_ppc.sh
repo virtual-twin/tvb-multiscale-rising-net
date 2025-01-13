@@ -3,7 +3,7 @@
 #SBATCH --job-name=FTppc
 #SBATCH --output=./outputs/FIT_TASK/PPC_sims/allsamples/logs/FIT_TASK_PPC_%A_%a.out
 #SBATCH --error=./outputs/FIT_TASK/PPC_sims/allsamples/errors/FIT_TASK_PPC_%A_%a.err
-#SBATCH --array=400-899
+#SBATCH --array=4000-8999
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G

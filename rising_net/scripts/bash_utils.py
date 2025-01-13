@@ -3,7 +3,7 @@ import numpy as np
 
 NG = 11
 NP = 2000
-NPP = 100
+NPP = 1000
 NR = 3
 
 
