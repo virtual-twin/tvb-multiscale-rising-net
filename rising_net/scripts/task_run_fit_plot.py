@@ -21,7 +21,7 @@ from rising_net.scripts.tvb_nest_script import *
 from rising_net.scripts.sbi_script import build_priors, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
-    load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
+    load_prior, infer_workflow, infer_nRuns, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
@@ -71,8 +71,8 @@ def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE=
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
 def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
-               REST_BASENAME="", restfitlabel="",
-               # parameters_iR=None, parameters_label, parameters_filepath=None, parameters_filepath_ext=None,
+               REST_BASENAME="", restfitlabel="", fit_round=0,
+               # parameters_iR=None, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
@@ -114,7 +114,7 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     iG, kwargs = get_G(config, iG=iG, **kwargs)
 
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
-        process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
+        process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, fit_round, **kwargs)
 
     if len(REST_BASENAME):
         # Load REST parameters from previous REST fitting:
@@ -636,19 +636,24 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
     return sim_res_fun(sim_res.transpose(*np.array(sim_res.dims)[[1, 0, 2, 3, 4]].tolist()), config), iPs
 
 
-def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
+def load_priors_target_and_sims_for_sbi(round=0, priors=None, train_params_samples=None,
                                         sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                                         target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                         config=None, label="", iG=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild priors if not provided in the input:
     if priors is None:
-        priors = build_priors(config)
+        if round > 0:
+            parameters_label = iGstr(iG, Ngs=len(config.Gs), igstr=igstr)
+            priors = load_prior(iR=None, label=parameters_label, config=config)
+        else:
+            parameters_label = ""
+            priors = build_priors(config)
     # Load training parameters' samples if not provided in the input:
     if train_params_samples is None:
         train_params_samples = load_train_params_samples(config,
                                                          # iR=parameters_iR,
-                                                         # label=parameters_label,
+                                                         label=parameters_label,
                                                          # filepath=parameters_filepath,
                                                          # extension=parameters_filepath_ext
                                                          ).numpy().squeeze().astype('float32')
@@ -662,7 +667,7 @@ def load_priors_target_and_sims_for_sbi(priors=None, train_params_samples=None,
     return priors, train_params_samples, sim_res, target
 
 
-def infer_workflow_for_task(priors=None, train_params_samples=None,
+def infer_workflow_for_task(round=0, priors=None, train_params_samples=None,
                             sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                             target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
                             config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
@@ -670,7 +675,7 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                             results=None, iG=None, iR=None, save_samples=True,
                             plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
-        load_priors_target_and_sims_for_sbi(priors, train_params_samples,
+        load_priors_target_and_sims_for_sbi(round, priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
                                             config, label, iG, igstr, folderstr, resstr)
@@ -681,14 +686,14 @@ def infer_workflow_for_task(priors=None, train_params_samples=None,
                           results, iR, save_samples, plot_flag, None, plot_diagnostics_flag, verbosity)
 
 
-def infer_nRuns_for_task(priors=None, train_params_samples=None,
+def infer_nRuns_for_task(round=0, priors=None, train_params_samples=None,
                          sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                          target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                          label="", n_samples_per_run=None, measure_labels=None, iG=None,
                          save_samples=True, plot_flag=True, verbosity=None):
     priors, train_params_samples, sim_res, target = \
-        load_priors_target_and_sims_for_sbi(priors, train_params_samples,
+        load_priors_target_and_sims_for_sbi(round, priors, train_params_samples,
                                             sim_res, sim_res_path, sim_res_fun,
                                             target, target_fun,
                                             config, label, iG, igstr, folderstr, resstr)
