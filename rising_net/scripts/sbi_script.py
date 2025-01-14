@@ -41,6 +41,13 @@ def build_priors(config):
     return priors
 
 
+def build_load_priors(config, round=0, label="", iR=None):
+    if round > 0:
+        return load_prior(iR=iR, label=label, config=config)
+    else:
+        return build_priors(config)
+
+
 def fitres_filepath(config, default_filename, iR=None, label="", filepath=None, extension=None):
     return construct_filepath(os.path.join(config.HEADPATH, config.FIT_FOLDER, "res"),
                               default_filename,
@@ -62,6 +69,12 @@ def fitfigs_filepath(config, filename, iR=None, label="", filepath=None, extensi
 
 def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
     return fitres_filepath(config, config.POSTERIOR_FILE,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
+def prior_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return fitres_filepath(config, config.PRIOR_FILE,
                            iR=iR, label=label,
                            filepath=filepath, extension=extension)
 
@@ -111,11 +124,12 @@ def params_pairplot(samples, points=None, metric=None, config=None, figname=None
                         limits=limits, ticks=ticks, points=points, labels=labels)
 
 
-def sample_train_params_for_sbi(config=None, label="", write_to_files=True, **kwargs):
+def sample_train_params_for_sbi(priors=None, round=0, config=None, label="", write_to_files=True, **kwargs):
     MODE = kwargs.pop("MODE",  "TRAIN_PARAMS")
     config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
     dummy_sim = lambda priors: priors
-    priors = build_priors(config)
+    if priors is None:
+        priors = build_load_priors(config, round=round, label=label, iR=kwargs.get("iR", None))
     simulator, priors = prepare_for_sbi(dummy_sim, priors)
     samples, _ = simulate_for_sbi(dummy_sim, proposal=priors,
                                   num_simulations=config.N_SIMULATIONS,
@@ -228,6 +242,14 @@ def write_posterior_samples(results_i, config,
     with open(filepath, "wb") as handle:
         pickle.dump(results, handle)
     return results
+
+
+def load_prior(iR=None, label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    filepath = prior_filepath(config, iR, label)
+    with open(filepath, "rb") as handle:
+        posterior = pickle.load(handle)
+    return posterior
 
 
 def load_posterior(iR=None, label="", config=None):
@@ -425,7 +447,7 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
 def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target,
               sbi_algorithm, verbosity, train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
-    posterior, samples, MAP =  sbi_estimate(
+    posterior, samples, MAP = sbi_estimate(
                 sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity, train_kwargs, build_kwargs),
                 target, n_samples_per_run, verbosity, sample_kwargs)
     MAP, config = check_for_MAP(MAP, config)
