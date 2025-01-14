@@ -290,6 +290,7 @@ def configure(**ARGS):
     config.TRAIN_PARAMS_SAMPLES_FILE = "train_params.pt"
     config.TRAIN_SIMS_FOLDER = "train_sims"
     config.FIT_FOLDER = "fit"
+    config.PRIOR_FILE = "prior.pkl"
     config.POSTERIOR_FILE = "posterior.pkl"
     config.SAMPLES_FILE = "samples.pkl"
     config.PPC_FOLDER = "PPC_sims"
