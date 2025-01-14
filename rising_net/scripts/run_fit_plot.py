@@ -155,7 +155,8 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
     return params, iP, fitlabel, params_string
 
 
-def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=None, iG=None, fitlabel="", **kwargs):
+def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=None, iG=None,
+                     fitlabel="", fit_round=0, **kwargs):
     FUNCMODE = FUNCMODE.upper()
     params = {}
     params_string = ""
@@ -167,10 +168,11 @@ def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=N
             # In this case we need to load parameters from a .pt file after sampling prior distributions with torch
             if iP is None:  # simulations for fitting
                 warnings.warn("Parameter sample index iP is None for training simulations!")
+            parameters_label = iGstr(iG, Ngs=len(config.Gs), igstr=GSTR) if fit_round else ""
             params = dict(zip(config.PRIORS_PARAMS_NAMES,
                               load_train_params_samples_selection(iP, config,
                                                                   # iR=parameters_iR,
-                                                                  # label=parameters_label,
+                                                                  label=parameters_label,
                                                                   # filepath=parameters_filepath,
                                                                   # extension=parameters_filepath_ext
                                                                   ).numpy().squeeze()))
@@ -421,7 +423,8 @@ def run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
                  'iF': ['if', int, 'Fitting run index', None],
                  'FUNCMODE': ['fnmd', str, 'Functionality mode name', "SIM"],
                  'label': ['lbl', str, 'Specific label name', ""],
-                 'fitlabel': ['flbl', str, 'Specific fitting label name', ""]
+                 'fitlabel': ['flbl', str, 'Specific fitting label name', ""],
+                 'fit_round': ['fr', int, "Fitting round", 0]
                  }
     args = deepcopy(defargs)
     for arg, vals in arguments.items():
