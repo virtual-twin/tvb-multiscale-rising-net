@@ -2,7 +2,7 @@
 import numpy as np
 
 NG = 11
-NP = 2000
+NP = 1000
 NPP = 1000
 NR = 3
 
@@ -24,8 +24,6 @@ def simulate_rest_train_ids_args(jobarr_id, Nps=NP, Ngs=NG, Nreps=NR):
 def simulate_rest_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG, Nreps=NR):
     # TODO: Correct this if iG = 0 comes back!
     iP, iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs), int(Nreps)])
-    # iG = iG + 1
-    iP = iP*10
     output = print("--iP %d --iG %d --iR %d" % (iP, iG, iR))
     return output
 
@@ -56,8 +54,9 @@ def fit_rest(jobarr_id):
     # Fitting:
     config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
 
-    return infer_nRuns_for_iG(int(jobarr_id),
-                              priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+    return infer_nRuns_for_iG(int(jobarr_id), train_params_samples=None,
+                              round=0, priors=None, inference=None, proposal=None,
+                              sim_res=None, sim_res_path=None,
                               target=None, ground_truth=None,
                               config=config, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                               label="", n_samples_per_run=None,
@@ -85,8 +84,8 @@ def fit_task(jobarr_id):
                           # "M1S1R_BtCOHdiffratio", "M1S1L_BtCOHdiffratio",
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
-    return infer_nRuns_for_task(round=1, iG=int(jobarr_id),
-                                priors=None, train_params_samples=None,
+    return infer_nRuns_for_task(iG=int(jobarr_id), train_params_samples=None,
+                                round=0, priors=None, inference=None, proposal=None,
                                 sim_res=None, sim_res_path=None,
                                 sim_res_fun=get_sim_res_COHM1S1diffratio_gamma,  # get_sim_res_COHM1S1diffratio_allbands
                                 target=None,
