@@ -31,7 +31,7 @@ from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simula
 from rising_net.scripts.sbi_script import fitfigs_filepath, build_priors, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
-    load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
+    load_inference, load_proposal, load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
 from rising_net.scripts.utils import *
 from rising_net.scripts.plot_utils import *
