@@ -59,8 +59,8 @@ def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
 
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
-def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
-               # parameters_iR=None, parameters_label, parameters_filepath=None, parameters_filepath_ext=None,
+def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None, fit_round=0,
+               # parameters_iR=None, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
     # DEFAULT_ARGS = {  # TVB model:
@@ -116,7 +116,7 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     else:
         effective_FUNCMODE = FUNCMODE
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
-        process_funcmode(effective_FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, **kwargs)
+        process_funcmode(effective_FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, fit_round, **kwargs)
     if "SIM" in FUNCMODE:
         kwargs["output_folder"] = os.path.dirname(
             os.path.dirname(
@@ -181,18 +181,32 @@ def target_PSD_fun(config, target=None):
 
 
 def load_priors_target_and_sims_for_sbi_for_iG(iG,
-                                               priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                                               train_params_samples=None,
+                                               round=0, priors=None, inference=None, proposal=None,
+                                               sim_res=None, sim_res_path=None,
                                                target=None,
                                                config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
-    config = assert_config(config, return_plotter=False)
-    # Rebuild priors if not provided in the input:
+    config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
+    # Rebuild proposal if not provided in the input:
     if priors is None:
         priors = build_priors(config)
+    if target is None:
+        target = target_PSD_fun(config)
+    if round > 0:
+        parameters_label = iGstr(iG, Ngs=len(config.Gs), igstr=igstr)
+        if proposal is None:
+            proposal = load_proposal(iR=None, label=parameters_label, config=config)
+        proposal.set_default_x(target)
+        if inference is None:
+            inference = load_inference(iR=None, label=parameters_label, config=config)
+    else:
+        proposal = priors
+        parameters_label = ""
     # Load training parameters' samples if not provided in the input:
     if train_params_samples is None:
         train_params_samples = load_train_params_samples(config,
                                                          # iR=parameters_iR,
-                                                         # label=parameters_label,
+                                                         label=parameters_label,
                                                          # filepath=parameters_filepath,
                                                          # extension=parameters_filepath_ext
                                                          ).numpy().squeeze().astype('float32')
@@ -200,15 +214,13 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
     if sim_res is None:
         if sim_res_path is None:
             sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
-        # Load priors' samples
+        # Load proposal' samples
         # By default, we load all parameters and all simulation repetitions and we average across repetitions.
         sim_res = \
             load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
                                         iG=iG, iP=None, iR=None, average_repetitions=True,
                                         igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
-    if target is None:
-        target = target_PSD_fun(config)
-    return priors, train_params_samples, sim_res, target
+    return train_params_samples, sim_res, priors, inference, proposal, target
 
 
 def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
@@ -240,35 +252,39 @@ def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
 
 
 def infer_workflow_for_iG(iG,
-                          priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                          train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+                          sim_res=None, sim_res_path=None,
                           target=None, ground_truth=None,
                           config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                           label="", n_samples_per_run=None,
                           results=None, iR=None, save_samples=True,
                           plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
-    priors, train_params_samples, sim_res, target = \
-        load_priors_target_and_sims_for_sbi_for_iG(iG,
-                                                   priors, train_params_samples, sim_res, sim_res_path, target,
+    train_params_samples, sim_res, priors, inference, proposal, target = \
+        load_priors_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
+                                                   round, priors, inference, proposal,
+                                                   sim_res, sim_res_path, target,
                                                    config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_workflow(train_params_samples, sim_res, priors, target, ground_truth,
+    return infer_workflow(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
                           config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT,
                           results, iR, save_samples, plot_flag, plot_PSDs_samples_measures_and_targets,
                           plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_iG(iG,
-                       priors=None, train_params_samples=None, sim_res=None, sim_res_path=None,
+                       train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+                       sim_res=None, sim_res_path=None,
                        target=None, ground_truth=None,
                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                        label="", n_samples_per_run=None,
                        save_samples=True, plot_flag=True, verbosity=None):
-    priors, train_params_samples, sim_res, target = \
-        load_priors_target_and_sims_for_sbi_for_iG(iG,
-                                                   priors, train_params_samples, sim_res, sim_res_path, target,
+    train_params_samples, sim_res, priors, inference, proposal, target = \
+        load_priors_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
+                                                   round, priors, inference, proposal,
+                                                   sim_res, sim_res_path, target,
                                                    config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_nRuns(train_params_samples, sim_res, priors, target, ground_truth,
+    return infer_nRuns(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
                        config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT, save_samples,
                        plot_flag, plot_PSDs_samples_measures_and_targets, verbosity)
 
