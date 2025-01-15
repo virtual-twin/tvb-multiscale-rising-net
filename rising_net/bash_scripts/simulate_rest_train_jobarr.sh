@@ -6,7 +6,7 @@ CMD_PATH='/home/docker/packages/tvb-multiscale/rising_net/scripts'
 CMD_SCRIPT="rest_run_fit_plot.py"
 CMD_SCRIPTID="bash_utils.py"
 CMDID="simulate_rest_train_ids_args"
-DEF_ARGS="--FUNCMODE TRAINSIM --MODE TVB --BASENAME FIT_REST --fit_round 1"
+DEF_ARGS="--FUNCMODE TRAINSIM --MODE TVB --BASENAME FIT_REST --fit_round 0"
 
 $DOCKER_PYTHONPATH_CMD
 
