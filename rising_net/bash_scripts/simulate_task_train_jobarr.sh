@@ -7,7 +7,7 @@ CMD_SCRIPT="task_run_fit_plot.py"
 CMD_SCRIPTID="bash_utils.py"
 CMDID="simulate_task_train_ids_args"
 BASIC_ARGS="--FUNCMODE TRAINSIM --BASENAME FIT_TASK"
-DEF_ARGS="$BASIC_ARGS --REST_BASENAME FIT_REST --restfitlabel allsamples"
+DEF_ARGS="$BASIC_ARGS --REST_BASENAME FIT_REST --restfitlabel allsamples --fit_round 0"
 
 $DOCKER_PYTHONPATH_CMD
 
