@@ -4,6 +4,7 @@ import os
 import random
 import warnings
 import pickle
+import dill
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -41,13 +42,6 @@ def build_priors(config):
     return priors
 
 
-def build_load_priors(config, round=0, label="", iR=None):
-    if round > 0:
-        return load_prior(iR=iR, label=label, config=config)
-    else:
-        return build_priors(config)
-
-
 def fitres_filepath(config, default_filename, iR=None, label="", filepath=None, extension=None):
     return construct_filepath(os.path.join(config.HEADPATH, config.FIT_FOLDER, "res"),
                               default_filename,
@@ -67,14 +61,20 @@ def fitfigs_filepath(config, filename, iR=None, label="", filepath=None, extensi
                          filepath=filepath, extension=extension)
 
 
+def inference_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return fitres_filepath(config, config.INFERENCE_FILE,
+                           iR=iR, label=label,
+                           filepath=filepath, extension=extension)
+
+
 def posterior_filepath(config, iR=None, label="", filepath=None, extension=None):
     return fitres_filepath(config, config.POSTERIOR_FILE,
                            iR=iR, label=label,
                            filepath=filepath, extension=extension)
 
 
-def prior_filepath(config, iR=None, label="", filepath=None, extension=None):
-    return fitres_filepath(config, config.PRIOR_FILE,
+def proposal_filepath(config, iR=None, label="", filepath=None, extension=None):
+    return fitres_filepath(config, config.PROPOSAL_FILE,
                            iR=iR, label=label,
                            filepath=filepath, extension=extension)
 
@@ -124,14 +124,16 @@ def params_pairplot(samples, points=None, metric=None, config=None, figname=None
                         limits=limits, ticks=ticks, points=points, labels=labels)
 
 
-def sample_train_params_for_sbi(priors=None, round=0, config=None, label="", write_to_files=True, **kwargs):
+def sample_train_params_for_sbi(proposal=None, target=None, config=None, label="", write_to_files=True, **kwargs):
     MODE = kwargs.pop("MODE",  "TRAIN_PARAMS")
     config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
     dummy_sim = lambda priors: priors
-    if priors is None:
-        priors = build_load_priors(config, round=round, label=label, iR=kwargs.get("iR", None))
-    simulator, priors = prepare_for_sbi(dummy_sim, priors)
-    samples, _ = simulate_for_sbi(dummy_sim, proposal=priors,
+    if proposal is None:
+        proposal = build_priors(config)
+    elif target is not None:
+        proposal.set_default_x(target)
+    simulator, proposal = prepare_for_sbi(dummy_sim, proposal)
+    samples, _ = simulate_for_sbi(dummy_sim, proposal=proposal,
                                   num_simulations=config.N_SIMULATIONS,
                                   num_workers=config.SBI_NUM_WORKERS)
     samples_numpy = samples.numpy()
@@ -141,7 +143,6 @@ def sample_train_params_for_sbi(priors=None, round=0, config=None, label="", wri
         stats[p] = []
         stats[p] = getattr(samples_numpy, p)(axis=0)
         print("\nsamples.%s() =\n%s" % (p, str(stats[p])))
-
     params_pairplot(samples_numpy, points=stats["mean"], metric="mean", config=config,
                     figpath=fitfigs_filepath(config, "train_params_pairplot.png", label=label))
     if write_to_files:
@@ -215,6 +216,13 @@ def safely_append_item_iR(d, iR, key, val):
     return d
 
 
+def write_inference(inference, iR=None, label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    filepath = inference_filepath(config, iR, label)
+    with open(filepath, "wb") as handle:
+        dill.dump(inference, handle)
+
+
 def write_posterior(posterior, iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
     filepath = posterior_filepath(config, iR, label)
@@ -244,12 +252,20 @@ def write_posterior_samples(results_i, config,
     return results
 
 
-def load_prior(iR=None, label="", config=None):
+def load_inference(iR=None, label="", config=None):
     config = assert_config(config, return_plotter=False)
-    filepath = prior_filepath(config, iR, label)
+    filepath = inference_filepath(config, iR, label)
     with open(filepath, "rb") as handle:
-        posterior = pickle.load(handle)
-    return posterior
+        inference = dill.load(handle)
+    return inference
+
+
+def load_proposal(iR=None, label="", config=None):
+    config = assert_config(config, return_plotter=False)
+    filepath = proposal_filepath(config, iR, label)
+    with open(filepath, "rb") as handle:
+        proposal = pickle.load(handle)
+    return proposal
 
 
 def load_posterior(iR=None, label="", config=None):
@@ -286,12 +302,19 @@ def add_posterior_samples_iR(all_samples, samples_iR):
 
 
 def sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
+              inference=None, proposal=None, target=None,
               train_kwargs=dict(), build_kwargs=dict()):
     # Initialize the inference algorithm class instance:
-    inference = getattr(sbi_inference, sbi_algorithm)(prior=priors)
+    if inference is None:
+        inference = getattr(sbi_inference, sbi_algorithm)(prior=priors)
     # Append to the inference the training parameter samples and simulations results
     # and train the network:
-    density_estimator = inference.append_simulations(train_params_samples, sim_res).train(**train_kwargs)
+    if proposal is None:
+        proposal = priors
+    elif target is not None:
+        proposal.set_default_x(target)
+    density_estimator = inference.append_simulations(train_params_samples, sim_res,
+                                                     proposal=proposal).train(**train_kwargs)
     keep_building = -10
     posterior = None
     exception = "None"
@@ -308,7 +331,7 @@ def sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
             keep_building += 1
     if posterior is None:
         raise Exception(exception)
-    return posterior
+    return posterior, inference
 
 
 def plot_training_params_samples(params, label="", config=None):
@@ -318,7 +341,7 @@ def plot_training_params_samples(params, label="", config=None):
     return fig, axes
 
 
-def train_posterior(train_params_samples, measures, priors=None,
+def train_posterior(train_params_samples, measures, priors=None, inference=None, proposal=None, target=None,
                     label="", config=None, verbosity=None, plot_flag=True):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
@@ -328,14 +351,15 @@ def train_posterior(train_params_samples, measures, priors=None,
             plot_training_params_samples(train_params_samples, label=label, config=config)
     if priors is None:
         priors = build_priors(config)
-    posterior = sbi_train(priors,
-                          torch.Tensor(train_params_samples),
-                          torch.Tensor(measures),
-                          config.SBI_ALGORITHM,
-                          verbosity,
-                          train_kwargs=config.SBI_TRAIN_KWARGS, build_kwargs=config.SBI_BUILD_KWARGS
-                          )
-    return posterior
+    posterior, inference = sbi_train(priors,
+                                     torch.Tensor(train_params_samples),
+                                     torch.Tensor(measures),
+                                     config.SBI_ALGORITHM,
+                                     verbosity,
+                                     inference=inference, proposal=proposal, target= torch.Tensor(target),
+                                     train_kwargs=config.SBI_TRAIN_KWARGS, build_kwargs=config.SBI_BUILD_KWARGS
+                           )
+    return posterior, inference
 
 
 def sbi_estimate(posterior, target, n_samples_per_run, verbosity=1, sample_kwargs=dict()):
@@ -445,10 +469,14 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
 
 
 def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target,
-              sbi_algorithm, verbosity, train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
+              sbi_algorithm, verbosity,
+              inference=None, proposal=None,
+              train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
     posterior, samples, MAP = sbi_estimate(
-                sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity, train_kwargs, build_kwargs),
+                sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
+                          inference=inference, proposal=proposal,
+                          train_kwargs=train_kwargs, build_kwargs=build_kwargs),
                 target, n_samples_per_run, verbosity, sample_kwargs)
     MAP, config = check_for_MAP(MAP, config)
     return posterior, samples, MAP
@@ -536,8 +564,9 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
     return fig, axes
 
 
-def infer_workflow(train_params_samples, sim_res, priors=None, target=None, ground_truth=None, config=None,
-                   label="", n_samples_per_run=None, measure_labels=None,
+def infer_workflow(train_params_samples, sim_res,
+                   priors=None, inference=None, proposal=None, target=None, ground_truth=None,
+                   config=None, label="", n_samples_per_run=None, measure_labels=None,
                    results=None, iR=None, save_samples=True,
                    plot_flag=True, measures_plot_fun=None, plot_diagnostics_flag=True, verbosity=None):
     config = assert_config(config, return_plotter=False)
@@ -550,14 +579,17 @@ def infer_workflow(train_params_samples, sim_res, priors=None, target=None, grou
         labeliR = joinstr([labeliR, istr(iR)[1:]])
     if priors is None:
         priors = build_priors(config)
-    posterior = train_posterior(train_params_samples, sim_res, priors=priors, label=labeliR,
-                                config=config, verbosity=verbosity, plot_flag=plot_flag)
+    posterior, inference = train_posterior(train_params_samples, sim_res,
+                                           priors=priors, inference=inference, proposal=proposal,
+                                           label=labeliR, config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
+    write_inference(inference, iR=iR, label=label, config=config)
     posterior, samples, MAP = estimate_posterior_samples(target, posterior,
                                                          n_samples_per_run=n_samples_per_run, label=labeliR,
                                                          measures=sim_res, measure_labels=measure_labels,
                                                          config=config, verbosity=verbosity, plot_flag=plot_flag,
                                                          measures_plot_fun=measures_plot_fun)
+    write_posterior(posterior, iR=iR, label=label, config=config)
     results_i = compute_diagnostics(samples, config, priors=priors, map=MAP, ground_truth=ground_truth)
     results_i["params"] = train_params_samples
     results_i["measures"] = sim_res
@@ -567,11 +599,12 @@ def infer_workflow(train_params_samples, sim_res, priors=None, target=None, grou
     if plot_flag:
         plot_infer(samples, results=results, points=MAP, metric="MAP",
                    iR=iR, label=label, plot_diagnostics_flag=plot_diagnostics_flag, config=config)
-    return posterior, results, MAP
+    return results, MAP, posterior, inference
 
 
-def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_truth=None, config=None,
-                label="", n_samples_per_run=None, measure_labels=None,
+def infer_nRuns(train_params_samples, sim_res,
+                priors=None, inference=None, proposal=None, target=None, groung_truth=None,
+                config=None, label="", n_samples_per_run=None, measure_labels=None,
                 save_samples=True, plot_flag=True, measures_plot_fun=None, verbosity=None):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
@@ -597,12 +630,14 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
             filepath, extension = path.split(".")
             np.save(filepath + "_inds.npy", sampl_inds)
             # For every fitting run...
-            results_i = infer_workflow(train_params_samples[sampl_inds], sim_res[sampl_inds], priors=priors,
-                                       target=target, ground_truth=groung_truth, config=config,  label=label,
+            results_i = infer_workflow(train_params_samples[sampl_inds], sim_res[sampl_inds],
+                                       priors=priors, inference=inference, proposal=proposal,
+                                       target=target, ground_truth=groung_truth,
+                                       config=config,  label=label,
                                        n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                                        results=results_i, iR=iR, save_samples=save_samples,
                                        plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
-                                       plot_diagnostics_flag=False, verbosity=verbosity)[1]
+                                       plot_diagnostics_flag=False, verbosity=verbosity)[0]
             if verbosity:
                 print("Done with run %d in %g sec!" % (iR, time.time() - ticR))
         # Plot with samples from all runs!:
@@ -613,7 +648,8 @@ def infer_nRuns(train_params_samples, sim_res, priors=None, target=None, groung_
                    plot_diagnostics_flag=True, config=config)
     if verbosity:
         print("\n\nFitting with all samples!..\n")
-    results = infer_workflow(train_params_samples, sim_res, priors=priors,
+    results = infer_workflow(train_params_samples, sim_res,
+                             priors=priors, inference=inference, proposal=proposal,
                              target=target, ground_truth=groung_truth, config=config,
                              label=joinstr([label, config.ALL_SAMPLES_LABEL]),
                              n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
