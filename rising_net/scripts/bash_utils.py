@@ -22,7 +22,6 @@ def simulate_rest_train_ids_args(jobarr_id, Nps=NP, Ngs=NG, Nreps=NR):
 
 
 def simulate_rest_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG, Nreps=NR):
-    # TODO: Correct this if iG = 0 comes back!
     iP, iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Nps), int(Ngs), int(Nreps)])
     output = print("--iP %d --iG %d --iR %d" % (iP, iG, iR))
     return output
