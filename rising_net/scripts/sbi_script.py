@@ -130,7 +130,7 @@ def sample_train_params_for_sbi(proposal=None, target=None, config=None, label="
     dummy_sim = lambda priors: priors
     if proposal is None:
         proposal = build_priors(config)
-    elif target is not None:
+    elif target is not None and hasattr(proposal, "set_default_x"):
         proposal.set_default_x(target)
     simulator, proposal = prepare_for_sbi(dummy_sim, proposal)
     samples, _ = simulate_for_sbi(dummy_sim, proposal=proposal,
@@ -311,7 +311,7 @@ def sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
     # and train the network:
     if proposal is None:
         proposal = priors
-    elif target is not None:
+    elif target is not None and hasattr(proposal, "set_default_x"):
         proposal.set_default_x(target)
     density_estimator = inference.append_simulations(train_params_samples, sim_res,
                                                      proposal=proposal).train(**train_kwargs)
