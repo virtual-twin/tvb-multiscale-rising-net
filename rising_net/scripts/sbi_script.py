@@ -160,7 +160,7 @@ def load_train_params_samples(config, iR=None, label="", filepath=None, extensio
     params = torch.load(filepath)
     if config.VERBOSITY > 1:
         print("\nLoaded parameters with shape=%s, with iR=%s & label=%s\nfrom path %s!"
-              % (str(params.shape), str(iR), label))
+              % (str(params.shape), str(iR), label, filepath))
     return params
 
 
