@@ -51,7 +51,7 @@ def fit_rest(jobarr_id):
     from rising_net.scripts.rest_run_fit_plot import get_config, infer_nRuns_for_iG
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST")[0]
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST", verbosity=2)[0]
 
     return infer_nRuns_for_iG(int(jobarr_id), train_params_samples=None,
                               round=0, prior=None, inference=None, proposal=None,
@@ -70,7 +70,7 @@ def fit_task(jobarr_id):
 
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASK")[0]
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASK", verbosity=2)[0]
 
     if config.COHERENCE_FISHER_Z_TRANSFORM:
         measure_labels = [
