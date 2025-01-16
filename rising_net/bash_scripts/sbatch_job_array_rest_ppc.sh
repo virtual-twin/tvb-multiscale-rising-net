@@ -3,7 +3,7 @@
 #SBATCH --job-name=FIT_REST_PPC
 #SBATCH --output=./outputs/FIT_REST/PPC_sims/logs/FIT_REST_PPC_%A_%a.out
 #SBATCH --error=./outputs/FIT_REST/PPC_sims/errors/FIT_REST_PPC_%A_%a.err
-#SBATCH --array=0-3299%300
+#SBATCH --array=0-32999
 #SBATCH --time=30:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
