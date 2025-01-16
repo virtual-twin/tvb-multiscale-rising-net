@@ -351,12 +351,14 @@ def train_posterior(train_params_samples, measures, priors=None, inference=None,
             plot_training_params_samples(train_params_samples, label=label, config=config)
     if priors is None:
         priors = build_priors(config)
+    if target is not None:
+        target = torch.Tensor(target)
     posterior, inference = sbi_train(priors,
                                      torch.Tensor(train_params_samples),
                                      torch.Tensor(measures),
                                      config.SBI_ALGORITHM,
                                      verbosity,
-                                     inference=inference, proposal=proposal, target= torch.Tensor(target),
+                                     inference=inference, proposal=proposal, target=target,
                                      train_kwargs=config.SBI_TRAIN_KWARGS, build_kwargs=config.SBI_BUILD_KWARGS
                            )
     return posterior, inference
@@ -580,7 +582,7 @@ def infer_workflow(train_params_samples, sim_res,
     if priors is None:
         priors = build_priors(config)
     posterior, inference = train_posterior(train_params_samples, sim_res,
-                                           priors=priors, inference=inference, proposal=proposal,
+                                           priors=priors, inference=inference, proposal=proposal, target=target,
                                            label=labeliR, config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
     write_inference(inference, iR=iR, label=label, config=config)
