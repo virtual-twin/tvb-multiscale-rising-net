@@ -54,7 +54,7 @@ def fit_rest(jobarr_id):
     config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST", verbosity=2)[0]
 
     return infer_nRuns_for_iG(int(jobarr_id), train_params_samples=None,
-                              round=0, prior=None, inference=None, proposal=None,
+                              round=1, prior=None, inference=None, proposal=None,
                               sim_res=None, sim_res_path=None,
                               target=None, ground_truth=None,
                               config=config, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
