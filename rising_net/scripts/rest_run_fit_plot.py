@@ -28,7 +28,7 @@ from rising_net.scripts.tvb_script import run_workflow, load_connectome, prepare
     build_model, build_simulator, simulate, plot_tvb, tvb_res_to_time_series, \
     compute_target_PSDs, compute_PSD_target_and_data
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
-from rising_net.scripts.sbi_script import fitfigs_filepath, build_priors, \
+from rising_net.scripts.sbi_script import fitfigs_filepath, build_prior, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_inference, load_proposal, load_posterior, load_posterior_samples, infer_workflow, infer_nRuns, \
@@ -180,16 +180,16 @@ def target_PSD_fun(config, target=None):
                            psd_s1_target, psd_s1_target])  # S1
 
 
-def load_priors_target_and_sims_for_sbi_for_iG(iG,
-                                               train_params_samples=None,
-                                               round=0, priors=None, inference=None, proposal=None,
-                                               sim_res=None, sim_res_path=None,
-                                               target=None,
-                                               config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+def load_prior_target_and_sims_for_sbi_for_iG(iG,
+                                              train_params_samples=None,
+                                              round=0, prior=None, inference=None, proposal=None,
+                                              sim_res=None, sim_res_path=None,
+                                              target=None,
+                                              config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild proposal if not provided in the input:
-    if priors is None:
-        priors = build_priors(config)
+    if prior is None:
+        prior = build_prior(config)
     if target is None:
         target = target_PSD_fun(config)
     if round > 0:
@@ -200,7 +200,7 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
         if inference is None:
             inference = load_inference(iR=None, label=parameters_label, config=config)
     else:
-        proposal = priors
+        proposal = prior
         parameters_label = ""
     # Load training parameters' samples if not provided in the input:
     if train_params_samples is None:
@@ -220,7 +220,7 @@ def load_priors_target_and_sims_for_sbi_for_iG(iG,
             load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
                                         iG=iG, iP=None, iR=None, average_repetitions=True,
                                         igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
-    return train_params_samples, sim_res, priors, inference, proposal, target
+    return train_params_samples, sim_res, prior, inference, proposal, target
 
 
 def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
@@ -252,39 +252,39 @@ def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
 
 
 def infer_workflow_for_iG(iG,
-                          train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+                          train_params_samples=None, round=0, prior=None, inference=None, proposal=None,
                           sim_res=None, sim_res_path=None,
                           target=None, ground_truth=None,
                           config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                           label="", n_samples_per_run=None,
                           results=None, iR=None, save_samples=True,
                           plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
-    train_params_samples, sim_res, priors, inference, proposal, target = \
-        load_priors_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
-                                                   round, priors, inference, proposal,
-                                                   sim_res, sim_res_path, target,
-                                                   config, igstr, folderstr, resstr)
+    train_params_samples, sim_res, prior, inference, proposal, target = \
+        load_prior_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
+                                                  round, prior, inference, proposal,
+                                                  sim_res, sim_res_path, target,
+                                                  config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_workflow(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
+    return infer_workflow(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                           config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT,
                           results, iR, save_samples, plot_flag, plot_PSDs_samples_measures_and_targets,
                           plot_diagnostics_flag, verbosity)
 
 
 def infer_nRuns_for_iG(iG,
-                       train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+                       train_params_samples=None, round=0, prior=None, inference=None, proposal=None,
                        sim_res=None, sim_res_path=None,
                        target=None, ground_truth=None,
                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                        label="", n_samples_per_run=None,
                        save_samples=True, plot_flag=True, verbosity=None):
-    train_params_samples, sim_res, priors, inference, proposal, target = \
-        load_priors_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
-                                                   round, priors, inference, proposal,
-                                                   sim_res, sim_res_path, target,
-                                                   config, igstr, folderstr, resstr)
+    train_params_samples, sim_res, prior, inference, proposal, target = \
+        load_prior_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
+                                                  round, prior, inference, proposal,
+                                                  sim_res, sim_res_path, target,
+                                                  config, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_nRuns(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
+    return infer_nRuns(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                        config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT, save_samples,
                        plot_flag, plot_PSDs_samples_measures_and_targets, verbosity)
 

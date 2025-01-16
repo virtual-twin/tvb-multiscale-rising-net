@@ -315,10 +315,10 @@ def configure(**ARGS):
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
     config.prior_dist = []
-    # Uniform priors:
+    # Uniform prior:
     config.prior_min = []
     config.prior_max = []  
-    # Normal priors:
+    # Normal prior:
     config.prior_loc = []  
     config.prior_sc = []
     for pname in config.PRIORS_PARAMS_NAMES:

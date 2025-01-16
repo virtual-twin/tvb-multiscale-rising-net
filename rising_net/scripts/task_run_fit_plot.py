@@ -18,7 +18,7 @@ from rising_net.scripts.base import assert_config, configure, DEFAULT_ARGS, args
 from rising_net.scripts.filepaths import simres_filepath, construct_filepath
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity
 from rising_net.scripts.tvb_nest_script import *
-from rising_net.scripts.sbi_script import build_priors, \
+from rising_net.scripts.sbi_script import build_prior, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_inference, load_proposal, infer_workflow, infer_nRuns, \
@@ -636,15 +636,15 @@ def load_sims_for_sbi(sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffrati
     return sim_res_fun(sim_res.transpose(*np.array(sim_res.dims)[[1, 0, 2, 3, 4]].tolist()), config), iPs
 
 
-def load_priors_target_and_sims_for_sbi(train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
-                                        sim_res=None, sim_res_path=None,
-                                        sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
-                                        target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
-                                        config=None, label="", iG=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+def load_prior_target_and_sims_for_sbi(train_params_samples=None, round=0, prior=None, inference=None, proposal=None,
+                                       sim_res=None, sim_res_path=None,
+                                       sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                       target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
+                                       config=None, label="", iG=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild proposal if not provided in the input:
-    if priors is None:
-        priors = build_priors(config)
+    if prior is None:
+        prior = build_prior(config)
     if target is None:
         target = target_fun(config, target)
     parameters_label = ""
@@ -657,7 +657,7 @@ def load_priors_target_and_sims_for_sbi(train_params_samples=None, round=0, prio
         if inference is None:
             inference = load_inference(iR=None, label=parameters_label, config=config)
     else:
-        proposal = priors
+        proposal = prior
     # Load training parameters' samples if not provided in the input:
     if train_params_samples is None:
         train_params_samples = load_train_params_samples(config,
@@ -671,42 +671,42 @@ def load_priors_target_and_sims_for_sbi(train_params_samples=None, round=0, prio
         sim_res = load_sims_for_sbi(sim_res_path=sim_res_path, sim_res_fun=sim_res_fun,
                                     config=config, iG=iG, iP=None, label=label,
                                     igstr=igstr, folderstr=folderstr, resstr=resstr)[0]
-    return train_params_samples, sim_res, priors, inference, proposal, target
+    return train_params_samples, sim_res, prior, inference, proposal, target
 
 
-def infer_workflow_for_task(train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+def infer_workflow_for_task(train_params_samples=None, round=0, prior=None, inference=None, proposal=None,
                             sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                             target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
                             config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                             label="", n_samples_per_run=None, measure_labels=None,
                             results=None, iG=None, iR=None, save_samples=True,
                             plot_flag=True, plot_diagnostics_flag=True, verbosity=None):
-    train_params_samples, sim_res, priors, inference, proposal, target = \
-        load_priors_target_and_sims_for_sbi(train_params_samples, round, priors, inference, proposal,
-                                            sim_res, sim_res_path, sim_res_fun,
-                                            target, target_fun,
-                                            config, label, iG, igstr, folderstr, resstr)
+    train_params_samples, sim_res, prior, inference, proposal, target = \
+        load_prior_target_and_sims_for_sbi(train_params_samples, round, prior, inference, proposal,
+                                           sim_res, sim_res_path, sim_res_fun,
+                                           target, target_fun,
+                                           config, label, iG, igstr, folderstr, resstr)
     if iG is not None:
         label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_workflow(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
+    return infer_workflow(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                           config, label, n_samples_per_run, measure_labels,
                           results, iR, save_samples, plot_flag, None, plot_diagnostics_flag, verbosity)
 
 
-def infer_nRuns_for_task(train_params_samples=None, round=0, priors=None, inference=None, proposal=None,
+def infer_nRuns_for_task(train_params_samples=None, round=0, prior=None, inference=None, proposal=None,
                          sim_res=None, sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                          target=None, target_fun=target_COHM1S1diffratio_allbands_fun, ground_truth=None,
                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
                          label="", n_samples_per_run=None, measure_labels=None, iG=None,
                          save_samples=True, plot_flag=True, verbosity=None):
-    train_params_samples, sim_res, priors, inference, proposal, target = \
-        load_priors_target_and_sims_for_sbi(train_params_samples, round, priors, inference, proposal,
-                                            sim_res, sim_res_path, sim_res_fun,
-                                            target, target_fun,
-                                            config, label, iG, igstr, folderstr, resstr)
+    train_params_samples, sim_res, prior, inference, proposal, target = \
+        load_prior_target_and_sims_for_sbi(train_params_samples, round, prior, inference, proposal,
+                                           sim_res, sim_res_path, sim_res_fun,
+                                           target, target_fun,
+                                           config, label, iG, igstr, folderstr, resstr)
     if iG is not None:
         label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
-    return infer_nRuns(train_params_samples, sim_res, priors, inference, proposal, target, ground_truth,
+    return infer_nRuns(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                        config, label, n_samples_per_run, measure_labels, save_samples, plot_flag, None, verbosity)
 
 

@@ -28,18 +28,18 @@ from rising_net.scripts.tvb_script import run_workflow, load_connectome
 from rising_net.scripts.utils import dump_pickled_dict
 
 
-def build_priors(config):
-    priors = []
+def build_prior(config):
+    prior = []
     for iP, pdist in enumerate(config.prior_dist):
         if pdist == "normal":
-            priors.append(torch.distributions.Normal(loc=config.prior_loc[iP]*torch.ones(1),
+            prior.append(torch.distributions.Normal(loc=config.prior_loc[iP]*torch.ones(1),
                                                      scale=config.prior_sc[iP]*torch.ones(1)))
         elif pdist == "uniform":
-            priors.append(torch.distributions.Uniform(low=config.prior_min[iP]*torch.ones(1),
+            prior.append(torch.distributions.Uniform(low=config.prior_min[iP]*torch.ones(1),
                                                       high=config.prior_max[iP]*torch.ones(1)))
-    dummy_sim = lambda priors: priors
-    simulator, priors = prepare_for_sbi(dummy_sim, priors)
-    return priors
+    dummy_sim = lambda prior: prior
+    simulator, prior = prepare_for_sbi(dummy_sim, prior)
+    return prior
 
 
 def fitres_filepath(config, default_filename, iR=None, label="", filepath=None, extension=None):
@@ -127,9 +127,9 @@ def params_pairplot(samples, points=None, metric=None, config=None, figname=None
 def sample_train_params_for_sbi(proposal=None, target=None, config=None, label="", write_to_files=True, **kwargs):
     MODE = kwargs.pop("MODE",  "TRAIN_PARAMS")
     config = assert_config(config, return_plotter=False, MODE=MODE, **kwargs)
-    dummy_sim = lambda priors: priors
+    dummy_sim = lambda prior: prior
     if proposal is None:
-        proposal = build_priors(config)
+        proposal = build_prior(config)
     elif target is not None and hasattr(proposal, "set_default_x"):
         proposal.set_default_x(target)
     simulator, proposal = prepare_for_sbi(dummy_sim, proposal)
@@ -165,10 +165,10 @@ def load_train_params_samples_selection(inds, config, iR=None, label="", filepat
                                      **kwargs)[inds]
 
 
-def compute_diagnostics(samples, config, priors=None, map=None, ground_truth=None):
-    if priors is None:
-        priors = build_priors(config)
-    priors_std = priors.stddev.numpy()
+def compute_diagnostics(samples, config, prior=None, map=None, ground_truth=None):
+    if prior is None:
+        prior = build_prior(config)
+    prior_std = prior.stddev.numpy()
     res = {}
     if not isinstance(samples, np.ndarray):
         samples = samples.numpy()
@@ -183,8 +183,8 @@ def compute_diagnostics(samples, config, priors=None, map=None, ground_truth=Non
         res["diff"] = ground_truth - res['mean']
         res["accuracy"] = np.maximum(config.MIN_ACCURACY, 100*(1.0 - np.abs(res['diff']/ground_truth)))
         res["zscore"] = res["diff"] / res["std"]
-        res["zscore_prior"] = res["diff"] / priors_std
-    res["shrinkage"] = 1 - np.power(res['std'], 2) / np.power(priors_std, 2)
+        res["zscore_prior"] = res["diff"] / prior_std
+    res["shrinkage"] = 1 - np.power(res['std'], 2) / np.power(prior_std, 2)
     return res
 
 
@@ -301,16 +301,16 @@ def add_posterior_samples_iR(all_samples, samples_iR):
     return all_samples
 
 
-def sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
+def sbi_train(prior, train_params_samples, sim_res, sbi_algorithm, verbosity,
               inference=None, proposal=None, target=None,
               train_kwargs=dict(), build_kwargs=dict()):
     # Initialize the inference algorithm class instance:
     if inference is None:
-        inference = getattr(sbi_inference, sbi_algorithm)(prior=priors)
+        inference = getattr(sbi_inference, sbi_algorithm)(prior=prior)
     # Append to the inference the training parameter samples and simulations results
     # and train the network:
     if proposal is None:
-        proposal = priors
+        proposal = prior
     elif target is not None and hasattr(proposal, "set_default_x"):
         proposal.set_default_x(target)
     density_estimator = inference.append_simulations(train_params_samples, sim_res,
@@ -341,7 +341,7 @@ def plot_training_params_samples(params, label="", config=None):
     return fig, axes
 
 
-def train_posterior(train_params_samples, measures, priors=None, inference=None, proposal=None, target=None,
+def train_posterior(train_params_samples, measures, prior=None, inference=None, proposal=None, target=None,
                     label="", config=None, verbosity=None, plot_flag=True):
     config = assert_config(config, return_plotter=False)
     if verbosity is None:
@@ -349,18 +349,18 @@ def train_posterior(train_params_samples, measures, priors=None, inference=None,
     if plot_flag:
         fig, axes = \
             plot_training_params_samples(train_params_samples, label=label, config=config)
-    if priors is None:
-        priors = build_priors(config)
+    if prior is None:
+        prior = build_prior(config)
     if target is not None:
         target = torch.Tensor(target)
-    posterior, inference = sbi_train(priors,
+    posterior, inference = sbi_train(prior,
                                      torch.Tensor(train_params_samples),
                                      torch.Tensor(measures),
                                      config.SBI_ALGORITHM,
                                      verbosity,
                                      inference=inference, proposal=proposal, target=target,
                                      train_kwargs=config.SBI_TRAIN_KWARGS, build_kwargs=config.SBI_BUILD_KWARGS
-                           )
+                                     )
     return posterior, inference
 
 
@@ -470,13 +470,13 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
     return posterior, samples, MAP
 
 
-def sbi_infer(priors, train_params_samples, sim_res, n_samples_per_run, target,
+def sbi_infer(prior, train_params_samples, sim_res, n_samples_per_run, target,
               sbi_algorithm, verbosity,
               inference=None, proposal=None,
               train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
     posterior, samples, MAP = sbi_estimate(
-                sbi_train(priors, train_params_samples, sim_res, sbi_algorithm, verbosity,
+                sbi_train(prior, train_params_samples, sim_res, sbi_algorithm, verbosity,
                           inference=inference, proposal=proposal,
                           train_kwargs=train_kwargs, build_kwargs=build_kwargs),
                 target, n_samples_per_run, verbosity, sample_kwargs)
@@ -567,7 +567,7 @@ def plot_infer(samples=None, results=None, points=None, metric=None, iR=None,
 
 
 def infer_workflow(train_params_samples, sim_res,
-                   priors=None, inference=None, proposal=None, target=None, ground_truth=None,
+                   prior=None, inference=None, proposal=None, target=None, ground_truth=None,
                    config=None, label="", n_samples_per_run=None, measure_labels=None,
                    results=None, iR=None, save_samples=True,
                    plot_flag=True, measures_plot_fun=None, plot_diagnostics_flag=True, verbosity=None):
@@ -579,10 +579,10 @@ def infer_workflow(train_params_samples, sim_res,
     labeliR = str(label)
     if iR is not None:
         labeliR = joinstr([labeliR, istr(iR)[1:]])
-    if priors is None:
-        priors = build_priors(config)
+    if prior is None:
+        prior = build_prior(config)
     posterior, inference = train_posterior(train_params_samples, sim_res,
-                                           priors=priors, inference=inference, proposal=proposal, target=target,
+                                           prior=prior, inference=inference, proposal=proposal, target=target,
                                            label=labeliR, config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
     write_inference(inference, iR=iR, label=label, config=config)
@@ -592,7 +592,7 @@ def infer_workflow(train_params_samples, sim_res,
                                                          config=config, verbosity=verbosity, plot_flag=plot_flag,
                                                          measures_plot_fun=measures_plot_fun)
     write_posterior(posterior, iR=iR, label=label, config=config)
-    results_i = compute_diagnostics(samples, config, priors=priors, map=MAP, ground_truth=ground_truth)
+    results_i = compute_diagnostics(samples, config, prior=prior, map=MAP, ground_truth=ground_truth)
     results_i["params"] = train_params_samples
     results_i["measures"] = sim_res
     results = write_posterior_samples(results_i, config,
@@ -605,7 +605,7 @@ def infer_workflow(train_params_samples, sim_res,
 
 
 def infer_nRuns(train_params_samples, sim_res,
-                priors=None, inference=None, proposal=None, target=None, groung_truth=None,
+                prior=None, inference=None, proposal=None, target=None, groung_truth=None,
                 config=None, label="", n_samples_per_run=None, measure_labels=None,
                 save_samples=True, plot_flag=True, measures_plot_fun=None, verbosity=None):
     config = assert_config(config, return_plotter=False)
@@ -613,8 +613,8 @@ def infer_nRuns(train_params_samples, sim_res,
         verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
-    if priors is None:
-        priors = build_priors(config)
+    if prior is None:
+        prior = build_prior(config)
     results_i = None
     if config.N_FIT_RUNS > 1:
         n_samples = train_params_samples.shape[0]
@@ -633,9 +633,9 @@ def infer_nRuns(train_params_samples, sim_res,
             np.save(filepath + "_inds.npy", sampl_inds)
             # For every fitting run...
             results_i = infer_workflow(train_params_samples[sampl_inds], sim_res[sampl_inds],
-                                       priors=priors, inference=inference, proposal=proposal,
+                                       prior=prior, inference=inference, proposal=proposal,
                                        target=target, ground_truth=groung_truth,
-                                       config=config,  label=label,
+                                       config=config, label=label,
                                        n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
                                        results=results_i, iR=iR, save_samples=save_samples,
                                        plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
@@ -651,7 +651,7 @@ def infer_nRuns(train_params_samples, sim_res,
     if verbosity:
         print("\n\nFitting with all samples!..\n")
     results = infer_workflow(train_params_samples, sim_res,
-                             priors=priors, inference=inference, proposal=proposal,
+                             prior=prior, inference=inference, proposal=proposal,
                              target=target, ground_truth=groung_truth, config=config,
                              label=joinstr([label, config.ALL_SAMPLES_LABEL]),
                              n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
