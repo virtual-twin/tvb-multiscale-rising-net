@@ -156,13 +156,21 @@ def sample_train_params_for_sbi(proposal=None, target=None, config=None, label="
 
 def load_train_params_samples(config, iR=None, label="", filepath=None, extension=None, **kwargs):
     config = assert_config(config, return_plotter=False, **kwargs)
-    return torch.load(train_params_filepath(config, iR=iR, label=label, filepath=filepath, extension=extension))
+    filepath = train_params_filepath(config, iR=iR, label=label, filepath=filepath, extension=extension)
+    params = torch.load(filepath)
+    if config.VERBOSITY > 1:
+        print("\nLoaded parameters with shape=%s, with iR=%s & label=%s\nfrom path %s!"
+              % (str(params.shape), str(iR), label))
+    return params
 
 
 def load_train_params_samples_selection(inds, config, iR=None, label="", filepath=None, extension=None, **kwargs):
-    return load_train_params_samples(config,
-                                     iR=iR, label=label, filepath=filepath, extension=extension,
-                                     **kwargs)[inds]
+    params = load_train_params_samples(config,
+                                       iR=iR, label=label, filepath=filepath, extension=extension,
+                                       **kwargs)[inds]
+    if config.VERBOSITY > 1:
+        print("\nLoaded parameters with inds=%s!:\n%s" % (str(inds), str(params)))
+    return params
 
 
 def compute_diagnostics(samples, config, prior=None, map=None, ground_truth=None):
@@ -258,7 +266,7 @@ def load_inference(iR=None, label="", config=None):
     with open(filepath, "rb") as handle:
         inference = dill.load(handle)
     if config.VERBOSITY > 1:
-        print("Loaded inference %s\nfrom path %s!" % (str(inference), filepath))
+        print("\nLoaded inference %s\nfrom path %s!" % (str(inference), filepath))
     return inference
 
 
@@ -268,7 +276,7 @@ def load_proposal(iR=None, label="", config=None):
     with open(filepath, "rb") as handle:
         proposal = pickle.load(handle)
     if config.VERBOSITY > 1:
-        print("Loaded proposal %s\nfrom path %s!" % (str(proposal), filepath))
+        print("\nLoaded proposal %s\nfrom path %s!" % (str(proposal), filepath))
     return proposal
 
 
