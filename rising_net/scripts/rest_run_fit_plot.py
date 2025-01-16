@@ -216,10 +216,18 @@ def load_prior_target_and_sims_for_sbi_for_iG(iG,
             sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
         # Load proposal' samples
         # By default, we load all parameters and all simulation repetitions and we average across repetitions.
-        sim_res = \
-            load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
-                                        iG=iG, iP=None, iR=None, average_repetitions=True,
-                                        igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
+        try:
+            sim_res = \
+                load_sims_to_xarrays_for_iG(path=str(sim_res_path), config=config,
+                                            iG=iG, iP=None, iR=None, average_repetitions=True,
+                                            igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
+        except Exception as e:
+            warnings.warn(str(e))
+            sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
+            sim_res = \
+                load_sims_to_xarrays_for_iG(path=str(sim_res_path), config=config,
+                                            iG=iG, iP=None, iR=None, average_repetitions=True,
+                                            igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
     return train_params_samples, sim_res, prior, inference, proposal, target
 
 
