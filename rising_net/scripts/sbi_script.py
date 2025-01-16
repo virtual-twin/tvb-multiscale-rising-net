@@ -257,6 +257,8 @@ def load_inference(iR=None, label="", config=None):
     filepath = inference_filepath(config, iR, label)
     with open(filepath, "rb") as handle:
         inference = dill.load(handle)
+    if config.VERBOSITY > 1:
+        print("Loaded inference %s\nfrom path %s!" % (str(inference), filepath))
     return inference
 
 
@@ -265,6 +267,8 @@ def load_proposal(iR=None, label="", config=None):
     filepath = proposal_filepath(config, iR, label)
     with open(filepath, "rb") as handle:
         proposal = pickle.load(handle)
+    if config.VERBOSITY > 1:
+        print("Loaded proposal %s\nfrom path %s!" % (str(proposal), filepath))
     return proposal
 
 
