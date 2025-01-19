@@ -346,7 +346,7 @@ def find_all_folders(path, folderstr):
     for p in ensure_list(np.sort(glob.glob(pathstr))):
         ii.append(int(p[:-1].split("%s_" % folderstr)[-1]))
     if len(ii) == 0:
-        warnings.warn("\nNo %s folderstr folders found in path\n%s\n!" % (folderstr, pathstr))
+        warnings.warn("\nNo %s folders found in path\n%s\nwith pathstr\n%s!" % (folderstr, path, pathstr))
     return ii
 
 
