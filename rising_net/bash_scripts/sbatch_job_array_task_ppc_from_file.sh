@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=FTPPCf
-#SBATCH --output=./outputs/FIT_TASK/PPC_sims/logs/FTPPCf_%A_%a.out
-#SBATCH --error=./outputs/FIT_TASK/PPC_sims/errors/FTPPCf_%A_%a.err
+#SBATCH --output=./outputs/FIT_TASK/PPC_sims/allsamples/logs/FTPPCf_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASK/PPC_sims/allsamples/errors/FTPPCf_%A_%a.err
 #SBATCH --array=1-1709
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
