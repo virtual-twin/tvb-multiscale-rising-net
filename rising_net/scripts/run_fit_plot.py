@@ -92,7 +92,11 @@ def get_stats_params(config, stat=None, FUNCMODE=None, iG=None, iP=None, iF=None
             FUNCMODE = "%sSIM" % stat.upper()
         else:
             FUNCMODE = "PPCSIM"
-    labeliG = str(fitlabel)
+
+    if fitlabel == config.ALL_RUNS_LABEL:
+        labeliG = ""
+    else:
+        labeliG = str(fitlabel)
     if iG is not None:
         labeliG = joinstr([iGstr(iG, Ngs=len(config.Gs)), labeliG])
     samples = load_posterior_samples(label=labeliG, config=config)
