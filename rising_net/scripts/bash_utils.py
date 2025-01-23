@@ -144,4 +144,4 @@ if __name__ == '__main__':
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
         simulate_task_ppc_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_allruns_ids_args":
-        simulate_task_ppc_ids_args(*sys.argv[2:])
+        simulate_task_ppc_allruns_ids_args(*sys.argv[2:])
