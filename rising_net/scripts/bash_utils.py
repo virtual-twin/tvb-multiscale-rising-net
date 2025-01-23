@@ -46,6 +46,13 @@ def simulate_task_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG):
     return output
 
 
+def simulate_task_ppc_allruns_ids_args(jobarr_id, Nps=NPP, Ngs=NG):
+    iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
+    iP = 10*iP
+    output = print("--iG %d --iP %d" % (iG, iP))
+    return output
+
+
 def fit_rest(jobarr_id):
     from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR
     from rising_net.scripts.rest_run_fit_plot import get_config, infer_nRuns_for_iG
