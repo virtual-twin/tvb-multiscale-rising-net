@@ -3,7 +3,7 @@ import numpy as np
 
 NG = 11
 NP = 1000
-NPP = 1000
+NPP = 100
 NR = 3
 
 
@@ -91,7 +91,7 @@ def fit_task(jobarr_id):
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
     return infer_nRuns_for_task(iG=int(jobarr_id), train_params_samples=None,
-                                round=2, prior=None, inference=None, proposal=None,
+                                round=0, prior=None, inference=None, proposal=None,
                                 sim_res=None, sim_res_path=None,
                                 sim_res_fun=get_sim_res_COHM1S1diffratio_gamma,  # get_sim_res_COHM1S1diffratio_allbands
                                 target=None,
