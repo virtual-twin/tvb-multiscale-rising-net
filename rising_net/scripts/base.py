@@ -241,10 +241,10 @@ def configure(**ARGS):
          # "STIMULUS": {"prior_dist": "normal", "min": 0.0, "max": 0.5, "loc": 0.25, "sc": 0.05},
          # "STIMULUS_BASELINE": {"prior_dist": "normal", "min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"prior_dist": "uniform", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
-         "G_w": {"prior_dist": "uniform", "min": 0.0, "max": 10.0, "loc": 5.0, "sc": 1.0},
-         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 60.0, "sc": 10.0},
-         "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 75.0, "sc": 5.0},
-         "CNM1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 99.0, "loc": 30.0, "sc": 10.0},
+         "G_w": {"prior_dist": "uniform", "min": 1.0, "max": 9.0, "loc": 5.0, "sc": 1.0},
+         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 25.0, "max": 95.0, "loc": 60.0, "sc": 10.0},
+         # "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 75.0, "sc": 5.0},
+         # "CNM1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 99.0, "loc": 30.0, "sc": 10.0},
          # "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
@@ -303,7 +303,7 @@ def configure(**ARGS):
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
         # if config.PATHWAY_GAIN > 2.0:
-        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN", "M1FACIAL_GAIN", "CNM1S1_GAIN"]
+        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN"]
         # else:
         #     DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
         #                                "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
@@ -311,6 +311,37 @@ def configure(**ARGS):
         #                                "CNM1_GAIN", "CNS1_GAIN",
         #                                "TRIGS1_GAIN", "MEDULLAS1_GAIN",
         #                                "M1S1_GAIN"]
+        config.REGRESSIONS = {4: {"M1FACIAL_GAIN":
+                                      {"slope": -0.1689089629859304,
+                                       "intercept": 85.06480258109438},
+                                  "CNM1S1_GAIN":
+                                       {"slope": -0.6680419392007512,
+                                        "intercept": 117.88494629806536}},  #,
+                              5: {"M1FACIAL_GAIN":
+                                     {"slope": -0.14658181838320547,
+                                      "intercept": 77.51581690306695},
+                                 "CNM1S1_GAIN":
+                                      {"slope": -0.42362299135833625,
+                                       "intercept": 88.21658676110037}},
+                              6: {"M1FACIAL_GAIN":
+                                      {"slope": -0.11698993813769198,
+                                       "intercept": 74.70314241730429},
+                                  "CNM1S1_GAIN":
+                                       {"slope": -0.48430680317584895,
+                                        "intercept": 85.70291555861084}},
+                              7: {"M1FACIAL_GAIN":
+                                       {"slope": -0.18049572889688786,
+                                        "intercept": 73.27696570048691},
+                                 "CNM1S1_GAIN":
+                                        {"slope": -0.439774036323165,
+                                         "intercept": 78.85335118836032}},
+                              8: {"M1FACIAL_GAIN":
+                                      {"slope": -0.08172929913393724,
+                                       "intercept": 62.8133956088425},
+                                  "CNM1S1_GAIN":
+                                       {"slope": -0.31751715929371754,
+                                        "intercept": 69.96182057224061}},
+                             }
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
