@@ -274,14 +274,14 @@ def configure(**ARGS):
     config.GAMMA = np.arange(25.0, 61.0, 1.0)
     config.COHERENCE_FISHER_Z_TRANSFORM = True
     config.FREQ_BAND_FITNESS_WEIGHTS = [1.0, 1.0, 1.0]
-    config.N_FIT_RUNS = 1
-    config.N_SIMULATIONS = 10000
+    config.N_FIT_RUNS = 10
+    config.N_SIMULATIONS = 1000
     config.N_SIMS_PER_PARAM = 3
     config.SPLIT_RUN_SAMPLES = 0.8
     # config.N_TRAIN_SAMPLES = 5  #  1000
     # config.TEST_SAMPLES_RATIO = 0.25
     config.N_POSTERIOR_SAMPLES_PER_RUN = 1000
-    config.N_PPC_SIMS = 1000
+    config.N_PPC_SIMS = 100
     # config.PPT_BATCH_SIM_RES_FILE = "ppt_bsr.npy"  # e.g., ppt_bsr_iG01_iB010.npy
     config.Gs = np.arange(0.0, 11.0)
     config.Gs[config.Gs == 0.0] = 0.1
