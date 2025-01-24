@@ -819,20 +819,25 @@ def apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter=None):
     return simulator
 
 
-def distribute_pathway_gain(config, G):
-    iG = int(G)
+def distribute_pathway_gain(config):
+    iG = int(config.iG)
     if config.VERBOSITY:
         print("\n")
         print("-"*50)
         print("-"*50)
-        print("Distributing pathway gains with config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
+        print("Distributing pathway gains with config.PATHWAY_GAIN = %g for iG=%d:" %
+              (config.PATHWAY_GAIN, iG))
         print("-" * 50)
     # Input connection:
     config.M1FACIAL_GAIN = \
         config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["intercept"] + \
         config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["slope"] * config.PATHWAY_GAIN
     if config.VERBOSITY:
-        print("M1FACIAL_GAIN= % g" % config.M1FACIAL_GAIN)
+        print("M1FACIAL_GAIN = %g + %g * %g = " %
+              (config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["intercept"],
+               config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["slope"],
+               config.PATHWAY_GAIN,
+               config.M1FACIAL_GAIN))
     # Main pathway gets PATHWAY_GAIN
     for gain in ["WHISKERS_GAIN",
                  "TRIG_GAIN", "MEDULLA_GAIN",
@@ -844,6 +849,12 @@ def distribute_pathway_gain(config, G):
     config.CNM1S1_GAIN = \
         config.REGRESSIONS[iG]["CNM1S1_GAIN"]["intercept"] + \
         config.REGRESSIONS[iG]["CNM1S1_GAIN"]["slope"] * config.PATHWAY_GAIN
+    if config.VERBOSITY:
+        print("CNM1S1_GAIN = %g + %g * %g = " %
+              (config.REGRESSIONS[iG]["CNM1S1_GAIN"]["intercept"],
+               config.REGRESSIONS[iG]["CNM1S1_GAIN"]["slope"],
+               config.PATHWAY_GAIN,
+               config.CNM1S1_GAIN))
     for gain in ["CNM1_GAIN", "CNS1_GAIN"]:
         setattr(config, gain, float(config.CNM1S1_GAIN))
         if config.VERBOSITY:
@@ -936,7 +947,7 @@ def build_simulator(connectivity, model, inds, maps, config, plotter=None):
     # Apply pathway gain and adjust FIC for changed indegrees:
     if config.PATHWAY_GAIN >= 1:
         if config.PATHWAY_GAIN > 2.0:
-            config = distribute_pathway_gain(config, simulator.model.G[0].item())
+            config = distribute_pathway_gain(config)
         simulator = apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter)
 
     # for regs in ["facial", "trigeminal", "medulla", "ansilob"]:  # , "cereb_nuclei"
