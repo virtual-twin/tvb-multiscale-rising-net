@@ -824,8 +824,7 @@ def distribute_pathway_gain(config):
         print("\n")
         print("-"*50)
         print("-"*50)
-        print("Distributing pathway gains with config.PATHWAY_GAIN = %g for iG=%d:" %
-              (config.PATHWAY_GAIN, iG))
+        print("Distributing pathway gains with config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
         print("-" * 50)
     # Main pathway gets PATHWAY_GAIN
     for gain in ["M1FACIAL_GAIN", "WHISKERS_GAIN",
