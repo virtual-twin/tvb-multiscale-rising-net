@@ -24,7 +24,7 @@ from rising_net.scripts.utils import joinstr
 
 PATHWAY_GAINS = {"TRIG_GAIN": 60.0, "MEDULLA_GAIN": 60.0, "CEREB_GAIN": 60.0,
                  "TRIGS1_GAIN": 1.0, "MEDULLAS1_GAIN": 1.0,
-                 "CNS1_GAIN": 20.0, "CNM1_GAIN": 20.0, "CNM1S1_GAIN": 20.0,
+                 "CNS1_GAIN": 20.0, "CNM1_GAIN": 20.0, # "CNM1S1_GAIN": 20.0,
                  "M1S1_GAIN": 1.0,
                  "M1FACIAL_GAIN": 90.0,   # 50.0,
                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
@@ -311,37 +311,6 @@ def configure(**ARGS):
         #                                "CNM1_GAIN", "CNS1_GAIN",
         #                                "TRIGS1_GAIN", "MEDULLAS1_GAIN",
         #                                "M1S1_GAIN"]
-        config.REGRESSIONS = {4: {"M1FACIAL_GAIN":
-                                      {"slope": -0.1689089629859304,
-                                       "intercept": 85.06480258109438},
-                                  "CNM1S1_GAIN":
-                                       {"slope": -0.6680419392007512,
-                                        "intercept": 117.88494629806536}},  #,
-                              5: {"M1FACIAL_GAIN":
-                                     {"slope": -0.14658181838320547,
-                                      "intercept": 77.51581690306695},
-                                 "CNM1S1_GAIN":
-                                      {"slope": -0.42362299135833625,
-                                       "intercept": 88.21658676110037}},
-                              6: {"M1FACIAL_GAIN":
-                                      {"slope": -0.11698993813769198,
-                                       "intercept": 74.70314241730429},
-                                  "CNM1S1_GAIN":
-                                       {"slope": -0.48430680317584895,
-                                        "intercept": 85.70291555861084}},
-                              7: {"M1FACIAL_GAIN":
-                                       {"slope": -0.18049572889688786,
-                                        "intercept": 73.27696570048691},
-                                 "CNM1S1_GAIN":
-                                        {"slope": -0.439774036323165,
-                                         "intercept": 78.85335118836032}},
-                              8: {"M1FACIAL_GAIN":
-                                      {"slope": -0.08172929913393724,
-                                       "intercept": 62.8133956088425},
-                                  "CNM1S1_GAIN":
-                                       {"slope": -0.31751715929371754,
-                                        "intercept": 69.96182057224061}},
-                             }
     else:
         DEF_PRIORS_PARAMS_NAMES = ["I_s", "FIC", "FIC_SPLIT"]
     config.PRIORS_PARAMS_NAMES = args.get("PRIORS_PARAMS_NAMES", DEF_PRIORS_PARAMS_NAMES)
@@ -425,7 +394,7 @@ def args_parser(funname, defargs=DEFAULT_ARGS):
     PATHWAY_GAINS_SHORTS = \
         {"TRIG_GAIN": "trg", "MEDULLA_GAIN": "mdg", "CEREB_GAIN": "cbg",
          "TRIGS1_GAIN": "trs1g", "MEDULLAS1_GAIN": "mds1g",
-         "CNS1_GAIN": "cnsg", "CNM1_GAIN": "cnmg", "CNM1S1_GAIN": "cnmsg",
+         "CNS1_GAIN": "cnsg", "CNM1_GAIN": "cnmg", # "CNM1S1_GAIN": "cnmsg",
          "M1S1_GAIN": "msg",
          "M1FACIAL_GAIN": "mfg",  # 50.0,
          "FACIALTRIG_GAIN": "ftg",  # 50.0,
