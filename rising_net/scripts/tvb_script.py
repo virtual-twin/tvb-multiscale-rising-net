@@ -820,7 +820,6 @@ def apply_pathway_gains_and_adjust_FIC(simulator, inds, config, plotter=None):
 
 
 def distribute_pathway_gain(config):
-    iG = int(config.iG)
     if config.VERBOSITY:
         print("\n")
         print("-"*50)
@@ -828,37 +827,14 @@ def distribute_pathway_gain(config):
         print("Distributing pathway gains with config.PATHWAY_GAIN = %g for iG=%d:" %
               (config.PATHWAY_GAIN, iG))
         print("-" * 50)
-    # Input connection:
-    config.M1FACIAL_GAIN = \
-        config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["intercept"] + \
-        config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["slope"] * config.PATHWAY_GAIN
-    if config.VERBOSITY:
-        print("M1FACIAL_GAIN = %g = %g + %g * %g " %
-              (config.M1FACIAL_GAIN,
-               config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["intercept"],
-               config.PATHWAY_GAIN,
-               config.REGRESSIONS[iG]["M1FACIAL_GAIN"]["slope"]))
     # Main pathway gets PATHWAY_GAIN
-    for gain in ["WHISKERS_GAIN",
+    for gain in ["M1FACIAL_GAIN", "WHISKERS_GAIN",
                  "TRIG_GAIN", "MEDULLA_GAIN",
-                 "CEREB_GAIN"]:
+                 "CEREB_GAIN",
+                 "CNM1_GAIN", "CNS1_GAIN"]:
         setattr(config, gain, float(config.PATHWAY_GAIN))
         if config.VERBOSITY:
             print("%s = %g" % (gain, getattr(config, gain)))
-    # Output connections get CNM1S1_GAIN
-    config.CNM1S1_GAIN = \
-        config.REGRESSIONS[iG]["CNM1S1_GAIN"]["intercept"] + \
-        config.REGRESSIONS[iG]["CNM1S1_GAIN"]["slope"] * config.PATHWAY_GAIN
-    if config.VERBOSITY:
-        print("CNM1S1_GAIN = %g = %g + %g * %g" %
-              (config.CNM1S1_GAIN,
-               config.REGRESSIONS[iG]["CNM1S1_GAIN"]["intercept"],
-               config.REGRESSIONS[iG]["CNM1S1_GAIN"]["slope"],
-               config.PATHWAY_GAIN))
-    for gain in ["CNM1_GAIN", "CNS1_GAIN"]:
-        setattr(config, gain, float(config.CNM1S1_GAIN))
-        if config.VERBOSITY:
-            print("%s = CNM1S1_GAIN = %g" % (gain, getattr(config, gain)))
     # All other connections get 1.0
     for gain in ["TRIGS1_GAIN", "MEDULLAS1_GAIN",
                  "FACIALTRIG_GAIN",
