@@ -232,6 +232,7 @@ def configure(**ARGS):
         config.w_TVB_to_NEST["mossy_fibers"] = config.w_TVB_to_NEST_rest
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
+    config.REGRESSIONS = {"M1FACIAL_GAIN": 130.0, "CNM1S1_GAIN": 95}
     # Fitting
     config.PRIORS_DEF = \
         {"I_s": {"prior_dist": "normal", "min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
@@ -242,7 +243,7 @@ def configure(**ARGS):
          # "STIMULUS_BASELINE": {"prior_dist": "normal", "min": 0.0, "max": 1.5, "loc": 1.0, "sc": 0.1},
          "I_w": {"prior_dist": "uniform", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "G_w": {"prior_dist": "uniform", "min": 1.0, "max": 9.0, "loc": 5.0, "sc": 1.0},
-         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 25.0, "max": 95.0, "loc": 60.0, "sc": 10.0},
+         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 30.0, "max": 90.0, "loc": 60.0, "sc": 10.0},
          # "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 10.0, "max": 99.0, "loc": 75.0, "sc": 5.0},
          # "CNM1S1_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 99.0, "loc": 30.0, "sc": 10.0},
          # "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
