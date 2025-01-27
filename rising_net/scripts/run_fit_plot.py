@@ -1,16 +1,19 @@
 import glob
 import os
 import warnings
+from collections import OrderedDict
 from copy import deepcopy
 
+import numpy
 import numpy as np
 import pandas as pd
 import xarray as xr
+from matplotlib import pyplot
 
 from rising_net.scripts.base import assert_config, DEFAULT_ARGS, args_parser
 from rising_net.scripts.filepaths import simres_filepath, istr
 from rising_net.scripts.nest_script import build_NEST_network
-from rising_net.scripts.sbi_script import load_posterior_samples, load_train_params_samples_selection
+from rising_net.scripts.sbi_script import load_posterior_samples, load_train_params_samples_selection, fitfigs_filepath
 from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simulate_tvb_nest
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity, build_model, build_simulator, \
     simulate, plot_tvb, tvb_res_to_time_series, tvb_res_to_bold_time_series, compute_PSD_target_and_data
@@ -416,6 +419,70 @@ def load_sims_to_xarrays_for_iP(load_sim_to_xarrays_fun, measures, path=None, co
                                           path, config, iR=iR, average=average_repetitions,
                                           folderstr=folderstr, resstr=resstr, **kwargs)[0]
     return res, iP
+
+
+def load_samples_per_iG(label="", config=None, iGs=None):
+    config = assert_config(config, return_plotter=False)
+    samples = OrderedDict()
+    Ngs = len(config.Gs)
+    if iGs is None:
+        iGs = list(range(Ngs))
+    if label == "allruns":
+        label = ""
+    for iG in iGs:
+        samples[iG] = load_posterior_samples(label=joinstr([iGstr(iG, Ngs), label]), config=config)
+    return samples
+
+
+def load_stats_per_iG(stats=['map', 'mean', 'std', 'shrinkage'], samples=None,
+                      label="", config=None, iGs=None, runs=None):
+    config = assert_config(config, return_plotter=False)
+    if samples is None:
+        samples = load_samples_per_iG(label, config, iGs)
+    Ngs = len(config.Gs)
+    if iGs is None:
+        iGs = list(range(Ngs))
+    out = []
+    if runs is None:
+        runs_inds = slice(runs)
+    else:
+        runs_inds = runs
+    for stat in stats:
+        stats_per_iG = []
+        for iG in iGs:
+            # stats_per_iG.append(np.nanmean(np.vstack(samples[iG][stat])[runs], axis=0))
+            stats_per_iG.append(np.vstack(samples[iG][stat])[runs_inds])
+        out.append(stats_per_iG)
+    out = np.array(out)
+    if runs is None:
+        runs = np.arange(out.shape[-2]).astype("i")
+    out = xr.DataArray(out,
+                       dims=["Statistic", "G", "Repetition", "Parameter"],
+                       coords={"Statistic": ['map', 'mean', 'std', 'shrinkage'],
+                               "G": config.Gs[iGs],
+                               "Parameter": config.PRIORS_PARAMS_NAMES,
+                               "Repetition": runs},
+                       name="Statistics per G" + "%s" % str(": %s" % label if len(label) else ""))
+    out = out.transpose("Statistic", "G", "Parameter", "Repetition")
+    if out.shape[-1] == 1:
+        out = out.squeeze()
+    return out
+
+
+def load_and_plot_stats_per_iG(stats=['map', 'mean', 'std', 'shrinkage'], statsarr=None, samples=None,
+                               label="", config=None, iGs=None, runs=None,
+                               figpath=None, figname=None):
+    config = assert_config(config, return_plotter=False)
+    if statsarr is None:
+        statsarr = load_stats_per_iG(stats, samples, label, config, iGs, runs)
+    statsarr.plot.line(row=statsarr.dims[2], col=statsarr.dims[0], x=statsarr.dims[1], sharey=False)
+    if config.figures.SAVE_FLAG:
+        if figpath is None:
+            if figname is None:
+                figname = 'stats_per_G' + "." + config.figures.FIG_FORMAT
+        figpath = fitfigs_filepath(config, figname, label=label)
+        plt.savefig(figpath)
+    return statsarr
 
 
 def run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
