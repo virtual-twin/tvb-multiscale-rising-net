@@ -834,7 +834,7 @@ def distribute_pathway_gain(config):
         if config.VERBOSITY:
             print("%s = %g (= %g * PATHWAY_GAIN = %g * %g)" %
                   (gain, getattr(config, gain),
-                   weight, weight, config.PATHWAY_GAIN))
+                   config.WEIGHTS[weight], config.WEIGHTS[weight], config.PATHWAY_GAIN))
     # Main pathway gets PATHWAY_GAIN
     for gain in ["WHISKERS_GAIN",
                  "TRIG_GAIN", "MEDULLA_GAIN",
