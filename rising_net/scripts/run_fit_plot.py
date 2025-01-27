@@ -8,7 +8,7 @@ import numpy
 import numpy as np
 import pandas as pd
 import xarray as xr
-from matplotlib import pyplot
+from matplotlib import pyplot as plt
 
 from rising_net.scripts.base import assert_config, DEFAULT_ARGS, args_parser
 from rising_net.scripts.filepaths import simres_filepath, istr
