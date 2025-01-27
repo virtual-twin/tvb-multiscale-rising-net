@@ -827,14 +827,14 @@ def distribute_pathway_gain(config):
         print("Distributing pathway gains with config.PATHWAY_GAIN = %g:" % config.PATHWAY_GAIN)
         print("-" * 50)
     # Input and output connections:
-    for gain, regress in zip(["M1FACIAL_GAIN", "CNM1_GAIN", "CNS1_GAIN"],
-                             ["M1FACIAL_GAIN", "CNM1S1_GAIN", "CNM1S1_GAIN"]):
-        computed_gain = float(config.REGRESSIONS[regress] - config.PATHWAY_GAIN)
+    for gain, weight in zip(["M1FACIAL_GAIN", "CNM1_GAIN", "CNS1_GAIN"],
+                            ["M1FACIAL_GAIN", "CNM1S1_GAIN", "CNM1S1_GAIN"]):
+        computed_gain = float(config.WEIGHTS[weight] * config.PATHWAY_GAIN)
         setattr(config, gain, computed_gain)
         if config.VERBOSITY:
-            print("%s = %g (= %s - PATHWAY_GAIN = %g - %g)" %
+            print("%s = %g (= %g * PATHWAY_GAIN = %g * %g)" %
                   (gain, getattr(config, gain),
-                   regress, config.REGRESSIONS[regress], config.PATHWAY_GAIN))
+                   weight, weight, config.PATHWAY_GAIN))
     # Main pathway gets PATHWAY_GAIN
     for gain in ["WHISKERS_GAIN",
                  "TRIG_GAIN", "MEDULLA_GAIN",
