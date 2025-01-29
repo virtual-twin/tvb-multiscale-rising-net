@@ -232,7 +232,7 @@ def configure(**ARGS):
         config.w_TVB_to_NEST["mossy_fibers"] = config.w_TVB_to_NEST_rest
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
-    config.WEIGHTS = {"M1FACIAL_GAIN": 1.2, "CNM1S1_GAIN": 0.5}
+    config.PATHWAY_GAIN_WEIGHTS = {"M1FACIAL_GAIN": 1.2, "CNM1S1_GAIN": 0.5}
     # Fitting
     config.PRIORS_DEF = \
         {"I_s": {"prior_dist": "normal", "min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
