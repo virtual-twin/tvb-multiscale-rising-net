@@ -209,6 +209,7 @@ def configure(**ARGS):
     # config.STIMULUS_BASELINE = defargs.get('STIMULUS_BASELINE', 1.0)  # 1.0 or 0.0
 
     # NEST model parameters:
+    config.NEST_STIMULUS_RATE = 6.0
     config.NEST_STIMULUS = 15.0  # Hz
     config.NEST_PERIPHERY = True  # "Input TVB to parrot_medulla", "Input Sinusoidal to mossy_fibers"
     config.NEST_PERIPHERY_MANY_NEURONS = False  # True takes for ever in cosimulation
