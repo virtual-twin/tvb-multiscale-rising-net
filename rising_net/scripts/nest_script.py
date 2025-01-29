@@ -256,7 +256,7 @@ def build_NEST_network(config=None):
     ###################### NEST simulation parameters #########################################
     TOT_DURATION = config.SIMULATION_LENGTH  # ms
     BACKGROUND_FREQ = config.NEST_BACKGROUND_FREQ
-    STIM_FREQ = config.STIMULUS_RATE
+    STIM_FREQ = config.NEST_STIMULUS_RATE
     STIM_AMPLITUDE = config.NEST_STIMULUS
     STIM_RATE = 0.
 
@@ -729,8 +729,8 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
     nest_network = simulate_nest_network(nest_network, config, neuron_models, neuron_number)
     # Plot results
     if plotter is not None:
-        from examples.plot_write_results import plot_write_spiking_network_results
         simulation_length, transient = configure_simulation_length_with_transient(config)
+        from examples.plot_write_results import plot_write_spiking_network_results
         plot_write_spiking_network_results(nest_network, connectivity=connectivity,
                                            time=None, transient=transient, monitor_period=simulator.monitors[0].period,
                                            plot_per_neuron=False, plotter=plotter, writer=None, config=config)
