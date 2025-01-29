@@ -49,6 +49,21 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 REST_FIT_MEASURE_LABELS_FOR_PLOT = ["log(PSD) RM1", "log(PSD) LM1", "log(PSD) RS1", "log(PSD) LS1"]
 
 
+def load_params_from_fit_rest(iG, stat="mean", fitlabel="allsamples", BASENAME="FIT_REST", verbosity=1):
+    from rising_net.scripts.rest_run_fit_plot import get_config as get_config_fit_rest
+    FUNCMODE = "%sSIM" % stat.upper()
+    configFitRest = get_config_fit_rest(iG=iG, FUNCMODE=FUNCMODE,
+                                        fitlabel=fitlabel, BASENAME=BASENAME, plot_flag=False, verbosity=0)[0]
+    params = {"I_s": configFitRest.model_params["I_s"], "FIC": configFitRest.FIC, "FIC_SPLIT": configFitRest.FIC_SPLIT}
+    if verbosity:
+        if len(fitlabel):
+            labelstr = " for label %s" % fitlabel
+        else:
+            labelstr = ""
+        print("\nLoading %s parameters from %s%s...:\n%s" % (stat, BASENAME, fitlabel, str(params)))
+    return params
+
+
 def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
                          label="", filepath=None, extension=None):
     folder = simres_folder(config, iG, iP, iR, FUNCMODE, label)
@@ -59,7 +74,8 @@ def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
 
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
-def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None, fit_round=0,
+def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
+               REST_BASENAME="", restfitlabel="", fit_round=0,
                # parameters_iR=None, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
@@ -115,8 +131,21 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None, 
         effective_FUNCMODE = "%sSIM" % config.OPT_RES_MODE.upper()
     else:
         effective_FUNCMODE = FUNCMODE
+
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
         process_funcmode(effective_FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, fit_round, **kwargs)
+
+    if len(REST_BASENAME):
+        # Load REST parameters from previous REST fitting:
+        paramsRest = {}
+        paramsRest.update(load_params_from_fit_rest(iG,
+                                                    stat=config.OPT_RES_MODE,
+                                                    fitlabel=restfitlabel,
+                                                    BASENAME=REST_BASENAME,
+                                                    verbosity=verbosity))
+        params.update(paramsRest)
+    kwargs.update(params)
+
     if "SIM" in FUNCMODE:
         kwargs["output_folder"] = os.path.dirname(
             os.path.dirname(
@@ -365,8 +394,28 @@ def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, i
                                              config=config)
 
 
+def rest_run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
+
+    parser, args = run_fit_plot_args_parser(funname, defargs)
+
+    arguments = {'REST_BASENAME': ['rbsnm', str, 'Rest fitting base folder name', ""],
+                 'restfitlabel':  ['rflbl', str,
+                                   'Specific fitting label name for rest fitting results to load', "allsamples"]
+                 }
+    for arg, vals in arguments.items():
+        args[arg] = vals[-1]
+        parser.add_argument('--%s' % arg,
+                            '-%s' % vals[0],
+                            dest=arg, metavar=arg,
+                            type=vals[1],
+                            #default=args[arg],
+                            required=False,  # nargs=1,
+                            help=vals[2])
+    return parser, args
+
+
 if __name__ == "__main__":
-    parser, defargs = run_fit_plot_args_parser("rest_run_fit_plot")
+    parser, defargs = rest_run_fit_plot_args_parser("rest_run_fit_plot")
     args, parser_args, parser = parse_args(parser, argsnames=list(defargs.keys()))
     funcname = args.pop("function", "sim_run_plot")
     verbosity = args.get('verbosity', defargs['verbosity'])

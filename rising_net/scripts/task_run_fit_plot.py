@@ -23,6 +23,7 @@ from rising_net.scripts.sbi_script import build_prior, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_inference, load_proposal, infer_workflow, infer_nRuns, \
     plot_stats, plot_best_stat_sims_params_target, correlation_distance
+from rising_net.scripts.rest_run_fit_plot import load_params_from_fit_rest
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
 from rising_net.scripts.run_fit_plot import GSTR, RESSTR, NSDSTR, iGstr, iPstr, get_G, \
@@ -41,21 +42,6 @@ from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as
 
 MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF"]
 SIMULATION_MODE_STR = "Simulation mode"
-
-
-def load_params_from_fit_rest(iG, stat="mean", fitlabel="allsamples", BASENAME="FIT_REST", verbosity=1):
-    from rising_net.scripts.rest_run_fit_plot import get_config as get_config_fit_rest
-    FUNCMODE = "%sSIM" % stat.upper()
-    configFitRest = get_config_fit_rest(iG=iG, FUNCMODE=FUNCMODE,
-                                        fitlabel=fitlabel, BASENAME=BASENAME, plot_flag=False, verbosity=0)[0]
-    params = {"I_s": configFitRest.model_params["I_s"], "FIC": configFitRest.FIC, "FIC_SPLIT": configFitRest.FIC_SPLIT}
-    if verbosity:
-        if len(fitlabel):
-            labelstr = " for label %s" % fitlabel
-        else:
-            labelstr = ""
-        print("\nLoading %s parameters from %s%s...:\n%s" % (stat, BASENAME, fitlabel, str(params)))
-    return params
 
 
 def task_simres_filepath(config, mode=None, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
