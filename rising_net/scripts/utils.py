@@ -532,25 +532,33 @@ def load_pickled_time_series(filepath, connectivity=None):
     data = tsdict.get("time_series", tsdict.get("data", None))
     if data is None:
         raise ValueError("Time Series data in %s is None!" % filepath)
+    if isinstance(data, list):
+        data = np.array(data)
     while data.ndim < 4:
         data = np.expand_dims(data, axis=-1)
 
-    dimensions = list(tsdict.get("dimensions_labels",
-                                 tsdict.get("dimensions",
-                                            tsdict.get("labels_ordering", []))))
+    dimensions = list(tsdict.get("dims",  # xarray.Datarray
+                                  tsdict.get("dimensions_labels",  # TVB TimeSeries
+                                             tsdict.get("dimensions",
+                                                        tsdict.get("labels_ordering",  # TVB TimeSeries
+                                                                   [])))))
     DEFAULT_DIMENSIONS = ["Time", "State Variable", "Region", "Mode"]
     for ii in range(data.ndim):
         if len(dimensions) < ii+1:
             dimensions.append(DEFAULT_DIMENSIONS[ii])
 
     # Legacy:
-    labels_dimensions = tsdict.get("labels_dimensions", dict())
+    labels_dimensions = tsdict.get("coords", # xarray.Datarray
+                                   tsdict.get("labels_dimensions", # TVB TimeSeries
+                                              dict()))
     for label, key in zip(dimensions[:3],
-                          ["time", "state_variables", "region_labels"]):
+                          ["time", "state_variables", "region_labels"]):  # TVB TimeSeries legacy
         if label not in labels_dimensions:
             val = tsdict.get(label, tsdict.get(key, None))
             if val is not None:
                 labels_dimensions[label] = val
+        if isinstance(labels_dimensions[label], dict):
+            labels_dimensions[label] = np.array(labels_dimensions[label]["data"])
 
     time = tsdict.get("Time", tsdict.get("time", labels_dimensions.get("Time", None)))
     if time is not None:
