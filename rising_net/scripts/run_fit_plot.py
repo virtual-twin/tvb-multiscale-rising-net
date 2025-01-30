@@ -331,10 +331,11 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             results = plot_tvb(transient, inds,
                                results=results, simulator=simulator, plotter=plotter, config=config,
                                write_files=FUNCMODE.upper() == "SIM")
-            # if "COSIM" in config.MODE::
-            #     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-            #                                        time=None, transient=transient, monitor_period=simulator.monitors[0].period,
-            #                                        plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+            if "COSIM" in config.MODE:
+                plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+                                                   time=None, transient=transient,
+                                                   monitor_period=simulator.monitors[0].period,
+                                                   plot_per_neuron=False, plotter=plotter, writer=None, config=config)
         else:
             results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
         results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
