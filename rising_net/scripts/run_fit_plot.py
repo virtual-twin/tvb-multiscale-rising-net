@@ -209,6 +209,16 @@ def process_funcmode(FUNCMODE, MODE, config, verbosity=1, iP=None, iR=None, iF=N
     return iRpath, iR, iP, params, params_string, fitlabel, kwargs
 
 
+def remove_NEST_stimulus(config):
+    # At rest or cosimulation, no sinusoidal stimulus:
+    for termstr in ["input", "TVB"]:
+        if termstr in str(config.NEST_PERIPHERY).lower():
+            if config.VERBOSITY:
+                print("Removing %s from config.NEST_PERIPHERY!" % termstr)
+            config.NEST_PERIPHERY = config.NEST_PERIPHERY.lower().replace(termstr, "")
+    return config
+
+
 def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                  config=None, REST_or_TASK=None, **kwargs):
     if config is None:
@@ -265,14 +275,19 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
 
     nest_network = None
     if "COSIM" in config.MODE or "NEST" in config.MODE:
-        # Build NEST network
-        nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
         if "CEREBOFF" in config.MODE:
             for hemi in ["Right", "Left"]:
                 nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
                 print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
                 print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
         if "COSIM" in config.MODE:
+            # For cosimulation...
+            # ...no background noise in NEST since we will have TVB induced one:
+            config.NEST_BACKGROUND_FREQ = 0.0
+            # ...no sinusoidal stimulus to NEST:
+            config = remove_NEST_stimulus(config)
+            # Build NEST network
+            nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
             # Build TVB-NEST interfaces
             simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                                                                 neuron_models, start_id_scaffold)
@@ -280,6 +295,11 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             # Simulate TVB-NEST model
             results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
         else:
+            if "REST" in config.MODE:
+                # At rest, no sinusoidal stimulus:
+                config = remove_NEST_stimulus(config)
+            # Build NEST network
+            nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
             nest_network = simulate_nest_network(nest_network, config, neuron_models={}, neuron_number={})
             simulation_length, transient = configure_simulation_length_with_transient(config)
             try:
