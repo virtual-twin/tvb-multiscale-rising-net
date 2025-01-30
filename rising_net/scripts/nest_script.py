@@ -301,7 +301,7 @@ def build_NEST_network(config=None):
     else:
         if 'parrot_medulla' in str(config.NEST_PERIPHERY):
             PARROT_MEDULLA = True
-        if 'parrot_medulla' in str(config.NEST_PERIPHERY):
+        if 'parrot_ponsens' in str(config.NEST_PERIPHERY):
             PARROT_PONSENS = True
     if not(PARROT_MEDULLA):
         del neuron_types_to_region['parrot_medulla']
