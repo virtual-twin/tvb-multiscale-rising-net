@@ -227,11 +227,13 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
     regs = [['Right Ansiform lobule', 'Left Ansiform lobule'],
             ['Right Cerebellar Nuclei', 'Left Cerebellar Nuclei'],
             ['Right Inferior olivary complex', 'Left Inferior olivary complex']]
-    if config.NEST_PERIPHERY:
-        pops += ["parrot_medulla", "parrot_ponssens"]
-        regs += [['Right Principal sensory nucleus of the trigeminal',
-                  'Left Principal sensory nucleus of the trigeminal'],
-                 ['Right Pons Sensory', 'Left Pons Sensory']]
+    if config.NEST_PERIPHERY is not False:
+        pops.append('parrot_medulla')
+        regs.append(['Right Principal sensory nucleus of the trigeminal',
+                     'Left Principal sensory nucleus of the trigeminal'])
+        if config.PONSSENS_INTERFACE:
+            pops.append('parrot_ponssens')
+            regs.append(['Right Pons Sensory', 'Left Pons Sensory'])
     for iP, (pop, regions) in enumerate(zip(pops, regs)):
         pop_regions_inds = []
         numbers_of_neurons = nest_network.brain_regions[regions[0]][pop].number_of_neurons
