@@ -60,7 +60,7 @@ def load_params_from_fit_rest(iG, stat="mean", fitlabel="allsamples", BASENAME="
             labelstr = " for label %s" % fitlabel
         else:
             labelstr = ""
-        print("\nLoading %s parameters from %s%s...:\n%s" % (stat, BASENAME, fitlabel, str(params)))
+        print("\nLoading %s parameters from %s%s...:\n%s" % (stat, BASENAME, labelstr, str(params)))
     return params
 
 
