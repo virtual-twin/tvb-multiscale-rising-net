@@ -24,9 +24,9 @@ from rising_net.scripts.utils import joinstr
 
 PATHWAY_GAINS = {"TRIG_GAIN": 60.0, "MEDULLA_GAIN": 60.0, "CEREB_GAIN": 60.0,
                  "TRIGS1_GAIN": 1.0, "MEDULLAS1_GAIN": 1.0,
-                 "CNS1_GAIN": 20.0, "CNM1_GAIN": 20.0,  # "CNM1S1_GAIN": 20.0,
+                 "CNS1_GAIN": 20.0, "CNM1_GAIN": 20.0,  "CNM1S1_GAIN": 0.5,
                  "M1S1_GAIN": 1.0,
-                 "M1FACIAL_GAIN": 90.0,   # 50.0,
+                 "M1FACIAL_GAIN": 0.5,   # 50.0,
                  "FACIALTRIG_GAIN": 1.0,  # 50.0,
                  "WHISKERS_GAIN": 60.0}
 
@@ -246,8 +246,8 @@ def configure(**ARGS):
          "I_w": {"prior_dist": "uniform", "min": -0.7, "max": 0.0, "loc": -0.35, "sc": 0.1},
          "G_w": {"prior_dist": "uniform", "min": 1.0, "max": 9.0, "loc": 5.0, "sc": 1.0},
          "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 30.0, "max": 90.0, "loc": 60.0, "sc": 5.0},
-         "PATHWAY_GAIN": {"prior_dist": "uniform", "min": 30.0, "max": 90.0, "loc": 60.0, "sc": 5.0},
          "M1FACIAL_GAIN": {"prior_dist": "uniform", "min": 0.0, "max": 1.0, "loc": 0.5, "sc": 0.15},
+         "CNM1S1_GAIN": {"prior_dist": "uniform", "min": 0.0, "max": 1.0, "loc": 0.5, "sc": 0.15},
          # "WHISKERS_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "TRIG_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
          # "MEDULLA_GAIN": {"prior_dist": "uniform", "min": 1.0, "max": 90.0, "loc": 50.0, "sc": 10.0},
@@ -306,7 +306,7 @@ def configure(**ARGS):
     config.FIT_DIAGNOSTICS = ["map", "mean", "std", "diff", "accuracy", "zscore_prior", "zscore", "shrinkage"]
     if TASK:
         # if config.PATHWAY_GAIN > 2.0:
-        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN"]
+        DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w", "PATHWAY_GAIN", "M1FACIAL_GAIN", "CNM1S1_GAIN"]
         # else:
         #     DEF_PRIORS_PARAMS_NAMES = ["I_w", "G_w",
         #                                "M1FACIAL_GAIN", "WHISKERS_GAIN", "TRIG_GAIN",
@@ -397,7 +397,7 @@ def args_parser(funname, defargs=DEFAULT_ARGS):
     PATHWAY_GAINS_SHORTS = \
         {"TRIG_GAIN": "trg", "MEDULLA_GAIN": "mdg", "CEREB_GAIN": "cbg",
          "TRIGS1_GAIN": "trs1g", "MEDULLAS1_GAIN": "mds1g",
-         "CNS1_GAIN": "cnsg", "CNM1_GAIN": "cnmg", # "CNM1S1_GAIN": "cnmsg",
+         "CNS1_GAIN": "cnsg", "CNM1_GAIN": "cnmg", "CNM1S1_GAIN": "cnmsg",
          "M1S1_GAIN": "msg",
          "M1FACIAL_GAIN": "mfg",  # 50.0,
          "FACIALTRIG_GAIN": "ftg",  # 50.0,
