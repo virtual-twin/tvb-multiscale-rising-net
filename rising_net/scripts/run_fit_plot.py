@@ -18,10 +18,12 @@ from rising_net.scripts.tvb_nest_script import build_tvb_nest_interfaces, simula
 from rising_net.scripts.tvb_script import prepare_connectome, build_connectivity, build_model, build_simulator, \
     simulate, plot_tvb, tvb_res_to_time_series, tvb_res_to_bold_time_series, compute_PSD_target_and_data, \
     configure_simulation_length_with_transient
-from rising_net.scripts.nest_script import simulate_nest_network
+from rising_net.scripts.nest_script import simulate_nest_network, plot_nest_results_raster
 from rising_net.scripts.utils import compute_selected_spectra_coherence, joinstr
 from tvb_multiscale.core.utils.data_structures_utils import narray_summary_info
 from tvb_multiscale.core.utils.file_utils import dump_pickled_dict, load_pickled_dict
+
+from examples.plot_write_results import plot_write_spiking_network_results
 
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
@@ -245,6 +247,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             from rising_net.scripts.task_run_fit_plot import get_config
         config, plotter = get_config(iG=iG, iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
 
+    # Build TVB model:
     # Load and prepare connectome and connectivity with all possible normalizations:
     connectome, major_structs_labels, voxel_count, inds, maps, config = prepare_connectome(config, plotter=plotter)
     connectivity = build_connectivity(connectome, inds, config)
@@ -275,47 +278,34 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
 
     nest_network = None
     if "COSIM" in config.MODE or "NEST" in config.MODE:
-        if "CEREBOFF" in config.MODE:
-            for hemi in ["Right", "Left"]:
-                nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
-                print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
-                print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+        # Building NEST network:
         if "COSIM" in config.MODE:
             # For cosimulation...
             # ...no background noise in NEST since we will have TVB induced one:
             config.NEST_BACKGROUND_FREQ = 0.0
             # ...no sinusoidal stimulus to NEST:
             config = remove_NEST_stimulus(config)
-            # Build NEST network
-            nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
+        elif "REST" in config.MODE:
+            # At rest, no sinusoidal stimulus:
+            config = remove_NEST_stimulus(config)
+        # Build NEST network
+        nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
+        if "CEREBOFF" in config.MODE:
+            for hemi in ["Right", "Left"]:
+                nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
+                print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
+                print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+        if "COSIM" in config.MODE:
             # Build TVB-NEST interfaces
             simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                                                                 neuron_models, start_id_scaffold)
-
             # Simulate TVB-NEST model
             results, transient, simulator, nest_network = simulate_tvb_nest(simulator, nest_network, config)
         else:
-            if "REST" in config.MODE:
-                # At rest, no sinusoidal stimulus:
-                config = remove_NEST_stimulus(config)
-            # Build NEST network
-            nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
-            nest_network = simulate_nest_network(nest_network, config, neuron_models={}, neuron_number={})
-            simulation_length, transient = configure_simulation_length_with_transient(config)
-            try:
-                from examples.plot_write_results import plot_write_spiking_network_results
-                from rising_net.scripts.nest_script import plot_nest_results_raster
-                plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-                                                   time=None, transient=transient,
-                                                   monitor_period=simulator.monitors[0].period,
-                                                   plot_per_neuron=False, plotter=plotter, writer=None, config=config)
-                plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
-            except Exception as e:
-                warnings.warn("Failed to plot and/or write at least some of the NEST simulation results with error:\n%s"
-                              % str(e))
-            return simulator, nest_network, config, inds, transient
+            # Simulate NEST network
+            nest_network, transient = simulate_nest_network(nest_network, config, neuron_models={}, neuron_number={})
     else:
-        # Run simulation and get results for reference values
+        # Simulate TVB model
         results, transient = simulate(simulator, config)
 
     # Target values: ansilob=-0.3263, interposed=-0.3209, oliv=-0.3284
@@ -324,22 +314,28 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
         results = tvb_res_to_bold_time_series(results[0], simulator, config, write_files=True)
     else:
         # Compute transient
-        transient = config.TRANSIENT_RATIO * config.SIMULATION_LENGTH
-        if config.RAW_PERIOD > config.DEFAULT_DT:
-            transient = (transient // config.RAW_PERIOD) * config.RAW_PERIOD
         if plotter:
             results = plot_tvb(transient, inds,
                                results=results, simulator=simulator, plotter=plotter, config=config,
                                write_files=FUNCMODE.upper() == "SIM")
-            if "COSIM" in config.MODE:
-                plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-                                                   time=None, transient=transient,
-                                                   monitor_period=simulator.monitors[0].period,
-                                                   plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+            if "COSIM" in config.MODE or "NEST" in config.MODE:
+                try:
+                    plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+                                                       time=None, transient=transient,
+                                                       monitor_period=simulator.monitors[0].period,
+                                                       plot_per_neuron=False, plotter=plotter,
+                                                       writer=None, config=config)
+                    plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
+                except Exception as e:
+                    warnings.warn(
+                        "Failed to plot and/or write at least some of the NEST simulation results with error:\n%s"
+                        % str(e))
         else:
             results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
         results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
 
+        if "NEST" in config.MODE:
+            return simulator, nest_network, config, inds, transient
         if "REST" in config.MODE:
             # Return the M1 <-> PSD fitting target
             if "PSD" not in results.keys():
@@ -383,8 +379,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                 print("\nWriting results %s\nto file %s...\n" %
                       (str(results.keys()), simres_filepath(config, iR=iR, label=label)))
             dump_pickled_dict(results, simres_filepath(config, iR=iR, label=label))
-
-    return results, simulator, nest_network, config, inds
+    return results, simulator, nest_network, config, inds, transient
 
 
 def find_all_folders(path, folderstr):
