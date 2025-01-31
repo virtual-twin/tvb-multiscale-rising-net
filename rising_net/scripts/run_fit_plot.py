@@ -266,7 +266,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             print("\n")
             print("-" * 25)
             print("-" * 25)
-            print("Setting to 0.0 connections in and out of cerebellum\n"
+            print("Setting to 0.0 connections in and out of cerebellum for CEREBOFF mode!\n"
                   "['Left/Right Cerebellar Cortex'\n"
                   "'Left/Right Cerebellar Nuclei'\n"
                   "'Left Ansiform lobule']!!!:\n"
@@ -285,16 +285,32 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             config.NEST_BACKGROUND_FREQ = 0.0
             # ...no sinusoidal stimulus to NEST:
             config = remove_NEST_stimulus(config)
+            if config.VERBOSITY:
+                print("\nRemoved BACKGROUND NOISE and sinusoidal STIMULUS to NEST Network for CoSimulation!\n"
+                      "NEST_BACKGROUND_FREQ=%g, NEST_PERIPHERY=%s\n"
+                      % (config.NEST_BACKGROUND_FREQ, str(config.NEST_PERIPHERY)))
+            if "REST" in config.MODE:
+                for pop in ["parrot_medulla", "parrot_ponssens", "mossy_fibers"]:
+                    config.w_TVB_to_NEST[pop] = config.w_TVB_to_NEST_rest
+                if config.VERBOSITY:
+                    print("\nSetting all interface weights to the resting state ones at REST condition!\n%s"
+                          % str(config.w_TVB_to_NEST))
         elif "REST" in config.MODE:
             # At rest, no sinusoidal stimulus:
             config = remove_NEST_stimulus(config)
+            if config.VERBOSITY:
+                print("\nRemoved sinusoidal STIMULUS to NEST Network at REST condition!\n"
+                      "NEST_PERIPHERY=%s\n" % str(config.NEST_PERIPHERY))
         # Build NEST network
         nest_network, nest_nodes_inds, neuron_models, neuron_number, start_id_scaffold = build_NEST_network(config)
         if "CEREBOFF" in config.MODE:
+            if config.VERBOSITY:
+                print("\nDeactivating Cerebellar Nuclei - dcn_cell_glut_large for CEREBOFF mode!:")
             for hemi in ["Right", "Left"]:
                 nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Set({"V_th": 35.0})
-                print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
-                print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
+                if config.VERBOSITY:
+                    print('%s Cerebellar Nuclei - dcn_cell_glut_large' % hemi)
+                    print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
         if "COSIM" in config.MODE:
             # Build TVB-NEST interfaces
             simulator, nest_network = build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
@@ -315,27 +331,29 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
     else:
         # Compute transient
         if plotter:
-            results = plot_tvb(transient, inds,
-                               results=results, simulator=simulator, plotter=plotter, config=config,
-                               write_files=FUNCMODE.upper() == "SIM")
+            if "NEST" not in config.MODE:
+                results = plot_tvb(transient, inds,
+                                   results=results, simulator=simulator, plotter=plotter, config=config,
+                                   write_files=FUNCMODE.upper() == "SIM")
             if "COSIM" in config.MODE or "NEST" in config.MODE:
                 try:
+                    plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
                     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
                                                        time=None, transient=transient,
                                                        monitor_period=simulator.monitors[0].period,
                                                        plot_per_neuron=False, plotter=plotter,
                                                        writer=None, config=config)
-                    plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
                 except Exception as e:
                     warnings.warn(
                         "Failed to plot and/or write at least some of the NEST simulation results with error:\n%s"
                         % str(e))
-        else:
+        elif "NEST" not in config.MODE:
             results = tvb_res_to_time_series(results, simulator, config=config, write_files=FUNCMODE.upper() == "SIM")
-        results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
 
         if "NEST" in config.MODE:
             return simulator, nest_network, config, inds, transient
+
+        results["regions"] = simulator.connectivity.region_labels[inds["m1s1brl"]]
         if "REST" in config.MODE:
             # Return the M1 <-> PSD fitting target
             if "PSD" not in results.keys():
