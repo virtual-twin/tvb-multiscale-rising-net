@@ -170,9 +170,8 @@ def split_mossy_fibers(start_id_scaffold, f=None, config=None):
     conn_glom_mf = np.array(f['cells/connections/mossy_to_glomerulus'])
     # Select the corresponding original MFs
     target_mfs_id_scaffold_spinal = conn_glom_mf[np.isin(conn_glom_mf[:, 1], target_gloms_id_scaffold_spinal), 0]
-    target_mfs_id_scaffold_principal = conn_glom_mf[
-        np.isin(conn_glom_mf[:, 1], target_gloms_id_scaffold_principal), 0]
-    return target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal
+    target_mfs_id_scaffold_principal = conn_glom_mf[np.isin(conn_glom_mf[:, 1], target_gloms_id_scaffold_principal), 0]
+    return np.unique(target_mfs_id_scaffold_spinal), np.unique(target_mfs_id_scaffold_principal)
 
 
 def get_medulla_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id_scaffold_spinal):
@@ -180,7 +179,6 @@ def get_medulla_mossy_targets(region_mf, neuron_models, start_id_scaffold, targe
     target_mfs_id_nest_spinal = target_mfs_id_scaffold_spinal - start_id_scaffold['mossy_fibers'] + \
                                 neuron_models['mossy_fibers'][region_mf][0]
     target_mfs_id_nest_spinal = target_mfs_id_nest_spinal.astype(int)
-
     # Obtain an ordered list of non-duplicates
     return sorted(list(set(target_mfs_id_nest_spinal)))  # Medulla
 
@@ -198,7 +196,6 @@ def get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id
     target_mfs_id_nest = target_mfs_id_scaffold - start_id_scaffold['mossy_fibers'] + \
                                 neuron_models['mossy_fibers'][region_mf][0]
     target_mfs_id_nest = target_mfs_id_nest.astype(int)
-
     # Obtain an ordered list of non-duplicates
     return sorted(list(set(target_mfs_id_nest)))  # Medulla or PONS Sensory
 
@@ -231,11 +228,11 @@ def build_NEST_network(config=None):
 
     if 'eglif_cond_alpha_multisyn' not in nest.Models():
         try:
-            if config.VERBOSITY:
+            if config.VERBOSITY > 1:
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
         except:
-            if config.VERBOSITY:
+            if config.VERBOSITY > 1:
                 print("FAILED! Needing to compile it first!")
             import subprocess
             pwd = os.getcwd()
@@ -243,11 +240,11 @@ def build_NEST_network(config=None):
             cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
             os.chdir(os.path.join(cereb_path, 'build'))
             # This is our shell command, executed by Popen.
-            if config.VERBOSITY:
+            if config.VERBOSITY > 1:
                 print("Compiling cereb module...")
             p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
                                  stdout=subprocess.PIPE, shell=True)
-            if config.VERBOSITY:
+            if config.VERBOSITY > 1:
                 print(p.communicate())
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
@@ -282,8 +279,8 @@ def build_NEST_network(config=None):
     if config.VERBOSITY > 1:
         print(neuron_types)
 
-    neuron_number = {}
-    start_id_scaffold = {}
+    neuron_number = dict()
+    start_id_scaffold = dict()
 
     # Create a dictionary; keys = cell names, values = lists to store neuron models
     neuron_models = {key: [] for key in neuron_types}
@@ -293,6 +290,7 @@ def build_NEST_network(config=None):
 
     nest_nodes_inds = []
 
+    input_populations = []
     PARROT_MEDULLA = False
     PARROT_PONSENS = False
     if config.NEST_PERIPHERY is True:
@@ -305,8 +303,14 @@ def build_NEST_network(config=None):
             PARROT_PONSENS = True
     if not(PARROT_MEDULLA):
         del neuron_types_to_region['parrot_medulla']
+    else:
+        input_populations.append('parrot_medulla')
     if not(PARROT_PONSENS):
         del neuron_types_to_region['parrot_ponssens']
+    else:
+        input_populations.append('parrot_ponssens')
+    if len(input_populations) == 0:
+        input_populations.append("mossy_fibers")
 
     # All cells are modelled as E-GLIF models;
     # with the only exception of Glomeruli and Mossy Fibers (not cells, just modeled as
@@ -325,7 +329,7 @@ def build_NEST_network(config=None):
         neuron_number[neuron_name] = np.array(f['cells/placement/' + neuron_name + '/identifiers'])[1]
         start_id_scaffold[neuron_name] = np.array(f['cells/placement/' + neuron_name + '/identifiers'])[0]
 
-        neuron_models[neuron_name] = {}
+        neuron_models[neuron_name] = dict()
         region_names = neuron_types_to_region[neuron_name]
         nodes_inds = []
         for region in region_names:
@@ -343,23 +347,27 @@ def build_NEST_network(config=None):
     if PARROT_MEDULLA or PARROT_PONSENS:
         # We do all this to find the indices of the target mossy fibers!:
         target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal = split_mossy_fibers(start_id_scaffold, f)
-        for flag, pop, target_neurons in zip([PARROT_MEDULLA, PARROT_PONSENS],
-                                             ["parrot_medulla", "parrot_ponssens"],
-                                             [target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal]):
+        if PARROT_MEDULLA and PARROT_PONSENS:
+            target_neurons = [target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal]
+            n_target_neurons = [target_mfs_id_scaffold_spinal.size,  target_mfs_id_scaffold_principal.size]
+        else:
+            target_neurons = [np.unique([target_mfs_id_scaffold_spinal.tolist() +
+                                        target_mfs_id_scaffold_principal.tolist()])]
+            n_target_neurons = [target_neurons[0].size]
+        for pop, n_neurons in zip(input_populations, n_target_neurons):
             nodes_inds = []
-            if flag:
-                n_neurons = len(target_neurons)
-                region_names = neuron_types_to_region[pop]
-                for region in region_names:
-                    if region not in nest_network.brain_regions:
-                        nest_network.brain_regions[region] = NESTRegionNode(label=region)
-                        nodes_inds.append(np.where(sim_serial['connectivity.region_labels'] == region)[0][0])
-                    nest_network.brain_regions[region][pop] = \
-                        NESTPopulation(nest.Create("parrot_neuron", n_neurons),  # possible NEST model params as well here
-                                       nest, label=pop, brain_region=region)
-                    if config.VERBOSITY > 1:
-                        print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
-
+            neuron_models[pop] = dict()
+            for region in neuron_types_to_region[pop]:
+                if region not in nest_network.brain_regions:
+                    #
+                    nest_network.brain_regions[region] = NESTRegionNode(label=region)
+                    nodes_inds.append(np.where(sim_serial['connectivity.region_labels'] == region)[0][0])
+                neuron_models[pop][region] = nest.Create("parrot_neuron", n_neurons)
+                nest_network.brain_regions[region][pop] = \
+                    NESTPopulation(neuron_models[pop][region],  # possible NEST model params as well here
+                                   nest, label=pop, brain_region=region)
+                if config.VERBOSITY > 1:
+                    print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
             nest_nodes_inds += nodes_inds
 
     ### Load connections from hdf5 file and create them in NEST:
@@ -377,7 +385,6 @@ def build_NEST_network(config=None):
             if config.VERBOSITY > 1:
                 print("Connecting  ", conn_name, "!")
                 print("%s - %s -> %s -> %s" % (pre_name, pre_region, post_name, post_region))
-
             if conn_name == "mossy_to_glomerulus":
                 syn_param = {"synapse_model": "static_synapse",
                              "weight": np.ones(len(pre)) * [conn_weights[conn_name]],
@@ -393,35 +400,36 @@ def build_NEST_network(config=None):
                              "weight": np.ones(len(pre)) * [conn_weights[conn_name]],
                              "delay": np.ones(len(pre)) * conn_delays[conn_name],
                              "receptor_type": conn_receptors[conn_name]}
-
             nest.Connect(pre, post, {"rule": "one_to_one"}, syn_param)
 
-    for flag, pop, target_neurons in zip([PARROT_MEDULLA, PARROT_PONSENS],
-                                         ["parrot_medulla", "parrot_ponssens"],
-                                         [target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal]):
-        if flag:
-            region_names = neuron_types_to_region[pop]
-            mossy_fibers_targets = {}
-            for region, region_mf in zip(region_names,  ['Right Ansiform lobule', 'Left Ansiform lobule']):
+    if PARROT_MEDULLA or PARROT_PONSENS:
+        for pop, target in zip(input_populations, target_neurons):
+            mossy_fibers_targets = dict()
+            for region, region_mf in zip(neuron_types_to_region[pop],
+                                         ['Right Ansiform lobule', 'Left Ansiform lobule']):
                 if config.VERBOSITY > 1:
                     print("Connecting! %s - %s -> %s -> %s" % (pop, region, "mossy_fibers", region_mf))
                 # translate to NEST ids
-                mossy_fibers_targets[region] = \
-                    get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_neurons)
-                nest.Connect(nest_network.brain_regions[region][pop].nodes, mossy_fibers_targets[region])
+                mossy_fibers_targets[region] = get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target)
+                nest.Connect(nest_network.brain_regions[region][pop].nodes,
+                             mossy_fibers_targets[region],
+                             conn_spec={"allow_autapses": False, 'allow_multapses': False, "rule": "one_to_one"})
 
     # Background noise input device as Poisson process
     if BACKGROUND_FREQ:
         nest_network.input_devices["Background"] = DeviceSet(label="Background", model="poisson_generator")
-        for region in ['Right Ansiform lobule', 'Left Ansiform lobule']:
-            nest_network.input_devices["Background"][region] = \
-                NESTPoissonGenerator(nest.Create('poisson_generator',
-                                                 params={'rate': BACKGROUND_FREQ, 'start': 0.0, 'stop': TOT_DURATION}),
-                                     nest, model="poisson_generator", label="Background", brain_region=region)
-            nest.Connect(nest_network.input_devices["Background"][region].device,
-                         neuron_models['mossy_fibers'][region])
-            if config.VERBOSITY > 1:
-                print("Connected!  %s - %s -> %s -> %s" % ("Background", region, pop, region))
+        for pop in input_populations:
+            for region in neuron_types_to_region[pop]:
+                nest_network.input_devices["Background"][region] = \
+                    NESTPoissonGenerator(nest.Create('poisson_generator',
+                                                     params={'rate': BACKGROUND_FREQ,
+                                                             'start': 0.0, 'stop': TOT_DURATION}),
+                                         nest, model="poisson_generator", label="Background", brain_region=region)
+                nest.Connect(nest_network.input_devices["Background"][region].device,
+                             neuron_models[pop][region],
+                             conn_spec={"allow_autapses": False, 'allow_multapses': False, "rule": "all_to_all"})
+                if config.VERBOSITY > 1:
+                    print("Connected!  %s - %s -> %s -> %s" % ("Background", region, pop, region))
 
     if "input" in str(config.NEST_PERIPHERY).lower() or "TVB" in str(config.NEST_PERIPHERY):
         if "TVB" in str(config.NEST_PERIPHERY):
@@ -437,36 +445,27 @@ def build_NEST_network(config=None):
             dev_model_class = NESTSinusoidalPoissonGenerator
             params = lambda iR: {"rate": STIM_RATE, "amplitude": STIM_AMPLITUDE,
                                  "frequency": STIM_FREQ, "phase": 0.0}
-        conn_spec = {"allow_autapses": False, 'allow_multapses': False, "rule": "all_to_all"}
-        n_devices = 1
-        if "mossy_fibers" in str(config.NEST_PERIPHERY):
-            pop = 'mossy_fibers'
-            regions = ['Right Ansiform lobule', 'Left Ansiform lobule']
-            if config.NEST_PERIPHERY_MANY_NEURONS:
-                n_devices = neuron_number[pop]
-                conn_spec["rule"] = "one_to_one"
-                assert n_devices == len(nest_network.brain_regions[regions[0]][pop].nodes) == \
-                       len(nest_network.brain_regions[regions[1]][pop].nodes)
+        conn_spec = {"allow_autapses": False, 'allow_multapses': False}
+        if config.NEST_PERIPHERY_MANY_NEURONS:
+            n_devices_fun = lambda pop: neuron_number[pop]
+            conn_spec["rule"] = "one_to_one"
         else:
-            pop = 'parrot_medulla'
-            regions = ['Right Principal sensory nucleus of the trigeminal',
-                       'Left Principal sensory nucleus of the trigeminal']
-            if config.NEST_PERIPHERY_MANY_NEURONS:
-                n_devices = n_mossy_fibers_medulla
-                conn_spec["rule"] = "one_to_one"
-                assert n_devices == len(nest_network.brain_regions[regions[0]][pop].nodes) == \
-                       len(nest_network.brain_regions[regions[1]][pop].nodes)
+            conn_spec["rule"] = "all_to_all"
+            n_devices_fun = lambda pop: 1
         nest_network.input_devices["Stimulus"] = DeviceSet(label="Stimulus", model=dev_model)
-        for iR, region in enumerate(regions):
-            nest_network.input_devices["Stimulus"][region] = \
-                dev_model_class(nest.Create(dev_model, n_devices, params=params(iR)),
-                                     nest, model=dev_model, label="Stimulus", brain_region=region)
-            nest.Connect(nest_network.input_devices["Stimulus"][region].device,
-                         nest_network.brain_regions[region][pop].nodes,
-                         conn_spec=conn_spec)
+        for pop in input_populations:
+            n_devices = n_devices_fun(pop)
+            for iR, region in enumerate(neuron_types_to_region[pop]):
+                if config.NEST_PERIPHERY_MANY_NEURONS:
+                    assert n_devices == len(nest_network.brain_regions[region][pop].nodes)
+                nest_network.input_devices["Stimulus"][region] = \
+                    dev_model_class(nest.Create(dev_model, n_devices, params=params(iR)),
+                                    nest, model=dev_model, label="Stimulus", brain_region=region)
+                nest.Connect(nest_network.input_devices["Stimulus"][region].device,
+                             nest_network.brain_regions[region][pop].nodes,
+                             conn_spec=conn_spec)
             if config.VERBOSITY > 1:
                 print("Connected!  %s - %s -> %s -> %s" % ("Stimulus", region, pop, region))
-
     # Create output, measuring devices, spike_recorders and multimeters measuring V_m:
     params_spike_recorder = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["spike_recorder"].copy()
     params_spike_recorder["record_to"] = "ascii"
@@ -663,25 +662,26 @@ def plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
         # There might not be a better one yet...: https://github.com/plotly/plotly.py/issues/2725
         fig_psth.data = []
         fig_raster.data = []
-        fig_psth.layout = {}
-        fig_raster.layout = {}
+        fig_psth.layout = dict()
+        fig_raster.layout = dict()
         fig_psth = None
         fig_raster = None
     return fig_psth, fig_raster
 
 
-def simulate_nest_network(nest_network, config, neuron_models={}, neuron_number={}):
+def simulate_nest_network(nest_network, config, neuron_models=dict(), neuron_number=dict()):
+    simulation_length, transient = configure_simulation_length_with_transient(config)
     tic = time.time()
     # Simulate:
     if config.VERBOSITY:
         print("\nSimulating NEST network...")
-    nest_network.nest_instance.Simulate(config.SIMULATION_LENGTH)
+    nest_network.nest_instance.Simulate(simulation_length)
     if config.VERBOSITY:
         print("\nSimulated in %f secs!" % (time.time() - tic))
-    return nest_network
+    return nest_network, transient
 
 
-def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_args):
+def run_nest_workflow(PSD_target=None, model_params=dict(), config=None, **config_args):
     tic = time.time()
     config, plotter = assert_config(config, return_plotter=True, **config_args)
     config.model_params.update(model_params)
@@ -726,15 +726,20 @@ def run_nest_workflow(PSD_target=None, model_params={}, config=None, **config_ar
             print(nest_network.brain_regions['%s Cerebellar Nuclei' % hemi]['dcn_cell_glut_large'].Get("V_th"))
 
     # Simulate the NEST network
-    nest_network = simulate_nest_network(nest_network, config, neuron_models, neuron_number)
+    nest_network, transient = simulate_nest_network(nest_network, config, neuron_models, neuron_number)
     # Plot results
     if plotter is not None:
-        simulation_length, transient = configure_simulation_length_with_transient(config)
-        from examples.plot_write_results import plot_write_spiking_network_results
-        plot_write_spiking_network_results(nest_network, connectivity=connectivity,
-                                           time=None, transient=transient, monitor_period=simulator.monitors[0].period,
-                                           plot_per_neuron=False, plotter=plotter, writer=None, config=config)
-        plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
+        try:
+            plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
+            from examples.plot_write_results import plot_write_spiking_network_results
+            plot_write_spiking_network_results(nest_network, connectivity=connectivity,
+                                               time=None, transient=transient,
+                                               monitor_period=simulator.monitors[0].period,
+                                               plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+        except Exception as e:
+            warnings.warn(
+                "Failed to plot and/or write at least some of the NEST simulation results with error:\n%s"
+                % str(e))
     if config.VERBOSITY:
         print("\nFinished NEST workflow in %g sec!\n" % (time.time() - tic))
     results = {"nest_network": nest_network, "simulator": simulator, "config": config}
