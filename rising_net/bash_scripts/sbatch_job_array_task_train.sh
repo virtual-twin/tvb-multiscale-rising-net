@@ -3,7 +3,7 @@
 #SBATCH --job-name=FTtrain
 #SBATCH --output=./outputs/FIT_TASK/train_sims/logs/FIT_TASK_%A_%a.out
 #SBATCH --error=./outputs/FIT_TASK/train_sims/errors/FIT_TASK_%A_%a.err
-#SBATCH --array=4000-8999
+#SBATCH --array=0-9999
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
