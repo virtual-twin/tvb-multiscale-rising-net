@@ -730,7 +730,8 @@ def run_nest_workflow(PSD_target=None, model_params=dict(), config=None, **confi
     # Plot results
     if plotter is not None:
         try:
-            plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
+            if config.SIMULATION_LENGTH <= 2000.0:
+                plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
             from examples.plot_write_results import plot_write_spiking_network_results
             plot_write_spiking_network_results(nest_network, connectivity=connectivity,
                                                time=None, transient=transient,
