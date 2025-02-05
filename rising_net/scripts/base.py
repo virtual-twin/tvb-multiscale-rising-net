@@ -46,7 +46,7 @@ DEFAULT_ARGS = {# TVB model:
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
                 # TVB <-> NEST Interface:
-                # "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 0.15,
+                # "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 35.0,
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
@@ -213,18 +213,20 @@ def configure(**ARGS):
     config.NEST_STIMULUS = 15.0  # Hz
     # One of: (a) True. (b) "Input TVB to parrot_medulla". (c) "Input Sinusoidal to mossy_fibers"
     config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
-    config.NEST_PERIPHERY_MANY_NEURONS = False  # True takes for ever in cosimulation
     config.NEST_BACKGROUND_FREQ = 4.0  # 4.0 Hz, for NEST only simulations
+    config.NEST_MULTIMETER = False
 
     # TVB - NEST interface parameters:
     config.MAX_RATES = args.get("MAX_RATES",  # Hz
-                                {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
-                                 "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0}
+                                {"parrot_medulla": 10.0,
+                                 "parrot_ponssens": 10.0, "io_cell": 10.0,
+                                 "mossy_fibers": config.NEST_STIMULUS,
+                                 "granule_cell": 30.0, "dcn_cell_glut_large": 25.0}
                                 )
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 0.15)  # Old tuned value = 0.04
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 35.0)  # Old tuned value = 0.04
     config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 35.0)}
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
