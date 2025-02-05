@@ -148,47 +148,57 @@ def nest_parameter_settings():
            dict(conn_receptors), dict(conn_pre_post), dict(neuron_types_to_region)
 
 
-def split_mossy_fibers(start_id_scaffold, f=None, config=None):
+def split_mossy_fibers(start_id_scaffold, n_mfs_groups=1, f=None, config=None):
+    """
+    Splits mossy fibers into central and border groups based on their positions and specified groups.
+    Parameters:
+    start_id_scaffold (dict): Dictionary containing the starting scaffold IDs for different cell types.
+    n_mfs_groups (int, optional): Number of central mossy fiber groups to split into along the parasagittal direction (z).
+                                Default is 1.
+    f (h5py.File, optional): HDF5 file object containing the scaffold data. If None,
+                             the file is opened using the provided config.
+    config (object, optional): Configuration object containing the path to the scaffold file. Used if `f` is None.
+    Returns:
+    tuple: A tuple containing:
+       - border_mfs_id_nest (numpy.ndarray): Array of border mossy fiber IDs in NEST.
+       - central_mfs_id (list of lists): List of lists containing central mossy fiber IDs in NEST format for each group.
+    """
     if f is None:
         config = assert_config(config, return_plotter=False)
         f = h5py.File(config.CEREB_SCAFFOLD_PATH, 'r+')
-    # We all this to find the indices of the target mossy fibers!:
-    # Localized CS
-    r_x, r_z = 75, 50
+    # We do all this to find the indices of the target mossy fibers!:
+    # Localized CS to avoid border effects
+    r_x, r_z = 100, 50
     gloms_pos = np.array(f['cells/placement/glomerulus/positions'])
-    x_s_c, x_p_c, z_c = 75., 225., 100.
+    x_c, z_c = 150., 100.
 
     # Find glomeruli falling into the selected volume
-    target_gloms_bool = np.add(((gloms_pos[:, [0]] - x_s_c) ** 2) / r_x ** 2,
-                               ((gloms_pos[:, [2]] - z_c) ** 2) / r_z ** 2).__lt__(1)  # ellipse equation
-    target_gloms_id_scaffold_spinal = np.array(np.where(target_gloms_bool)[0] + start_id_scaffold['glomerulus'])
-
-    target_gloms_bool = np.add(((gloms_pos[:, [0]] - x_p_c) ** 2) / r_x ** 2,
-                               ((gloms_pos[:, [2]] - z_c) ** 2) / r_z ** 2).__lt__(1)  # ellipse equation
-    target_gloms_id_scaffold_principal = np.array(np.where(target_gloms_bool)[0] + start_id_scaffold['glomerulus'])
-
-    conn_glom_mf = np.array(f['cells/connections/mossy_to_glomerulus'])
+    central_gloms_bool = np.add(((gloms_pos[:, [0]] - x_c) ** 2) / r_x ** 2,
+                                ((gloms_pos[:, [2]] - z_c) ** 2) / r_z ** 2).__lt__(1)  # ellipse equation
+    if n_mfs_groups > 1:
+        central_gloms_id_scaffold = []  # We reset the central gloms list
+        # If we want multiple mfs groups, we split them based on their z coordinate,
+        # to follow the parasagittal direction (Apps et al., 2018; Ji and Hawkes, 1994)
+        z_split = [z_c * 2 / n_mfs_groups * i for i in range(0, n_mfs_groups)]
+        for z in z_split[1:]:
+            central_gloms_id_scaffold.append(np.array(
+                np.where(central_gloms_bool & (gloms_pos[:, 2] >= z - 1) & (gloms_pos[:, 2] < z))[0] +
+                start_id_scaffold['glomerulus']))
+    else:
+        central_gloms_id_scaffold = [np.array(np.where(central_gloms_bool)[0] + start_id_scaffold['glomerulus'])]
     # Select the corresponding original MFs
-    target_mfs_id_scaffold_spinal = conn_glom_mf[np.isin(conn_glom_mf[:, 1], target_gloms_id_scaffold_spinal), 0]
-    target_mfs_id_scaffold_principal = conn_glom_mf[np.isin(conn_glom_mf[:, 1], target_gloms_id_scaffold_principal), 0]
-    return np.unique(target_mfs_id_scaffold_spinal), np.unique(target_mfs_id_scaffold_principal)
-
-
-def get_medulla_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id_scaffold_spinal):
-    # translate to NEST ids
-    target_mfs_id_nest_spinal = target_mfs_id_scaffold_spinal - start_id_scaffold['mossy_fibers'] + \
-                                neuron_models['mossy_fibers'][region_mf][0]
-    target_mfs_id_nest_spinal = target_mfs_id_nest_spinal.astype(int)
-    # Obtain an ordered list of non-duplicates
-    return sorted(list(set(target_mfs_id_nest_spinal)))  # Medulla
-
-
-def get_ponnsess_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id_scaffold_principal):
-    # translate to NEST ids
-    target_mfs_id_nest_principal = target_mfs_id_scaffold_principal - start_id_scaffold['mossy_fibers'] + \
-                                   neuron_models['mossy_fibers'][region_mf][0]
-    target_mfs_id_nest_principal = target_mfs_id_nest_principal.astype(int)
-    return sorted(list(set(target_mfs_id_nest_principal)))  # PONS Sensory
+    conn_mf_glom = np.array(f['cells/connections/mossy_to_glomerulus'])
+    central_mfs_id_scaffold = [conn_mf_glom[np.isin(conn_mf_glom[:, 1], ids_gloms), 0]
+                               for ids_gloms in central_gloms_id_scaffold]
+    flattened_central_mfs_id_scaffold = np.concatenate(central_mfs_id_scaffold)
+    # Remove any duplicates on the go:
+    border_mfs_id_scaffold = np.sort(np.unique(
+                                        conn_mf_glom[~np.isin(conn_mf_glom[:, 1],
+                                                              flattened_central_mfs_id_scaffold), 0]))
+    # Remove any duplicates for central mfs as well:
+    for il, lst in enumerate(central_mfs_id_scaffold):
+        central_mfs_id_scaffold[il] = np.sort(np.unique(lst))
+    return border_mfs_id_scaffold, central_mfs_id_scaffold
 
 
 def get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target_mfs_id_scaffold):
@@ -251,7 +261,7 @@ def build_NEST_network(config=None):
             os.chdir(pwd)
 
     ###################### NEST simulation parameters #########################################
-    TOT_DURATION = config.SIMULATION_LENGTH  # ms
+    TOT_DURATION = config.SIMULATION_LENGTH * (1 + config.TRANSIENT_RATIO)  # ms
     BACKGROUND_FREQ = config.NEST_BACKGROUND_FREQ
     STIM_FREQ = config.NEST_STIMULUS_RATE
     STIM_AMPLITUDE = config.NEST_STIMULUS
@@ -292,25 +302,24 @@ def build_NEST_network(config=None):
 
     input_populations = []
     PARROT_MEDULLA = False
-    PARROT_PONSENS = False
+    PARROT_PONSSENS = False
     if config.NEST_PERIPHERY is True:
         PARROT_MEDULLA = True
-        PARROT_PONSENS = True
+        PARROT_PONSSENS = True
     else:
         if 'parrot_medulla' in str(config.NEST_PERIPHERY):
             PARROT_MEDULLA = True
-        if 'parrot_ponsens' in str(config.NEST_PERIPHERY):
-            PARROT_PONSENS = True
+        if 'parrot_ponssens' in str(config.NEST_PERIPHERY):
+            PARROT_PONSSENS = True
     if not(PARROT_MEDULLA):
         del neuron_types_to_region['parrot_medulla']
     else:
         input_populations.append('parrot_medulla')
-    if not(PARROT_PONSENS):
+    if not(PARROT_PONSSENS):
         del neuron_types_to_region['parrot_ponssens']
     else:
         input_populations.append('parrot_ponssens')
-    if len(input_populations) == 0:
-        input_populations.append("mossy_fibers")
+    n_input_populations = len(input_populations)
 
     # All cells are modelled as E-GLIF models;
     # with the only exception of Glomeruli and Mossy Fibers (not cells, just modeled as
@@ -344,39 +353,34 @@ def build_NEST_network(config=None):
                 print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
         nest_nodes_inds += nodes_inds
 
-    if PARROT_MEDULLA or PARROT_PONSENS:
-        # We do all this to find the indices of the target mossy fibers!:
-        target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal = split_mossy_fibers(start_id_scaffold, f)
-        if PARROT_MEDULLA and PARROT_PONSENS:
-            target_neurons = [target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal]
-            n_target_neurons = [target_mfs_id_scaffold_spinal.size,  target_mfs_id_scaffold_principal.size]
-        else:
-            target_neurons = [np.unique([target_mfs_id_scaffold_spinal.tolist() +
-                                        target_mfs_id_scaffold_principal.tolist()])]
-            n_target_neurons = [target_neurons[0].size]
-        for pop, n_neurons in zip(input_populations, n_target_neurons):
+    # Split mossy fibers between central and border ones, and the central ones among N input populations, if any:
+    target_border_mfs, target_central_mfs = split_mossy_fibers(start_id_scaffold,
+                                                               n_mfs_groups=np.maximum(1, n_input_populations),
+                                                               f=f, config=config)
+
+    if n_input_populations:
+        # If input comes via some parrot neuron population, MEDULLA and/or PONSSENS
+        # create one parrot neuron for each mossy fiber target for the input population
+        # (for each hemisphere's region):
+        for pop, target in zip(input_populations, target_central_mfs):
             nodes_inds = []
             neuron_models[pop] = dict()
             for region in neuron_types_to_region[pop]:
                 if region not in nest_network.brain_regions:
-                    #
                     nest_network.brain_regions[region] = NESTRegionNode(label=region)
                     nodes_inds.append(np.where(sim_serial['connectivity.region_labels'] == region)[0][0])
-                neuron_models[pop][region] = nest.Create("parrot_neuron", n_neurons)
+                neuron_models[pop][region] = nest.Create("parrot_neuron", target.size)
                 nest_network.brain_regions[region][pop] = \
-                    NESTPopulation(neuron_models[pop][region],  # possible NEST model params as well here
-                                   nest, label=pop, brain_region=region)
+                    NESTPopulation(neuron_models[pop][region], nest, label=pop, brain_region=region)
                 if config.VERBOSITY > 1:
                     print("\n...created: %s..." % nest_network.brain_regions[region][pop].summary_info())
             nest_nodes_inds += nodes_inds
 
     ### Load connections from hdf5 file and create them in NEST:
-
     for conn_name in conn_weights.keys():
         conn = np.array(f['cells/connections/' + conn_name])
         pre_name = conn_pre_post[conn_name]["pre"]
         post_name = conn_pre_post[conn_name]["post"]
-
         for pre_region, post_region in zip(neuron_models[pre_name].keys(), neuron_models[post_name].keys()):
             source = np.array(conn[:, 0] - start_id_scaffold[pre_name] + neuron_models[pre_name][pre_region][0])
             target = np.array(conn[:, 1] - start_id_scaffold[post_name] + neuron_models[post_name][post_region][0])
@@ -402,31 +406,42 @@ def build_NEST_network(config=None):
                              "receptor_type": conn_receptors[conn_name]}
             nest.Connect(pre, post, {"rule": "one_to_one"}, syn_param)
 
-    if PARROT_MEDULLA or PARROT_PONSENS:
-        for pop, target in zip(input_populations, target_neurons):
-            mossy_fibers_targets = dict()
+    if n_input_populations:
+        # If there are such input populations, connect them to their target central mossy fibers:
+        for pop, target in zip(input_populations, target_central_mfs):
             for region, region_mf in zip(neuron_types_to_region[pop],
                                          ['Right Ansiform lobule', 'Left Ansiform lobule']):
                 if config.VERBOSITY > 1:
                     print("Connecting! %s - %s -> %s -> %s" % (pop, region, "mossy_fibers", region_mf))
                 # translate to NEST ids
-                mossy_fibers_targets[region] = get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target)
                 nest.Connect(nest_network.brain_regions[region][pop].nodes,
-                             mossy_fibers_targets[region],
+                             get_mossy_targets(region_mf, neuron_models, start_id_scaffold, target),
                              conn_spec={"allow_autapses": False, 'allow_multapses': False, "rule": "one_to_one"})
 
     # Background noise input device as Poisson process
     if BACKGROUND_FREQ:
         nest_network.input_devices["Background"] = DeviceSet(label="Background", model="poisson_generator")
-        for pop in input_populations:
+        if n_input_populations:
+            # If there are such input populations, they should also receive the background noise input:
+            noise_input_populations = list(input_populations)
+            target_funs = [lambda pop, region: neuron_models[pop][region]] * n_input_populations
+            # However, the background noise input should also go to the remaining border mossy fibers:
+            noise_input_populations.append("mossy_fibers")
+            # Border mossy fibers' indices:
+            target_funs.append(lambda pop, region:
+                                        get_mossy_targets(region, neuron_models, start_id_scaffold, target_border_mfs))
+        else:
+            # Otherwise, the whole mossy_fibers are targeted by this input:
+            noise_input_populations = ["mossy_fibers"]
+            target_funs = [lambda pop, region: neuron_models[pop][region]]
+        for pop, target_fun in zip(noise_input_populations, target_funs):
             for region in neuron_types_to_region[pop]:
                 nest_network.input_devices["Background"][region] = \
                     NESTPoissonGenerator(nest.Create('poisson_generator',
                                                      params={'rate': BACKGROUND_FREQ,
                                                              'start': 0.0, 'stop': TOT_DURATION}),
                                          nest, model="poisson_generator", label="Background", brain_region=region)
-                nest.Connect(nest_network.input_devices["Background"][region].device,
-                             neuron_models[pop][region],
+                nest.Connect(nest_network.input_devices["Background"][region].device, target_fun(pop, region),
                              conn_spec={"allow_autapses": False, 'allow_multapses': False, "rule": "all_to_all"})
                 if config.VERBOSITY > 1:
                     print("Connected!  %s - %s -> %s -> %s" % ("Background", region, pop, region))
@@ -445,24 +460,25 @@ def build_NEST_network(config=None):
             dev_model_class = NESTSinusoidalPoissonGenerator
             params = lambda iR: {"rate": STIM_RATE, "amplitude": STIM_AMPLITUDE,
                                  "frequency": STIM_FREQ, "phase": 0.0}
-        conn_spec = {"allow_autapses": False, 'allow_multapses': False}
-        if config.NEST_PERIPHERY_MANY_NEURONS:
-            n_devices_fun = lambda pop: neuron_number[pop]
-            conn_spec["rule"] = "one_to_one"
-        else:
-            conn_spec["rule"] = "all_to_all"
-            n_devices_fun = lambda pop: 1
+        conn_spec = {"allow_autapses": False, 'allow_multapses': False, "rule": "all_to_all"}
         nest_network.input_devices["Stimulus"] = DeviceSet(label="Stimulus", model=dev_model)
-        for pop in input_populations:
-            n_devices = n_devices_fun(pop)
+
+        if n_input_populations:
+            # If there are specific input populations...
+            # the Stimulus will target them:
+            target_funs = [lambda pop, region: neuron_models[pop][region]] * n_input_populations
+        else:
+            # If there are no specific input populations...
+            # ...the input stimulus should go directly to all central mossy_fibers:
+            input_populations = ["mossy_fibers"]
+            target_funs = [lambda pop, region:
+                                    get_mossy_targets(region, neuron_models, start_id_scaffold, target_central_mfs[0])]
+        for pop, target_fun in zip(input_populations, target_funs):
             for iR, region in enumerate(neuron_types_to_region[pop]):
-                if config.NEST_PERIPHERY_MANY_NEURONS:
-                    assert n_devices == len(nest_network.brain_regions[region][pop].nodes)
                 nest_network.input_devices["Stimulus"][region] = \
-                    dev_model_class(nest.Create(dev_model, n_devices, params=params(iR)),
+                    dev_model_class(nest.Create(dev_model, 1, params=params(iR)),
                                     nest, model=dev_model, label="Stimulus", brain_region=region)
-                nest.Connect(nest_network.input_devices["Stimulus"][region].device,
-                             nest_network.brain_regions[region][pop].nodes,
+                nest.Connect(nest_network.input_devices["Stimulus"][region].device, target_fun(pop, region),
                              conn_spec=conn_spec)
             if config.VERBOSITY > 1:
                 print("Connected!  %s - %s -> %s -> %s" % ("Stimulus", region, pop, region))
@@ -489,17 +505,18 @@ def build_NEST_network(config=None):
             if config.VERBOSITY > 1:
                 print("\n...created spike_recorder device for population %s in brain region %s..." % (pop, region))
 
-        # if pop not in ['mossy_fibers', "whisking_stimulus"]:
-        #     nest_network.output_devices[pop_ts] = DeviceSet(label=pop_ts, model="multimeter")
-        #     # Create and connect population multimeter for this region:
-        #     nest_network.output_devices[pop_ts][region] = \
-        #         NESTMultimeter(nest.Create("multimeter", 1, params=params_multimeter),
-        #                        nest, model="multimeter", label=pop_ts, brain_region=region)
-        #     nest.Connect(nest_network.output_devices[pop_ts][region].device,
-        #                  nest_network.brain_regions[region][pop].nodes)
-        #     nest_network.output_devices[pop_ts].update()  # update DeviceSet after the new NESTDevice entry
-        #     if config.VERBOSITY > 1:
-        #         print("\n...created multimeter device for population %s in brain region %s..." % (pop_ts, region))
+        if config.NEST_MULTIMETER:
+            if pop not in ['mossy_fibers', "parrot_medulla", "parrot_ponssens", "whisking_stimulus"]:
+                nest_network.output_devices[pop_ts] = DeviceSet(label=pop_ts, model="multimeter")
+                # Create and connect population multimeter for this region:
+                nest_network.output_devices[pop_ts][region] = \
+                    NESTMultimeter(nest.Create("multimeter", 1, params=params_multimeter),
+                                   nest, model="multimeter", label=pop_ts, brain_region=region)
+                nest.Connect(nest_network.output_devices[pop_ts][region].device,
+                             nest_network.brain_regions[region][pop].nodes)
+                nest_network.output_devices[pop_ts].update()  # update DeviceSet after the new NESTDevice entry
+                if config.VERBOSITY > 1:
+                    print("\n...created multimeter device for population %s in brain region %s..." % (pop_ts, region))
 
     nest_network.configure()
     if config.VERBOSITY > 1:

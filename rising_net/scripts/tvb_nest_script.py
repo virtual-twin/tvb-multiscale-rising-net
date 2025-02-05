@@ -107,8 +107,8 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
     #     proxy_inds = np.delete(proxy_inds, nest_nodes_inds)
     # This is a user defined TVB -> Spiking Network interface configuration:
     if config.NEST_PERIPHERY:
-        pops = ["parrot_medulla"]  # , "io_cell"]
-        ports = [0]  # , 1]
+        pops = ["parrot_medulla"]
+        ports = [0]
         if config.PONSSENS_INTERFACE:
             pops.append('parrot_ponssens')
             ports.append(0)
@@ -118,48 +118,17 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
     else:
         pops = ["mossy_fibers"]
         ports = [0]
-    neuron_types_to_region = nest_parameter_settings()[-1]
-    # Find the non-medulla, non-PONS Sens mossy_fibers target:
-    if "mossy_fibers" in pops:
-        print("Finding the non-Medulla, non-PONS Sensory mossy fibers targets...")
-        target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal = \
-            split_mossy_fibers(start_id_scaffold, f=None, config=config)
-        regions = neuron_types_to_region["mossy_fibers"]
-        mossy_fibers_targets = {}
-        for region in regions:
-            mossy_fibers_inds = nest_network.brain_regions[region]["mossy_fibers"].neurons
-            print("All %d mossy fibers indices for region %s:\n%s" %
-                  (len(mossy_fibers_inds), region, str(mossy_fibers_inds)))
-            medulla_ponssens_mf_targets = []
-            mossy_fibers_inds_copy = np.copy(mossy_fibers_inds)
-            for mossy_targets, target_region in zip([target_mfs_id_scaffold_spinal, target_mfs_id_scaffold_principal],
-                                                    ["Medulla", "PONS Sensory"]):
-                mossy_targets_ids = get_mossy_targets(region, neuron_models, start_id_scaffold, mossy_targets)
-                mossy_targets_ids = np.unique(mossy_targets_ids)
-                print("mossy %d fibers indices for %s:\n%s" %
-                      (len(mossy_targets_ids), target_region, str(mossy_targets_ids)))
-                medulla_ponssens_mf_targets += mossy_targets_ids.tolist()
-            mossy_fibers_inds_copy = np.delete(mossy_fibers_inds_copy,
-                                               np.where([mfind in medulla_ponssens_mf_targets
-                                                         for mfind in mossy_fibers_inds_copy])[0])
-            print("Final %d non-Medulla, non-PONS Sensory mossy fibers neurons' indices for region %s:\n%s" %
-                  (len(mossy_fibers_inds_copy), region, str(mossy_fibers_inds_copy)))
-            mossy_fibers_targets[region] = np.where([mfind in mossy_fibers_inds_copy
-                                                    for mfind in mossy_fibers_inds])[0]
-            print("Final %d non-Medulla, non-PONS Sensory mossy fibers indices for region %s:\n%s" %
-                  (len(mossy_fibers_targets[region]), region, str(mossy_fibers_targets[region])))
     if config.IO_INTERFACE:
         pops.append("io_cell")
         ports.append(1)
-    for pop, receptor in zip(pops, ports):  #  excluding direct TVB input to "dcn_cell_glut_large"
+    #  NOTE!!!: excluding direct TVB input to "dcn_cell_glut_large"
+    neuron_types_to_region = nest_parameter_settings()[-1]
+    for pop, receptor in zip(pops, ports):
         regions = neuron_types_to_region[pop]
         pop_regions_inds = []
         for region in regions:
             region_ind = np.where(simulator.connectivity.region_labels == region)[0][0]
             pop_regions_inds.append(region_ind)
-            if pop == "mossy_fibers":
-                mossy_fibers_targets[region_ind] = np.copy(mossy_fibers_targets[region])
-                del mossy_fibers_targets[region]
         pop_regions_inds = np.array(pop_regions_inds)
         tvb_spikeNet_model_builder.output_interfaces.append(
             # !!! NOTE !!!
@@ -198,29 +167,12 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
              # Effective rate  = scale * (total_weighted_coupling_E_from_tvb - offset)
              # If E is in [0, 1.0], then, with a translation = 0.0, and a scale of 1e4
              # it is as if 100 neurons can fire each with a maximum spike rate of max_rate=100 Hz
-              'transformer_params': { # * config.MAX_RATES[pop]
-                  "scale_factor": np.array([config.w_TVB_to_NEST[pop] * simulator.model.G[0].item()])
+              'transformer_params': {
+                                     "scale_factor": np.array([config.w_TVB_to_NEST[pop] * simulator.model.G[0].item()])
                                      },  # "translation_factor": np.array([0.0])
               'spiking_proxy_inds': pop_regions_inds  # Same as "proxy_inds" for this kind of interface
             }
         )
-        if pop == "mossy_fibers":
-            # Target the non-medulla, non-PONS Sens mossy_fibers neurons:
-            tvb_spikeNet_model_builder.output_interfaces[-1]["neurons_fun"] = \
-                lambda node_ind, neurons_inds: neurons_inds[mossy_fibers_targets[node_ind]]
-
-        if config.NEST_PERIPHERY_MANY_NEURONS:
-            n_neurons = []
-            for region in regions:
-                n_neurons.append(nest_network.brain_regions[region][pop].number_of_nodes)
-            assert n_neurons[0] == n_neurons[1]
-            n_neurons = n_neurons[0]
-            print("-"*25)
-            print("Number of neurons %d" % n_neurons)
-            print("-" * 25)
-            tvb_spikeNet_model_builder.output_interfaces[-1]["proxy_params"] = {"number_of_devices": n_neurons}
-            tvb_spikeNet_model_builder.output_interfaces[-1]["conn_spec"] = \
-                {"allow_autapses": False, 'allow_multapses': False, "rule": "one_to_one"}
     
     # These are user defined Spiking Network -> TVB interfaces configurations:
     pops = ["granule_cell", "dcn_cell_glut_large", "io_cell"]
