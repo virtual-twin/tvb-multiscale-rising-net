@@ -186,18 +186,34 @@ def split_mossy_fibers(start_id_scaffold, n_mfs_groups=1, f=None, config=None):
                 start_id_scaffold['glomerulus']))
     else:
         central_gloms_id_scaffold = [np.array(np.where(central_gloms_bool)[0] + start_id_scaffold['glomerulus'])]
-    # Select the corresponding original MFs
+    border_gloms_id_scaffold = [np.array(np.where(np.logical_not(central_gloms_bool))[0]
+                                         + start_id_scaffold['glomerulus'])]
+    # Select the corresponding original MFs...
     conn_mf_glom = np.array(f['cells/connections/mossy_to_glomerulus'])
+    # Central MFs:
     central_mfs_id_scaffold = [conn_mf_glom[np.isin(conn_mf_glom[:, 1], ids_gloms), 0]
-                               for ids_gloms in central_gloms_id_scaffold]
-    flattened_central_mfs_id_scaffold = np.concatenate(central_mfs_id_scaffold)
-    # Remove any duplicates on the go:
-    border_mfs_id_scaffold = np.sort(np.unique(
-                                        conn_mf_glom[~np.isin(conn_mf_glom[:, 1],
-                                                              flattened_central_mfs_id_scaffold), 0]))
-    # Remove any duplicates for central mfs as well:
+                                for ids_gloms in central_gloms_id_scaffold]
+    flattened_central_mfs_id_scaffold = np.concatenate(central_mfs_id_scaffold).flatten()
+    print("flattened_central_mfs_id_scaffold.size: %d" % flattened_central_mfs_id_scaffold.size)
+    # Remove any duplicates for central mfs:
     for il, lst in enumerate(central_mfs_id_scaffold):
         central_mfs_id_scaffold[il] = np.sort(np.unique(lst))
+    # Border MFs ...and remove duplicates for border mfs:
+    border_mfs_id_scaffold = np.sort(
+                                np.unique(
+                                    conn_mf_glom[np.isin(conn_mf_glom[:, 1], border_gloms_id_scaffold), 0]))
+    print("border_mfs_id_scaffold.size including some central ones: %d" % border_mfs_id_scaffold.size)
+    # Still there are a few mossy fibers that project to both central and border glomeruli:
+    bool_inds = ~np.isin(border_mfs_id_scaffold, flattened_central_mfs_id_scaffold)
+    print("bool_inds.sum(): %d" % bool_inds.sum())
+    border_mfs_id_scaffold = border_mfs_id_scaffold[bool_inds]
+    print("Only border_mfs_id_scaffold.size: %d" % border_mfs_id_scaffold.size)
+    if config.VERBOSITY > 1:
+        print("\nBorder mossy fibers scaffold ids size: %d" % border_mfs_id_scaffold.size)
+        for ii in range(len(central_mfs_id_scaffold)):
+            print("Central mossy fibers subpopulation %d scaffold ids size: %d"
+                  % (ii+1, central_mfs_id_scaffold[ii].size))
+        print("\n")
     return border_mfs_id_scaffold, central_mfs_id_scaffold
 
 
@@ -429,7 +445,7 @@ def build_NEST_network(config=None):
             noise_input_populations.append("mossy_fibers")
             # Border mossy fibers' indices:
             target_funs.append(lambda pop, region:
-                                        get_mossy_targets(region, neuron_models, start_id_scaffold, target_border_mfs))
+                                         get_mossy_targets(region, neuron_models, start_id_scaffold, target_border_mfs))
         else:
             # Otherwise, the whole mossy_fibers are targeted by this input:
             noise_input_populations = ["mossy_fibers"]
