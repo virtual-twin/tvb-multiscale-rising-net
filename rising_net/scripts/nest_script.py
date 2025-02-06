@@ -6,17 +6,18 @@ from rising_net.scripts.tvb_script import *
 
 
 def nest_parameter_settings():
-    ###### PARAMETERS SETTING ######################################################
+    ########################################## PARAMETERS SETTING ######################################################
+    # Reference values: Geminiani et al., Plos Comp Bio, 2024 - https://github.com/AliceGem/mesoscale_simulations_cebc/tree/main/configuration (Z+ configuration for whisking)
     # Synapse parameters: in E-GLIF, 3 synaptic receptors are present: the first is always associated to exc, the second to inh, the third to remaining synapse type
     Erev_exc = 0.0  # [mV]	#[Cavallari et al, 2014]
     Erev_inh = -80.0  # [mV]
-    tau_exc = {'golgi': 0.23, 'granule': 5.8, 'purkinje': 1.1, 'basket': 0.64, 'stellate': 0.64, 'dcn': 1.0,
+    tau_exc = {'golgi': 5.0, 'granule': 1.9, 'purkinje': 1.1, 'basket': 0.64, 'stellate': 0.64, 'dcn': 1.0,
                'dcnp': 3.64,
                'io': 1.0}  # tau_exc for pc is for pf input; tau_exc for goc is for mf input; tau_exc for mli is for pf input
-    tau_inh = {'golgi': 10.0, 'granule': 13.61, 'purkinje': 2.8, 'basket': 2.0, 'stellate': 2.0, 'dcn': 0.7,
+    tau_inh = {'golgi': 5.0, 'granule': 4.5, 'purkinje': 2.8, 'basket': 2.0, 'stellate': 2.0, 'dcn': 0.7,
                'dcnp': 1.14, 'io': 60.0}
     tau_exc_cfpc = 0.4
-    tau_exc_pfgoc = 0.5
+    tau_exc_pfgoc = 1.25
     tau_exc_cfmli = 1.2
     # Single neuron parameters:
     neuron_param = {
