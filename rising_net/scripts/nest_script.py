@@ -148,6 +148,7 @@ def nest_parameter_settings():
     return dict(neuron_param), dict(conn_weights), dict(conn_delays), \
            dict(conn_receptors), dict(conn_pre_post), dict(neuron_types_to_region)
 
+
 def random_init_vm(neural_pop_ids, neu_param):
     """
     Randomly initializes the membrane potential (Vm) of a population of neurons.
@@ -163,12 +164,15 @@ def random_init_vm(neural_pop_ids, neu_param):
     Returns:
     None
     """
-    # Function for random initialization of Vm (between EL-Vreset and EL+half; being half the half of the range between EL and Vth)
+    # Function for random initialization of Vm
+    # (between EL-Vreset and EL+half; being half the half of the range between EL and Vth)
     import nest
     import random
 
     for x in range(1,len(neural_pop_ids),2):
-    	nest.SetStatus(neural_pop_ids[x-1:x],{'V_m':neu_param['E_L']+random.randint(neu_param['V_reset']-neu_param['E_L'],int((neu_param['V_th']-neu_param['E_L'])/2))})
+        nest.SetStatus(neural_pop_ids[x-1:x],
+                       {'V_m':neu_param['E_L'] + random.randint(neu_param['V_reset'] - neu_param['E_L'],
+                        int((neu_param['V_th'] - neu_param['E_L'])/2))})
 
 
 def split_mossy_fibers(start_id_scaffold, n_mfs_groups=1, f=None, config=None):
