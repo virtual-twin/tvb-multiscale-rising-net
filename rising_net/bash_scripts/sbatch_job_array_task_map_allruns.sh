@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=FTmap
-#SBATCH --output=./outputs/FIT_TASK/MAP_sims/allsamples/logs/FIT_TASK_MAP_%A_%a.out
-#SBATCH --error=./outputs/FIT_TASK/MAP_sims/allsamples/errors/FIT_TASK_MAP_%A_%a.err
+#SBATCH --output=./outputs/FIT_TASK/MAP_sims/allruns/logs/FIT_TASK_MAP_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASK/MAP_sims/allruns/errors/FIT_TASK_MAP_%A_%a.err
 #SBATCH --array=4-8
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
