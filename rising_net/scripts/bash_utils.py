@@ -3,7 +3,7 @@ import numpy as np
 
 NG = 11
 NP = 2000
-NPP = 1000
+NPP = 100
 NR = 3
 
 
@@ -42,7 +42,7 @@ def simulate_task_train_ids_args(jobarr_id, Nps=NP, Ngs=NG):
 
 def simulate_task_ppc_ids_args(jobarr_id, Nps=NPP, Ngs=NG):
     iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
-    # iP = 10 * iP
+    iP = 10 * iP
     output = print("--iG %d --iP %d" % (iG, iP))
     return output
 
