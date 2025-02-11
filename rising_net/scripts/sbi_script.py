@@ -594,7 +594,7 @@ def infer_workflow(train_params_samples, sim_res,
     if prior is None:
         prior = build_prior(config)
     posterior, inference = train_posterior(train_params_samples, sim_res,
-                                           prior=prior, inference=inference, proposal=proposal, target=target,
+                                           prior=prior, inference=deepcopy(inference), proposal=proposal, target=target,
                                            label=labeliR, config=config, verbosity=verbosity, plot_flag=plot_flag)
     write_posterior(posterior, iR=iR, label=label, config=config)
     write_inference(inference, iR=iR, label=label, config=config)
@@ -627,6 +627,14 @@ def infer_nRuns(train_params_samples, sim_res,
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
     if prior is None:
         prior = build_prior(config)
+    results = infer_workflow(train_params_samples, sim_res,
+                             prior=prior, inference=inference, proposal=proposal,
+                             target=target, ground_truth=groung_truth, config=config,
+                             label=joinstr([label, config.ALL_SAMPLES_LABEL]),
+                             n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
+                             results=None, iR=None, save_samples=save_samples,
+                             plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
+                             plot_diagnostics_flag=True, verbosity=verbosity)[1]
     results_i = None
     if config.N_FIT_RUNS > 1:
         n_samples = train_params_samples.shape[0]
@@ -635,7 +643,7 @@ def infer_nRuns(train_params_samples, sim_res,
         for iR in range(config.N_FIT_RUNS):
             if verbosity:
                 print("\n\nFitting run %d / %d with %d training samples!..\n" %
-                      (iR+1, config.N_FIT_RUNS, n_train_samples))
+                      (iR + 1, config.N_FIT_RUNS, n_train_samples))
             ticR = time.time()
             # Choose a subsample of the whole set of samples:
             sampl_inds = random.sample(all_inds, n_train_samples)
@@ -662,14 +670,6 @@ def infer_nRuns(train_params_samples, sim_res,
                    plot_diagnostics_flag=True, config=config)
     if verbosity:
         print("\n\nFitting with all samples!..\n")
-    results = infer_workflow(train_params_samples, sim_res,
-                             prior=prior, inference=inference, proposal=proposal,
-                             target=target, ground_truth=groung_truth, config=config,
-                             label=joinstr([label, config.ALL_SAMPLES_LABEL]),
-                             n_samples_per_run=n_samples_per_run, measure_labels=measure_labels,
-                             results=None, iR=None, save_samples=save_samples,
-                             plot_flag=plot_flag, measures_plot_fun=measures_plot_fun,
-                             plot_diagnostics_flag=True, verbosity=verbosity)[1]
     return results, results_i
 
 
