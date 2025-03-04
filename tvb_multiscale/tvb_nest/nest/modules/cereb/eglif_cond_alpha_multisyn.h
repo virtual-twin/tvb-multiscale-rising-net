@@ -170,6 +170,7 @@ k2 [1 / ms]  Spike-triggered adaptation
 k1 [1 / ms]  Adaptation time constant
 V_th [mV]  Threshold Potential
 V_min [mV]  Minimum Membrane Potential
+Vinit [mV]  Initial Membrane Potential
  synaptic parameters
 E_rev1 [mV]  synaptic parameters
  Receptor 1 reversal Potential
@@ -955,8 +956,8 @@ private:
     //!  Threshold Potential
     double V_th;
     //!  Minimum Membrane Potential
-    //!  synaptic parameters
     double V_min;
+    //!  Initial Membrane Potential
     double Vinit;
     //!  synaptic parameters
     //!  Receptor 1 reversal Potential
@@ -1409,6 +1410,7 @@ inline void eglif_cond_alpha_multisyn::set_status(const DictionaryDatum &__d)
   set_A1(tmp_A1);
   set_V_th(tmp_V_th);
   set_V_min(tmp_V_min);
+  set_Vinit(tmp_Vinit);
   set_E_rev1(tmp_E_rev1);
   set_tau_syn1(tmp_tau_syn1);
   set_E_rev2(tmp_E_rev2);

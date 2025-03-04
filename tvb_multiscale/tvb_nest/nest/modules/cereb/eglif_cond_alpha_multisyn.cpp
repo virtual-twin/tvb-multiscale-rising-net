@@ -215,6 +215,7 @@ eglif_cond_alpha_multisyn::eglif_cond_alpha_multisyn(const eglif_cond_alpha_mult
   P_.A1 = __n.P_.A1;
   P_.V_th = __n.P_.V_th;
   P_.V_min = __n.P_.V_min;
+  P_.Vinit = __n.P_.Vinit;
   P_.E_rev1 = __n.P_.E_rev1;
   P_.tau_syn1 = __n.P_.tau_syn1;
   P_.E_rev2 = __n.P_.E_rev2;
