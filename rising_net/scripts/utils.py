@@ -8,6 +8,7 @@ from scipy import signal
 from scipy.interpolate import interp1d
 from scipy.signal import welch
 from sklearn.decomposition import FastICA
+from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesX
@@ -251,8 +252,12 @@ def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fm
     return fig
 
 
-def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None):
-    ica = FastICA(n_components=n_components)
+def compute_plot_components(data, time, MODE=PCA, variable="BOLD", n_components=10, plotter=None):
+    if MODE == PCA:
+        mode = "PCA"
+    else:
+        mode = "ICA"
+    ica = MODE(n_components=n_components)
     ics_ts = ica.fit_transform(data)
     ics_ts = TimeSeriesX(
         data=ics_ts[:, np.newaxis, :, np.newaxis], time=time,
@@ -270,8 +275,8 @@ def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None)
         fig = plt.figure(figsize=(plotter.config.DEFAULT_SIZE[0], 5))
         plt.imshow(ica.components_)
         plt.xlabel("Region")
-        plt.ylabel("ICA component")
-        plt.title("ICA components")
+        plt.ylabel("%s component" % mode)
+        plt.title("%s components" % mode)
         plt.colorbar()
         plt.tight_layout()
         if plotter.config.SAVE_FLAG:
@@ -309,6 +314,16 @@ def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None)
 
 # fig.tight_layout()
 # plt.show()
+
+
+def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None):
+    return compute_plot_components(data, time, MODE=FastICA,
+                                   variable=variable, n_components=n_components, plotter=plotter)
+
+
+def compute_plot_pca(data, time, variable="BOLD", n_components=10, plotter=None):
+    return compute_plot_components(data, time, MODE=PCA,
+                                   variable=variable, n_components=n_components, plotter=plotter)
 
 
 def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
