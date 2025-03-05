@@ -171,7 +171,7 @@ def random_init_vm(neural_pop_ids, neu_param):
 
     for x in range(1,len(neural_pop_ids),2):
         nest.SetStatus(neural_pop_ids[x-1:x],
-                       {'V_m':neu_param['E_L'] + random.randint(neu_param['V_reset'] - neu_param['E_L'],
+                       {'Vinit':neu_param['E_L'] + random.randint(neu_param['V_reset'] - neu_param['E_L'],
                         int((neu_param['V_th'] - neu_param['E_L'])/2))})
 
 
@@ -386,6 +386,8 @@ def build_NEST_network(config=None):
         nodes_inds = []
         for region in region_names:
             neuron_models[neuron_name][region] = nest.Create(neuron_name, neuron_number[neuron_name])
+            if neuron_name != 'glomerulus' and neuron_name != 'mossy_fibers':
+               random_init_vm(neuron_models[neuron_name][region], neuron_param[neuron_name])
             if region not in nest_network.brain_regions:
                 nest_network.brain_regions[region] = NESTRegionNode(label=region)
                 nodes_inds.append(np.where(sim_serial['connectivity.region_labels'] == region)[0][0])
