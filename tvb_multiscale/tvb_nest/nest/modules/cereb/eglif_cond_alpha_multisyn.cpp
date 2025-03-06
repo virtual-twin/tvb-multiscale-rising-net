@@ -203,6 +203,8 @@ eglif_cond_alpha_multisyn::eglif_cond_alpha_multisyn(const eglif_cond_alpha_mult
   // copy parameter struct P_
   P_.C_m = __n.P_.C_m;
   P_.t_ref = __n.P_.t_ref;
+  P_.lambda_0 = __n.P_.lambda_0;
+  P_.tau_V = __n.P_.tau_V;
   P_.V_reset = __n.P_.V_reset;
   P_.tau_m = __n.P_.tau_m;
   P_.E_L = __n.P_.E_L;
@@ -213,6 +215,7 @@ eglif_cond_alpha_multisyn::eglif_cond_alpha_multisyn(const eglif_cond_alpha_mult
   P_.A1 = __n.P_.A1;
   P_.V_th = __n.P_.V_th;
   P_.V_min = __n.P_.V_min;
+  P_.Vinit = __n.P_.Vinit;
   P_.E_rev1 = __n.P_.E_rev1;
   P_.tau_syn1 = __n.P_.tau_syn1;
   P_.E_rev2 = __n.P_.E_rev2;
@@ -538,10 +541,11 @@ void eglif_cond_alpha_multisyn::update(nest::Time const & origin,const long from
 	      nest::kernel().event_delivery_manager.send(*this, se, lag);
   	    }
 
-    // voltage logging
-    B_.logger_.record_data(origin.get_steps() + lag);
+
   	}
 }
+    // voltage logging
+    B_.logger_.record_data(origin.get_steps() + lag);
 }
 }
 // Do not move this function as inline to h-file. It depends on

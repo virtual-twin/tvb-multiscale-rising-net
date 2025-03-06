@@ -159,6 +159,7 @@ extern "C" inline int eglif_cond_alpha_multisyn_dynamics( double, const double y
 C_m [pF]  membrane parameters
  Membrane Capacitance
 t_ref [ms]  Refractory period
+lambda_0 and tau_V are the parameters for the stochasticity
 V_reset [mV]  Reset Potential
 tau_m [ms]  Membrane time constant
 E_L [mV]  Leak reversal Potential (aka resting potential)
@@ -169,6 +170,7 @@ k2 [1 / ms]  Spike-triggered adaptation
 k1 [1 / ms]  Adaptation time constant
 V_th [mV]  Threshold Potential
 V_min [mV]  Minimum Membrane Potential
+Vinit [mV]  Initial Membrane Potential
  synaptic parameters
 E_rev1 [mV]  synaptic parameters
  Receptor 1 reversal Potential
@@ -954,8 +956,8 @@ private:
     //!  Threshold Potential
     double V_th;
     //!  Minimum Membrane Potential
-    //!  synaptic parameters
     double V_min;
+    //!  Initial Membrane Potential
     double Vinit;
     //!  synaptic parameters
     //!  Receptor 1 reversal Potential
@@ -1396,6 +1398,8 @@ inline void eglif_cond_alpha_multisyn::set_status(const DictionaryDatum &__d)
   // if we get here, temporaries contain consistent set of properties
   set_C_m(tmp_C_m);
   set_t_ref(tmp_t_ref);
+  set_lambda_0(tmp_lambda_0);
+  set_tau_V(tmp_tau_V);
   set_V_reset(tmp_V_reset);
   set_tau_m(tmp_tau_m);
   set_E_L(tmp_E_L);
@@ -1406,6 +1410,7 @@ inline void eglif_cond_alpha_multisyn::set_status(const DictionaryDatum &__d)
   set_A1(tmp_A1);
   set_V_th(tmp_V_th);
   set_V_min(tmp_V_min);
+  set_Vinit(tmp_Vinit);
   set_E_rev1(tmp_E_rev1);
   set_tau_syn1(tmp_tau_syn1);
   set_E_rev2(tmp_E_rev2);
