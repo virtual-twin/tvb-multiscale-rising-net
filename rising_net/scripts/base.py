@@ -210,7 +210,7 @@ def configure(**ARGS):
 
     # NEST model parameters:
     config.NEST_STIMULUS_RATE = 6.0
-    config.NEST_STIMULUS = 15.0  # Hz
+    config.NEST_STIMULUS = 50.0  # 15.0  # Hz
     # One of: (a) True. (b) "Input TVB to parrot_medulla". (c) "Input Sinusoidal to mossy_fibers"
     config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
     config.NEST_BACKGROUND_FREQ = 4.0  # 4.0 Hz, for NEST only simulations
