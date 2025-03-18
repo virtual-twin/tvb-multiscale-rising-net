@@ -252,12 +252,12 @@ def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fm
     return fig
 
 
-def compute_plot_components(data, MODE=PCA, variable="BOLD", n_components=10, time=None, plotter=None):
+def compute_plot_components(data, MODE=PCA, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
     if MODE == PCA:
         mode = "PCA"
     else:
         mode = "ICA"
-    ca = MODE(n_components=n_components)
+    ca = MODE(n_components=n_components, **kwargs)
     ca_ts = ca.fit_transform(data)
     if time is not None:
         ca_ts = TimeSeriesX(
@@ -268,12 +268,17 @@ def compute_plot_components(data, MODE=PCA, variable="BOLD", n_components=10, ti
         ca_ts.configure()
 
         if plotter:
-            ca_ts.plot_timeseries(plotter_config=plotter.config,
-                                   hue="ICA" if ca_ts.shape[2] > plotter.config.MAX_REGIONS_IN_ROWS else None,
-                                   per_variable=ca_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
-                                   figsize=plotter.config.DEFAULT_SIZE,
-                                   figname="%s %s components Time Series" % (variable, mode))
-
+            if ca_ts.shape[2] > plotter.config.MAX_REGIONS_IN_ROWS:
+                ca_ts.plot_timeseries(plotter_config=plotter.config,
+                                       hue=mode,
+                                       per_variable=ca_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
+                                       figsize=plotter.config.DEFAULT_SIZE,
+                                       figname="%s %s components Time Series" % (variable, mode))
+            else:
+                ca_ts.plot_timeseries(plotter_config=plotter.config,
+                                      per_variable=ca_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
+                                      figsize=plotter.config.DEFAULT_SIZE,
+                                      figname="%s %s components Time Series" % (variable, mode))
             fig = plt.figure(figsize=(plotter.config.DEFAULT_SIZE[0], 5))
             plt.imshow(ca.components_)
             plt.xlabel("Region")
@@ -318,14 +323,14 @@ def compute_plot_components(data, MODE=PCA, variable="BOLD", n_components=10, ti
 # plt.show()
 
 
-def compute_plot_ica(data, variable="BOLD", n_components=10, time=None, plotter=None):
+def compute_plot_ica(data, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
     return compute_plot_components(data, MODE=FastICA, variable=variable, n_components=n_components,
-                                   time=time, plotter=plotter)
+                                   time=time, plotter=plotter, **kwargs)
 
 
-def compute_plot_pca(data, variable="BOLD", n_components=10, time=None, plotter=None):
+def compute_plot_pca(data, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
     return compute_plot_components(data, MODE=PCA, variable=variable, n_components=n_components,
-                                   time=time, plotter=plotter)
+                                   time=time, plotter=plotter, **kwargs)
 
 
 def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
