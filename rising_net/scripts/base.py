@@ -46,7 +46,7 @@ DEFAULT_ARGS = {# TVB model:
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
                 # TVB <-> NEST Interface:
-                # "w_TVB_to_NEST": 35.0, "w_TVB_to_NEST_rest": 35.0,
+                # "w_TVB_to_NEST": 40.0, "w_TVB_to_NEST_rest": 40.0,
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
@@ -210,10 +210,10 @@ def configure(**ARGS):
 
     # NEST model parameters:
     config.NEST_STIMULUS_RATE = 6.0
-    config.NEST_STIMULUS = 50.0  # 15.0  # Hz
+    config.NEST_STIMULUS = 70.0  # 15.0  # Hz
     # One of: (a) True. (b) "Input TVB to parrot_medulla". (c) "Input Sinusoidal to mossy_fibers"
     config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
-    config.NEST_BACKGROUND_FREQ = 4.0  # 4.0 Hz, for NEST only simulations
+    config.NEST_BACKGROUND_FREQ = 6.0  # 4.0 Hz, for NEST only simulations
     config.NEST_MULTIMETER = False
 
     # TVB - NEST interface parameters:
@@ -226,8 +226,8 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 50.0)
-    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 35.0)}
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 40.0)
+    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 40.0)}
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
     if config.IO_INTERFACE:
