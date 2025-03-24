@@ -12,4 +12,4 @@
 JOB_ID=$((${SLURM_ARRAY_TASK_ID}))
 CMD_PATH="/home/docker/packages/tvb-multiscale/rising_net/bash_scripts/"
 CMD="bash ${CMD_PATH}simulate_task_cosim_w_fit_jobarr.sh ${JOB_ID}"
-apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
+apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE,$SCRATCH/NESTbuild:$HOME_DOCKER/build/nest --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
