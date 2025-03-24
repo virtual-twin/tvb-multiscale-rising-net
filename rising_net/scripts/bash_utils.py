@@ -5,6 +5,7 @@ NG = 11
 NP = 2000
 NPP = 100
 NR = 3
+NW = 7
 
 
 def jobarr_id_to_task_ids(args):
@@ -103,6 +104,29 @@ def fit_task(jobarr_id):
                                 save_samples=True, plot_flag=True, verbosity=2)
 
 
+def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
+    from rising_net.scripts.task_run_fit_plot import *
+
+    iG, iW, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nws), int(Nreps)])
+    w_TVB_to_NEST = 20.0 + 5*iW
+    force_output_folder = "wTVBtoNESTfit/iG_%02d/w%02d/nsd_%d" % (iG, w_TVB_to_NEST, iR)
+    return sim_run_plot(iG=iG, iP=None, iR=None,
+                        FUNCMODE="MEANSIM", label="",
+                        config=None, REST_or_TASK="TASK",
+                        force_output_folder=force_output_folder,
+                        fitlabel="allsamples",
+                        REST_BASENAME="FIT_REST",
+                        restfitlabel="allsamples",
+                        MODE="COSIM",
+                        BASENAME="FIT_TASK",
+                        SIMULATION_LENGTH=10000.0,
+                        w_TVB_to_NEST_rest=w_TVB_to_NEST,
+                        w_TVB_to_NEST=w_TVB_to_NEST,
+                        NOISE=1e-6,
+                        verbosity=2
+                     )
+
+
 def multiply(x, y):
     output = print(x*y)
     return output
@@ -146,3 +170,5 @@ if __name__ == '__main__':
         simulate_task_ppc_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_allruns_ids_args":
         simulate_task_ppc_allruns_ids_args(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_task_cosim_w_fit":
+        simulate_task_cosim_w_fit(*sys.argv[2:])
