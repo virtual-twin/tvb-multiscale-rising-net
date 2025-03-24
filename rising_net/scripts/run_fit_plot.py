@@ -222,7 +222,7 @@ def remove_NEST_stimulus(config):
 
 
 def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
-                 config=None, REST_or_TASK=None, **kwargs):
+                 config=None, REST_or_TASK=None, force_output_folder=None, **kwargs):
     if config is None:
         if REST_or_TASK is None:
             MODE = kwargs.get("MODE", None)
@@ -245,7 +245,8 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
             from rising_net.scripts.rest_run_fit_plot import get_config
         elif REST_or_TASK == "TASK":
             from rising_net.scripts.task_run_fit_plot import get_config
-        config, plotter = get_config(iG=iG, iP=iP, iR=iR, FUNCMODE=FUNCMODE, **kwargs)
+        config, plotter = get_config(iG=iG, iP=iP, iR=iR, FUNCMODE=FUNCMODE,
+                                     force_output_folder=force_output_folder, **kwargs)
 
     # Build TVB model:
     # Load and prepare connectome and connectivity with all possible normalizations:
