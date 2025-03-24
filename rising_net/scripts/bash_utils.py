@@ -119,7 +119,7 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
                         restfitlabel="allsamples",
                         MODE="COSIM",
                         BASENAME="FIT_TASK",
-                        SIMULATION_LENGTH=10000.0,
+                        SIMULATION_LENGTH=2 ** 13 + 1.0,
                         w_TVB_to_NEST_rest=w_TVB_to_NEST,
                         w_TVB_to_NEST=w_TVB_to_NEST,
                         NOISE=1e-6,
