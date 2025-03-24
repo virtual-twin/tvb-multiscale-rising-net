@@ -288,24 +288,27 @@ def build_NEST_network(config=None):
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
         except:
-            if config.VERBOSITY > 1:
-                print("FAILED! Needing to compile it first!")
-            import subprocess
-            cwd = os.getcwd()
-            pwd = __file__
-            tvb_multiscale_base_path = pwd.split("rising_net")[0]
-            cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
-            os.chdir(os.path.join(cereb_path, 'build'))
-            # This is our shell command, executed by Popen.
-            if config.VERBOSITY > 1:
-                print("Compiling cereb module...")
-            p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
-                                 stdout=subprocess.PIPE, shell=True)
-            if config.VERBOSITY > 1:
-                print(p.communicate())
-                print("Installing cereb module...")
-            nest.Install('cerebmodule')
-            os.chdir(cwd)
+            try:
+                if config.VERBOSITY > 1:
+                    print("FAILED! Needing to compile it first!")
+                import subprocess
+                cwd = os.getcwd()
+                pwd = __file__
+                tvb_multiscale_base_path = pwd.split("rising_net")[0]
+                cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
+                os.chdir(os.path.join(cereb_path, 'build'))
+                # This is our shell command, executed by Popen.
+                if config.VERBOSITY > 1:
+                    print("Compiling cereb module...")
+                p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
+                                     stdout=subprocess.PIPE, shell=True)
+                if config.VERBOSITY > 1:
+                    print(p.communicate())
+                    print("Installing cereb module...")
+                nest.Install('cerebmodule')
+                os.chdir(cwd)
+            except Exception as e:
+                warnings.warn(str(e))
 
     ###################### NEST simulation parameters #########################################
     TOT_DURATION = config.SIMULATION_LENGTH * (1 + config.TRANSIENT_RATIO)  # ms
