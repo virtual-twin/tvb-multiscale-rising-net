@@ -105,7 +105,7 @@ def fit_task(jobarr_id):
 
 
 def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
-    from rising_net.scripts.task_run_fit_plot import *
+    from rising_net.scripts.task_run_fit_plot import sim_run_plot
 
     iG, iW, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nws), int(Nreps)])
     w_TVB_to_NEST = 20.0 + 5*iW
