@@ -330,11 +330,9 @@ def build_NEST_network(config=None):
     nest_network = NESTNetwork(nest)
 
     # Load file with positions and connections data
-    if f is None:
-        config = assert_config(config, return_plotter=False)
-        target_path = os.path.join(config.out.FOLDER_RES, "balanced_DCN_IO.hdf5")
-        shutil.copyfile(config.CEREB_SCAFFOLD_PATH, target_path)
-        f = h5py.File(target_path, 'r+')
+    target_path = os.path.join(config.out.FOLDER_RES, "balanced_DCN_IO.hdf5")
+    shutil.copyfile(config.CEREB_SCAFFOLD_PATH, target_path)
+    f = h5py.File(target_path, 'r+')
 
     neuron_types = list(f['cells/placement'].keys())
     if config.VERBOSITY > 1:
