@@ -226,8 +226,8 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", 40.0)
     config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 40.0)}
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", config.w_TVB_to_NEST)
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
     if config.IO_INTERFACE:
@@ -384,6 +384,8 @@ def args_parser(funname, defargs=DEFAULT_ARGS):
                  'FIC': ['fic', FICtype, 'Indegree FIC weight'],
                  'FIC_SPLIT': ['ficsplt', float, 'FIC splitting parameter'],
                  'PATHWAY_GAIN': ['pg', float, "Pathway gain"],
+                  # TVB-NEST cosimulation:
+                  'w_TVB_to_NEST': ['w', float, 'TVB to NEST interface scaling'],
                   # WORKFLOW:
                  'SIMULATION_LENGTH': ['sl', float, "Simulation length"],
                  "NOISE": ['ns', float, "Noise amplitude"],
