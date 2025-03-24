@@ -7,6 +7,6 @@ CMDFUN="simulate_task_cosim_w_fit"
 
 $DOCKER_PYTHONPATH_CMD
 
-CMD="python $CMD $CMD_PATH/$CMD_SCRIPT $CMDFUN $JOBARRID"
+CMD="python $CMD_PATH/$CMD_SCRIPT $CMDFUN $JOBARRID"
 echo ${CMD}
 ${CMD}
