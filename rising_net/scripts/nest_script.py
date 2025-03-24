@@ -288,7 +288,8 @@ def build_NEST_network(config=None):
             if config.VERBOSITY > 1:
                 print("FAILED! Needing to compile it first!")
             import subprocess
-            pwd = os.getcwd()
+            cwd = os.getcwd()
+            pwd = __file__
             tvb_multiscale_base_path = pwd.split("rising_net")[0]
             cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
             os.chdir(os.path.join(cereb_path, 'build'))
@@ -301,7 +302,7 @@ def build_NEST_network(config=None):
                 print(p.communicate())
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
-            os.chdir(pwd)
+            os.chdir(cwd)
 
     ###################### NEST simulation parameters #########################################
     TOT_DURATION = config.SIMULATION_LENGTH * (1 + config.TRANSIENT_RATIO)  # ms
