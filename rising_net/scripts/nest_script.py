@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import shutil
 
 import h5py
 from rising_net.scripts.base import *
@@ -192,7 +193,9 @@ def split_mossy_fibers(start_id_scaffold, n_mfs_groups=1, f=None, config=None):
     """
     if f is None:
         config = assert_config(config, return_plotter=False)
-        f = h5py.File(config.CEREB_SCAFFOLD_PATH, 'r+')
+        target_path = os.path.join(config.out.FOLDER_RES, "balanced_DCN_IO.hdf5")
+        shutil.copyfile(config.CEREB_SCAFFOLD_PATH, target_path)
+        f = h5py.File(target_path, 'r+')
     # We do all this to find the indices of the target mossy fibers!:
     # Localized CS to avoid border effects
     r_x, r_z = 100, 50
