@@ -227,13 +227,13 @@ def configure(**ARGS):
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
     config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 40.0)}
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", config.w_TVB_to_NEST)
+    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", float(config.w_TVB_to_NEST["parrot_medulla"]))
     if config.PONSSENS_INTERFACE:
-        config.w_TVB_to_NEST["parrot_ponssens"] = config.w_TVB_to_NEST_rest
+        config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST_rest)
     if config.IO_INTERFACE:
-        config.w_TVB_to_NEST["io_cell"] = config.w_TVB_to_NEST_rest
+        config.w_TVB_to_NEST["io_cell"] = float(config.w_TVB_to_NEST_rest)
     if config.ANSILOB_INTERFACE:
-        config.w_TVB_to_NEST["mossy_fibers"] = config.w_TVB_to_NEST_rest
+        config.w_TVB_to_NEST["mossy_fibers"] = float(config.w_TVB_to_NEST_rest)
     config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
     config.MAX_GAIN = 99.0
