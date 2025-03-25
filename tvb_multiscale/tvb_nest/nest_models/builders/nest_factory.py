@@ -57,7 +57,7 @@ def compile_modules(modules, nestml_flag=False, config=CONFIGURED, logger=LOG):
     """Function to compile NEST modules.
        Arguments:
         modules: a sequence (list, tuple) of NEST modules' names (strings).
-        nestml_flag: (bool) flag to compile NESTML files using . Default = False.
+        nestml_flag: (bool) flag to compile NESTML files. Default = False.
         config: configuration class instance. Default: imported default CONFIGURED object.
         logger: logger object. Default: local LOG object.
     """
@@ -99,10 +99,10 @@ def compile_modules(modules, nestml_flag=False, config=CONFIGURED, logger=LOG):
                     logger.info(out.decode())
                 if err:
                     logger.error(err.decode())
-                logger.info("Changed back to directory %s..." % os.getcwd())
         except Exception as e:
             if os.getcwd() != cwd:
                 os.chdir(cwd)
+                logger.info("Changed back to directory %s..." % os.getcwd())
             logger.info("Changed back to directory %s..." % os.getcwd())
             raise e
         logger.info("Compiling finished without errors...")
@@ -121,6 +121,7 @@ def compile_modules(modules, nestml_flag=False, config=CONFIGURED, logger=LOG):
                         % (module, str(installed_files)))
     if os.getcwd() != cwd:
         os.chdir(cwd)
+        logger.info("Changed back to directory %s..." % os.getcwd())
 
 
 def get_populations_neurons(population, inds_fun=None):
