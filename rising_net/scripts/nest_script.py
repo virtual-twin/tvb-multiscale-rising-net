@@ -287,7 +287,9 @@ def build_NEST_network(config=None):
             if config.VERBOSITY > 1:
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
-        except:
+            assert 'eglif_cond_alpha_multisyn' in nest.Models()
+        except Exception as e:
+            warnings.warn(str(e))
             try:
                 if config.VERBOSITY > 1:
                     print("FAILED! Needing to compile it first!")
@@ -307,6 +309,7 @@ def build_NEST_network(config=None):
                     print("Installing cereb module...")
                 nest.Install('cerebmodule')
                 os.chdir(cwd)
+                assert 'eglif_cond_alpha_multisyn' in nest.Models()
             except Exception as e:
                 warnings.warn(str(e))
 
