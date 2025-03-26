@@ -138,6 +138,7 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
 
     if np.mod(jobarr_id, 2) == 0:
         REST_or_TASK = "TASK"
+        print("\n" + "-"*50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-"*50 + "\n")
         force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
                             FUNCMODE="MEANSIM", label="",
@@ -154,6 +155,7 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
                             )
     else:
         REST_or_TASK = "REST"
+        print("\n" + "-" * 50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-" * 50 + "\n")
         force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
                             FUNCMODE="SIM", label="",
