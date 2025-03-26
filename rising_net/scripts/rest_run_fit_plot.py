@@ -75,7 +75,7 @@ def rest_simres_filepath(config, iG=None, iP=None, iR=None, FUNCMODE="TRAINSIM",
 # iP: parameter sample index
 # iR: simulation repetition and noise seed index
 def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
-               REST_BASENAME="", restfitlabel="", fit_round=0,
+               REST_BASENAME="", restfitlabel="", fit_round=0, force_output_folder=None,
                # parameters_iR=None, parameters_filepath=None, parameters_filepath_ext=None,
                **kwargs):
 
@@ -146,7 +146,9 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
         params.update(paramsRest)
     kwargs.update(params)
 
-    if "SIM" in FUNCMODE:
+    if force_output_folder is not None:
+        kwargs["output_folder"] = force_output_folder
+    elif "SIM" in FUNCMODE:
         kwargs["output_folder"] = os.path.dirname(
             os.path.dirname(
                 rest_simres_filepath(config, iG, iP, iRpath, FUNCMODE, fitlabel)))
