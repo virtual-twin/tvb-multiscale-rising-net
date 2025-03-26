@@ -46,7 +46,7 @@ DEFAULT_ARGS = {# TVB model:
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
                 # TVB <-> NEST Interface:
-                # "w_TVB_to_NEST": 40.0, "w_TVB_to_NEST_rest": 40.0,
+                # "w_TVB_to_NEST": 38.0, "w_TVB_to_NEST_rest": 38.0,
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
@@ -226,7 +226,7 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 40.0)}
+    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 38.0)}
     config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", float(config.w_TVB_to_NEST["parrot_medulla"]))
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST_rest)
