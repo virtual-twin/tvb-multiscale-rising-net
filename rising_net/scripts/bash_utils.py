@@ -128,6 +128,47 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
                      )
 
 
+def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
+
+    from rising_net.scripts.task_run_fit_plot import sim_run_plot
+
+    jobarr_id = int(jobarr_id)
+    iG, iR = jobarr_id_to_task_ids([jobarr_id // 2, int(Ngs), int(Nreps)])
+    iG += 4
+
+    if np.mod(jobarr_id, 2) == 0:
+        REST_or_TASK = "TASK"
+        force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=None,
+                            FUNCMODE="MEANSIM", label="",
+                            config=None, REST_or_TASK=REST_or_TASK,
+                            force_output_folder=force_output_folder,
+                            fitlabel="allsamples",
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="COSIM",
+                            BASENAME="FIT_TASK",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-6,
+                            verbosity=2
+                            )
+    else:
+        REST_or_TASK = "REST"
+        force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=None,
+                            FUNCMODE="SIM", label="",
+                            config=None, REST_or_TASK=REST_or_TASK,
+                            force_output_folder=force_output_folder,
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="COSIM",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-6,
+                            verbosity=2
+                            )
+
+
+
 def multiply(x, y):
     output = print(x*y)
     return output
@@ -173,3 +214,5 @@ if __name__ == '__main__':
         simulate_task_ppc_allruns_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_cosim_w_fit":
         simulate_task_cosim_w_fit(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_cosim_MAXRATE_fit":
+        simulate_cosim_MAXRATE_fit(*sys.argv[2:])
