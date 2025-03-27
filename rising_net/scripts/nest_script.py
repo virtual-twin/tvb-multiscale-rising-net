@@ -83,7 +83,21 @@ def nest_parameter_settings():
                     'purkinje_to_dcn_GABA': 0.072, \
                     'io_to_purkinje': 300.0, 'io_to_basket': 3.0, 'io_to_stellate': 11.0, 'io_to_dcn_glut_large': 1.5,
                     'io_to_dcn_GABA': 0.3, 'dcn_GABA_to_io': 0.004}
-
+    '''
+    # 0-weights
+    conn_weights = {'mossy_to_glomerulus': 0.0, 'ascending_axon_to_golgi': 0.0, 'ascending_axon_to_purkinje': 0.0,
+                'basket_to_purkinje': 0.0, 'basket_to_basket': 0.0, \
+                'glomerulus_to_golgi': 0.0, 'glomerulus_to_granule': 0.0, 'golgi_to_granule': 0.0,
+                'golgi_to_golgi': 0.0, \
+                'parallel_fiber_to_basket': 0.0, 'parallel_fiber_to_golgi': 0.,
+                'parallel_fiber_to_purkinje': 0.0, \
+                'parallel_fiber_to_stellate': 0.0, 'stellate_to_purkinje': 0.0, 'stellate_to_stellate': 0.0, \
+                'purkinje_to_dcn_glut_large': 0.0, 'mossy_to_dcn_glut_large': 0.0,
+                'purkinje_to_dcn_GABA': 0.0, \
+                'io_to_purkinje': 0.0, 'io_to_basket': 0.0, 'io_to_stellate': 0.0, 'io_to_dcn_glut_large': 0.0,
+                'io_to_dcn_GABA': 0.0, 'dcn_GABA_to_io': 0.0}
+     '''
+        
     # Connection delays
     conn_delays = {'mossy_to_glomerulus': 1.0, 'ascending_axon_to_golgi': 2.0, 'ascending_axon_to_purkinje': 2.0,
                    'basket_to_purkinje': 4.0, 'basket_to_basket': 4.0, \
@@ -264,7 +278,7 @@ def build_NEST_network(config=None):
     from tvb_multiscale.tvb_nest.nest_models.region_node import NESTRegionNode
     from tvb_multiscale.tvb_nest.nest_models.population import NESTPopulation
     from tvb_multiscale.core.spiking_models.devices import DeviceSet
-    from tvb_multiscale.tvb_nest.nest_models.devices import NESTSpikeRecorder  # , NESTMultimeter
+    from tvb_multiscale.tvb_nest.nest_models.devices import NESTSpikeRecorder, NESTMultimeter
     from tvb_multiscale.tvb_nest.nest_models.devices import \
         NESTPoissonGenerator, NESTInhomogeneousPoissonGenerator, NESTSinusoidalPoissonGenerator
     from tvb_multiscale.tvb_nest.nest_models.builders.nest_factory import load_nest, configure_nest_kernel
@@ -542,9 +556,10 @@ def build_NEST_network(config=None):
     # Create output, measuring devices, spike_recorders and multimeters measuring V_m:
     params_spike_recorder = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["spike_recorder"].copy()
     params_spike_recorder["record_to"] = "ascii"
-    # params_multimeter = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["multimeter"].copy()
-    # params_multimeter["record_to"] = "ascii"
-    # params_multimeter["interval"] = 1.0
+    params_multimeter = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["multimeter"].copy()
+    params_multimeter["record_to"] = "ascii"
+    #params_multimeter["record_from"] = "V_m"
+    params_multimeter["interval"] = 1.0
     for pop, regions in neuron_types_to_region.items():
         # pop_ts = "%s_ts" % pop
         nest_network.output_devices[pop] = DeviceSet(label=pop, model="spike_recorder")
@@ -563,17 +578,17 @@ def build_NEST_network(config=None):
                 print("\n...created spike_recorder device for population %s in brain region %s..." % (pop, region))
 
         if config.NEST_MULTIMETER:
-            if pop not in ['mossy_fibers', "parrot_medulla", "parrot_ponssens", "whisking_stimulus"]:
-                nest_network.output_devices[pop_ts] = DeviceSet(label=pop_ts, model="multimeter")
+            if pop not in ['mossy_fibers', 'glomerulus', "parrot_medulla", "parrot_ponssens", "whisking_stimulus"]:
+                nest_network.output_devices[pop] = DeviceSet(label=pop, model="multimeter")
                 # Create and connect population multimeter for this region:
-                nest_network.output_devices[pop_ts][region] = \
+                nest_network.output_devices[pop][region] = \
                     NESTMultimeter(nest.Create("multimeter", 1, params=params_multimeter),
-                                   nest, model="multimeter", label=pop_ts, brain_region=region)
-                nest.Connect(nest_network.output_devices[pop_ts][region].device,
-                             nest_network.brain_regions[region][pop].nodes)
-                nest_network.output_devices[pop_ts].update()  # update DeviceSet after the new NESTDevice entry
+                                    nest, model="multimeter", label=pop, brain_region=region)
+                nest.Connect(nest_network.output_devices[pop][region].device,
+                                nest_network.brain_regions[region][pop].nodes[2])
+                nest_network.output_devices[pop].update()  # update DeviceSet after the new NESTDevice entry
                 if config.VERBOSITY > 1:
-                    print("\n...created multimeter device for population %s in brain region %s..." % (pop_ts, region))
+                    print("\n...created multimeter device for population %s in brain region %s..." % (pop, region))
 
     nest_network.configure()
     if config.VERBOSITY > 1:
@@ -742,7 +757,24 @@ def plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
         fig_raster = None
     return fig_psth, fig_raster
 
+def plot_vm(nest_network, pop, region):
+    import matplotlib.pyplot as plt
 
+    fig_vm, ax_vm = plt.subplots()
+    node_id = nest_network.brain_regions[region][pop].nodes[2].global_id
+    data = nest_network.output_devices_multi[pop][region].events
+    senders = data["senders"]
+    time = data['times'][senders == node_id]
+    vm_values = data['V_m'][senders == node_id]
+    
+    ax_vm.plot(time, vm_values, label=f'{pop} Vm')
+    ax_vm.set_xlabel('Time (ms)')
+    ax_vm.set_ylabel('Membrane potential (mV)')
+    ax_vm.set_title(f'Vm of {pop} in {region}')
+    ax_vm.legend()
+    plt.show()
+    return fig_vm
+    
 def simulate_nest_network(nest_network, config, neuron_models=dict(), neuron_number=dict()):
     simulation_length, transient = configure_simulation_length_with_transient(config)
     tic = time.time()
@@ -811,6 +843,10 @@ def run_nest_workflow(PSD_target=None, model_params=dict(), config=None, **confi
                                                time=None, transient=transient,
                                                monitor_period=simulator.monitors[0].period,
                                                plot_per_neuron=False, plotter=plotter, writer=None, config=config)
+            #if config.NEST_MULTIMETER:
+            for pop, regions in neuron_models.items():
+                for region in regions.keys():
+                    plot_vm(nest_network, pop, region)
         except Exception as e:
             warnings.warn(
                 "Failed to plot and/or write at least some of the NEST simulation results with error:\n%s"
