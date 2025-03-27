@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import shutil
 
 import h5py
 from rising_net.scripts.base import *
@@ -192,7 +193,9 @@ def split_mossy_fibers(start_id_scaffold, n_mfs_groups=1, f=None, config=None):
     """
     if f is None:
         config = assert_config(config, return_plotter=False)
-        f = h5py.File(config.CEREB_SCAFFOLD_PATH, 'r+')
+        target_path = os.path.join(config.out.FOLDER_RES, "balanced_DCN_IO.hdf5")
+        shutil.copyfile(config.CEREB_SCAFFOLD_PATH, target_path)
+        f = h5py.File(target_path, 'r+')
     # We do all this to find the indices of the target mossy fibers!:
     # Localized CS to avoid border effects
     r_x, r_z = 100, 50
@@ -284,24 +287,31 @@ def build_NEST_network(config=None):
             if config.VERBOSITY > 1:
                 print("Installing cereb module...")
             nest.Install('cerebmodule')
-        except:
-            if config.VERBOSITY > 1:
-                print("FAILED! Needing to compile it first!")
-            import subprocess
-            pwd = os.getcwd()
-            tvb_multiscale_base_path = pwd.split("rising_net")[0]
-            cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
-            os.chdir(os.path.join(cereb_path, 'build'))
-            # This is our shell command, executed by Popen.
-            if config.VERBOSITY > 1:
-                print("Compiling cereb module...")
-            p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
-                                 stdout=subprocess.PIPE, shell=True)
-            if config.VERBOSITY > 1:
-                print(p.communicate())
-                print("Installing cereb module...")
-            nest.Install('cerebmodule')
-            os.chdir(pwd)
+            assert 'eglif_cond_alpha_multisyn' in nest.Models()
+        except Exception as e:
+            warnings.warn(str(e))
+            try:
+                if config.VERBOSITY > 1:
+                    print("FAILED! Needing to compile it first!")
+                import subprocess
+                cwd = os.getcwd()
+                pwd = __file__
+                tvb_multiscale_base_path = pwd.split("rising_net")[0]
+                cereb_path = os.path.join(tvb_multiscale_base_path, "tvb_multiscale/tvb_nest/nest/modules/cereb")
+                os.chdir(os.path.join(cereb_path, 'build'))
+                # This is our shell command, executed by Popen.
+                if config.VERBOSITY > 1:
+                    print("Compiling cereb module...")
+                p = subprocess.Popen("cmake -Dwith-nest=/home/docker/build/nest/bin/nest-config ..; make; make install",
+                                     stdout=subprocess.PIPE, shell=True)
+                if config.VERBOSITY > 1:
+                    print(p.communicate())
+                    print("Installing cereb module...")
+                nest.Install('cerebmodule')
+                os.chdir(cwd)
+                assert 'eglif_cond_alpha_multisyn' in nest.Models()
+            except Exception as e:
+                warnings.warn(str(e))
 
     ###################### NEST simulation parameters #########################################
     TOT_DURATION = config.SIMULATION_LENGTH * (1 + config.TRANSIENT_RATIO)  # ms
@@ -326,7 +336,9 @@ def build_NEST_network(config=None):
     nest_network = NESTNetwork(nest)
 
     # Load file with positions and connections data
-    f = h5py.File(config.CEREB_SCAFFOLD_PATH, 'r+')
+    target_path = os.path.join(config.out.FOLDER_RES, "balanced_DCN_IO.hdf5")
+    shutil.copyfile(config.CEREB_SCAFFOLD_PATH, target_path)
+    f = h5py.File(target_path, 'r+')
 
     neuron_types = list(f['cells/placement'].keys())
     if config.VERBOSITY > 1:

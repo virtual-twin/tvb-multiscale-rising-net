@@ -8,6 +8,7 @@ from scipy import signal
 from scipy.interpolate import interp1d
 from scipy.signal import welch
 from sklearn.decomposition import FastICA
+from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeries as TimeSeriesX
@@ -251,36 +252,47 @@ def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fm
     return fig
 
 
-def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None):
-    ica = FastICA(n_components=n_components)
-    ics_ts = ica.fit_transform(data)
-    ics_ts = TimeSeriesX(
-        data=ics_ts[:, np.newaxis, :, np.newaxis], time=time,
-        labels_ordering=["Time", "State Variable", "ICA", "Modes"],
-        labels_dimensions={"State Variable": [variable],
-                           "ICA": np.arange(ics_ts.shape[1])})
-    ics_ts.configure()
+def compute_plot_components(data, MODE=PCA, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
+    if MODE == PCA:
+        mode = "PCA"
+    else:
+        mode = "ICA"
+    ca = MODE(n_components=n_components, **kwargs)
+    ca_ts = ca.fit_transform(data)
+    if time is not None:
+        ca_ts = TimeSeriesX(
+            data=ca_ts[:, np.newaxis, :, np.newaxis], time=time,
+            labels_ordering=["Time", "State Variable", mode, "Modes"],
+            labels_dimensions={"State Variable": [variable],
+                               mode: np.arange(ca_ts.shape[1])})
+        ca_ts.configure()
 
-    if plotter:
-        ics_ts.plot_timeseries(plotter_config=plotter.config,
-                               hue="ICA" if ics_ts.shape[2] > plotter.config.MAX_REGIONS_IN_ROWS else None,
-                               per_variable=ics_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
-                               figsize=plotter.config.DEFAULT_SIZE, figname="%s ICA components Time Series" % variable)
-
-        fig = plt.figure(figsize=(plotter.config.DEFAULT_SIZE[0], 5))
-        plt.imshow(ica.components_)
-        plt.xlabel("Region")
-        plt.ylabel("ICA component")
-        plt.title("ICA components")
-        plt.colorbar()
-        plt.tight_layout()
-        if plotter.config.SAVE_FLAG:
-            plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "ICA.%s" % plotter.config.FIG_FORMAT))
-        if plotter.config.SHOW_FLAG:
-            plt.show()
-        else:
-            plt.close(fig)
-    return ica.components_, ics_ts, ica  # (ICA components, ICA components time series, ICA class instance)
+        if plotter:
+            if ca_ts.shape[2] > plotter.config.MAX_REGIONS_IN_ROWS:
+                ca_ts.plot_timeseries(plotter_config=plotter.config,
+                                       hue=mode,
+                                       per_variable=ca_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
+                                       figsize=plotter.config.DEFAULT_SIZE,
+                                       figname="%s %s components Time Series" % (variable, mode))
+            else:
+                ca_ts.plot_timeseries(plotter_config=plotter.config,
+                                      per_variable=ca_ts.shape[1] > plotter.config.MAX_VARS_IN_COLS,
+                                      figsize=plotter.config.DEFAULT_SIZE,
+                                      figname="%s %s components Time Series" % (variable, mode))
+            fig = plt.figure(figsize=(plotter.config.DEFAULT_SIZE[0], 5))
+            plt.imshow(ca.components_)
+            plt.xlabel("Region")
+            plt.ylabel("%s component" % mode)
+            plt.title("%s components" % mode)
+            plt.colorbar()
+            plt.tight_layout()
+            if plotter.config.SAVE_FLAG:
+                plt.savefig(os.path.join(plotter.config.FOLDER_FIGURES, "%s.%s" % (mode, plotter.config.FIG_FORMAT)))
+            if plotter.config.SHOW_FLAG:
+                plt.show()
+            else:
+                plt.close(fig)
+    return ca.components_, ca_ts, ca
 
 # Example about how ICA works:
 # from sklearn.decomposition import FastICA
@@ -309,6 +321,16 @@ def compute_plot_ica(data, time, variable="BOLD", n_components=10, plotter=None)
 
 # fig.tight_layout()
 # plt.show()
+
+
+def compute_plot_ica(data, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
+    return compute_plot_components(data, MODE=FastICA, variable=variable, n_components=n_components,
+                                   time=time, plotter=plotter, **kwargs)
+
+
+def compute_plot_pca(data, variable="BOLD", n_components=10, time=None, plotter=None, **kwargs):
+    return compute_plot_components(data, MODE=PCA, variable=variable, n_components=n_components,
+                                   time=time, plotter=plotter, **kwargs)
 
 
 def compute_data_PSDs(data, dt, ftarg, transient=None, average_region_ps=False):
