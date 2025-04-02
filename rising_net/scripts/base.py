@@ -106,6 +106,7 @@ def configure(**ARGS):
     MAJOR_STRUCTS_LABELS_FILE = "major_structs_labels_SummedSubcortical_Thals.npy"  # "major_structs_labels_Thals.npy" # "major_structs_labels_SummedSubcortical_Thals.npy"
     VOXEL_COUNT_FILE = "voxel_count_SummedSubcortical_Thals.npy"  # "voxel_count_Thals.npy" # "voxel_count_SummedSubcortical_Thals.npy"
     INDS_FILE = "inds_SummedSubcortical_Thals.npy"  # "inds_Thals.npy" # "inds_SummedSubcortical_Thals.npy
+    wNESTtoTVB_FILE = "wNESTtoTVBparams.pkl"
 
     # Construct configuration
     work_path = os.getcwd()
@@ -118,6 +119,7 @@ def configure(**ARGS):
     inds_filepath = os.path.join(data_path, INDS_FILE)
     popa_freqs_path = os.path.join(data_path, 'popa2013')
     cereb_scaffold_path = os.path.join(data_path, 'balanced_DCN_IO.hdf5')
+    wNESTtoTVB_filepath = os.path.join(data_path, wNESTtoTVB_FILE)
     outputs_path = os.path.join(work_path, "outputs")
     if len(args['output_folder']):
         outputs_path = os.path.join(outputs_path, args['output_folder'])
@@ -169,6 +171,7 @@ def configure(**ARGS):
     config.VOXEL_COUNT_FILE = voxel_count_filepath
     config.INDS_FILE = inds_filepath
     config.CEREB_SCAFFOLD_PATH = cereb_scaffold_path
+    config.wNESTtoTVB_FILE = wNESTtoTVB_filepath
     # Fix Cortex <-> Spec Thal connections according to Griffiths et al model:
     # config.THAL_CRTX_FIX = defargs.get("THAL_CRTX_FIX", "wd")
     config.CONN_NORM_PERCENTILE = 99
@@ -234,7 +237,6 @@ def configure(**ARGS):
         config.w_TVB_to_NEST["io_cell"] = float(config.w_TVB_to_NEST_rest)
     if config.ANSILOB_INTERFACE:
         config.w_TVB_to_NEST["mossy_fibers"] = float(config.w_TVB_to_NEST_rest)
-    config.INVERSE_SIGMOIDAL_NEST_TO_TVB = True
 
     config.MAX_GAIN = 99.0
     # Fitting
