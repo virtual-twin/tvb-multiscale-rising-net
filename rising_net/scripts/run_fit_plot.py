@@ -278,6 +278,8 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
         simulator.configure()
 
     nest_network = None
+    results = None
+    transient = 0
     if "COSIM" in config.MODE or "NEST" in config.MODE:
         # Building NEST network:
         if "COSIM" in config.MODE:
