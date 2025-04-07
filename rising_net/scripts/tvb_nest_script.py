@@ -214,7 +214,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
              # for options and related Transformer classes,
              # and tvb_multiscale.core.interfaces.transformers.models.DefaultSpikeNetToTVBModels for default choices
              'transformer_model': "SPIKES_TO_HIST_RATE",
-             'transformer_params': transformer_params
+             'transformer_params': dict(transformer_params)
              })
         if pop == "granule_cell":
             # We only record from 1 every 10 granule cells!:
