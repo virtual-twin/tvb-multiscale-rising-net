@@ -4,6 +4,8 @@ from rising_net.scripts.base import *
 from rising_net.scripts.nest_script import nest_parameter_settings, split_mossy_fibers, get_mossy_targets
 from rising_net.scripts.tvb_script import *
 
+from tvb_multiscale.core.utils.file_utils import load_pickled_dict
+
 
 def print_available_interfaces():
     # options for a nonopinionated builder:
@@ -60,21 +62,13 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
 
     # ---------------------------- Non opinionated TVB<->NEST interface builder----------------------------
     from tvb_multiscale.tvb_nest.interfaces.builders import TVBNESTInterfaceBuilder
-    # from tvb_multiscale.core.interfaces.transformers.models.thalamocortical_wc import ThalamocorticalWCLinearRate
     from tvb_multiscale.core.interfaces.transformers.models.thalamocortical_wc import \
-        DefaultTVBtoSpikeNetTransformersThalamoCorticalWC
+        DefaultTVBtoSpikeNetTransformersThalamoCorticalWC, DefaultSpikeNetToTVBTransformersThalamoCorticalWC
     
     tvb_spikeNet_model_builder = TVBNESTInterfaceBuilder()  # non opinionated builder
 
     tvb_spikeNet_model_builder._tvb_to_spikeNet_transformer_models = DefaultTVBtoSpikeNetTransformersThalamoCorticalWC
-
-    if config.INVERSE_SIGMOIDAL_NEST_TO_TVB:
-        # !!! THIS WILL TURN ON THE INVERSE SIGMOIMDAL TRANSFORMER FOR NEST -> TVB INTERFACE !!!
-        from tvb_multiscale.core.interfaces.transformers.models.thalamocortical_wc import \
-            DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal
-
-        tvb_spikeNet_model_builder._spikeNet_to_tvb_transformer_models = \
-            DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal
+    tvb_spikeNet_model_builder._spikeNet_to_tvb_transformer_models = DefaultSpikeNetToTVBTransformersThalamoCorticalWC
 
     tvb_spikeNet_model_builder.config = config
     tvb_spikeNet_model_builder.tvb_cosimulator = simulator
@@ -186,27 +180,20 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
         if config.PONSSENS_INTERFACE:
             pops.append('parrot_ponssens')
             regs.append(['Right Pons Sensory', 'Left Pons Sensory'])
+    w_NEST_to_TVB = load_pickled_dict(config.wNESTtoTVB_FILE.replace(".pkl", "_iG06.pkl"))
+    transformer_params = {"tau": np.array([simulator.model.tau_e[0].item()]),
+                          "dt": simulator.integrator.dt,
+                          "state": np.array([[-0.5]])}
     for iP, (pop, regions) in enumerate(zip(pops, regs)):
         pop_regions_inds = []
-        numbers_of_neurons = nest_network.brain_regions[regions[0]][pop].number_of_neurons
-        # Basic w to convert total rates to mean rates in Hz, and then into the interval [0.0, 1.0]:
-        w_NEST_to_TVB = np.array([1.0]) / numbers_of_neurons / config.MAX_RATES[pop]
         for region in regions:
             pop_regions_inds.append(np.where(simulator.connectivity.region_labels == region)[0][0])
         pop_regions_inds = np.array(pop_regions_inds)
-        if config.INVERSE_SIGMOIDAL_NEST_TO_TVB:
-            # !!! Parameters for inverse sigmoidal NEST -> TVB transformer: !!!
-            transformer_params = {"w": w_NEST_to_TVB,
-                                  "Rmax": np.array([1.0 - 1e-9]),
-                                  # We cannot allow 0 rate values leading the inverse sigmoidal to Inf!
-                                  "Rmin": np.array([0.5*1e-4]),  # this leads to a minimum activity of -0.5 if...
-                                  # ...we take beta and sigma value from model's sigmoidal activation function params:
-                                  "beta": simulator.model.beta[[0]], "sigma": simulator.model.sigma[[0]]}
-            w_name = "w"
-        else:
-            # !!! Parameters for linear NEST -> TVB transformer: !!!
-            transformer_params = {"scale_factor": w_NEST_to_TVB, "translation_factor": np.array([-0.5])}
-            w_name = "scale_factor"
+        # !!! Parameters for linear NEST -> TVB transformer: !!!
+        transformer_params.update(
+            {"scale_factor": np.array([w_NEST_to_TVB["scale"][pop]]),
+             "translation_factor": np.array([w_NEST_to_TVB["translate"][pop]])}
+        )
         tvb_spikeNet_model_builder.input_interfaces.append(
             {'voi': np.array(['E']),
              'populations': np.array([pop]),
@@ -232,7 +219,6 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
         if pop == "granule_cell":
             # We only record from 1 every 10 granule cells!:
             tvb_spikeNet_model_builder.input_interfaces[-1]["neurons_fun"] = lambda i_node, nodes: nodes[0::10]
-            tvb_spikeNet_model_builder.input_interfaces[-1]['transformer_params'][w_name] *= 10
     # Configure:
     tvb_spikeNet_model_builder.configure()
     # tvb_spikeNet_model_builder.print_summary_info_details(recursive=1)
