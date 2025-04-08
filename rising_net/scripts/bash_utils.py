@@ -6,7 +6,7 @@ NP = 2000
 NPP = 100
 NR = 3
 NRF = 10
-NW = 8  # 7
+NW = 9  # 7
 
 
 def jobarr_id_to_task_ids(args):
