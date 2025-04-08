@@ -180,6 +180,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
         if config.PONSSENS_INTERFACE:
             pops.append('parrot_ponssens')
             regs.append(['Right Pons Sensory', 'Left Pons Sensory'])
+    # NOTE!!!: We use the same scalings for all Gs, the ones for G=6.0, just like we did for wTVB_to_NEST = 38.0!!!
     w_NEST_to_TVB = load_pickled_dict(config.wNESTtoTVB_FILE.replace(".pkl", "_iG06.pkl"))
     transformer_params = {"tau": np.array([simulator.model.tau_e[0].item()]),
                           "dt": simulator.integrator.dt,
