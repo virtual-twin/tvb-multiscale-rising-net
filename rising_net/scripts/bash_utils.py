@@ -181,8 +181,8 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
 
     if np.mod(jobarr_id, 2) == 0:
         print("\n" + "-"*50 + "\nSIMULATING COSIM CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
-        force_output_folder = "COSIM_CEREBON_OFF/COSIM/iG_%02d/nsd_%d" % (iG, iR)
-        return sim_run_plot(iG=iG, iP=None, iR=None,
+        force_output_folder = "COSIM_CEREBON_OFF/iG_%02d/nsd_%d/COSIM/" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
                             FUNCMODE="MEANSIM", label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
@@ -198,8 +198,8 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
     else:
         print("\n\n\n\n" + "-" * 50 + "\n\n" +
               "\nSIMULATING COSIM _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
-        force_output_folder = "COSIM_CEREBON_OFF/COSIM_CEREBOFF/iG_%02d/nsd_%d" % (iG, iR)
-        return sim_run_plot(iG=iG, iP=None, iR=None,
+        force_output_folder = "COSIM_CEREBON_OFF/iG_%02d/nsd_%d/COSIM_CEREBOFF" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
                             FUNCMODE="SIM", label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
