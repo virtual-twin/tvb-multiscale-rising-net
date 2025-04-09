@@ -6,7 +6,7 @@
 #SBATCH --array=0-134
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
-#SBATCH --mem-per-cpu=8G
+#SBATCH --mem-per-cpu=16G
 #SBATCH --mail-user=dionysios.perdikis@bih-charite.de
 
 JOB_ID=$((${SLURM_ARRAY_TASK_ID}))
