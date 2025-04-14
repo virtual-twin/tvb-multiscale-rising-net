@@ -64,7 +64,7 @@ def nest_parameter_settings():
                           'A1': 176.358, 'A2': 176.358,
                           'E_rev1': Erev_exc, 'E_rev2': Erev_inh, 'E_rev3': Erev_exc, 'tau_syn1': tau_exc['dcnp'],
                           'tau_syn2': tau_inh['dcnp']},
-        'io_cell': {'t_ref': 1.0, 'C_m': 189.0, 'tau_m': 11.0, 'V_th': 35.0, 'V_reset': -45.0, 'Vinit': -45.0,
+        'io_cell': {'t_ref': 1.0, 'C_m': 189.0, 'tau_m': 11.0, 'V_th': 100.0, 'V_reset': -45.0, 'Vinit': -45.0,
                     'E_L': -45.0,
                     'lambda_0': 1.2, 'tau_V': 0.8, 'I_e': -18.01, 'kadap': 1.928, 'k1': 0.191, 'k2': 0.091,
                     'A1': 1810.923, 'A2': 1358.197,
