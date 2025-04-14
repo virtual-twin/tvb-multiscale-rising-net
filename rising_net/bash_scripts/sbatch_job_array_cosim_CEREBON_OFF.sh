@@ -3,7 +3,7 @@
 #SBATCH --job-name=FTcosim
 #SBATCH --output=./outputs/CEREBON_OFF/logs/FTcosim_%A_%a.out
 #SBATCH --error=./outputs/CEREBON_OFF/errors/FTcosim_%A_%a.err
-#SBATCH --array=0-99
+#SBATCH --array=0-59  # 99
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=16G
