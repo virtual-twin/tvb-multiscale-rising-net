@@ -200,7 +200,7 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
               "\nSIMULATING TVB _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
         force_output_folder = "TVB_CEREBON_OFF/iG_%02d/nsd_%d/TVB_CEREBOFF" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="SIM", label="",
+                            FUNCMODE="MEANSIM", label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
@@ -241,7 +241,7 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
               "\nSIMULATING COSIM _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
         force_output_folder = "COSIM_CEREBON_OFF/iG_%02d/nsd_%d/COSIM_CEREBOFF" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="SIM", label="",
+                            FUNCMODE="MEANSIM", label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
