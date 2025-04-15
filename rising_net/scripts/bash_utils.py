@@ -171,6 +171,47 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
                             )
 
 
+def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
+
+    from rising_net.scripts.task_run_fit_plot import sim_run_plot
+
+    jobarr_id = int(jobarr_id)
+    iG, iR = jobarr_id_to_task_ids([jobarr_id // 2, int(Ngs), int(Nreps)])
+    iG += 4
+
+    if np.mod(jobarr_id, 2) == 0:
+        print("\n" + "-"*50 + "\nSIMULATING TVB CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
+        force_output_folder = "TVB_CEREBON_OFF/iG_%02d/nsd_%d/TVB/" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
+                            FUNCMODE="MEANSIM", label="",
+                            config=None, REST_or_TASK="TASK",
+                            force_output_folder=force_output_folder,
+                            fitlabel="allsamples",
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="TVB",
+                            BASENAME="FIT_TASK",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-6,
+                            verbosity=2
+                            )
+    else:
+        print("\n\n\n\n" + "-" * 50 + "\n\n" +
+              "\nSIMULATING TVB _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
+        force_output_folder = "TVB_CEREBON_OFF/iG_%02d/nsd_%d/TVB_CEREBOFF" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
+                            FUNCMODE="SIM", label="",
+                            config=None, REST_or_TASK="TASK",
+                            force_output_folder=force_output_folder,
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="TVB_CEREBOFF",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-6,
+                            verbosity=2
+                            )
+
+
 def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
 
     from rising_net.scripts.task_run_fit_plot import sim_run_plot
@@ -259,5 +300,7 @@ if __name__ == '__main__':
         simulate_task_cosim_w_fit(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_MAXRATE_fit":
         simulate_cosim_MAXRATE_fit(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_tvb_CEREBON_OFF":
+        simulate_tvb_CEREBON_OFF(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_CEREBON_OFF":
         simulate_cosim_CEREBON_OFF(*sys.argv[2:])
