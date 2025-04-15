@@ -206,6 +206,7 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             REST_BASENAME="FIT_REST",
                             restfitlabel="allsamples",
                             MODE="TVB_CEREBOFF",
+                            BASENAME="FIT_TASK",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
                             NOISE=1e-6,
                             verbosity=2
@@ -247,6 +248,7 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                         REST_BASENAME="FIT_REST",
                         restfitlabel="allsamples",
                         MODE="COSIM_CEREBOFF",
+                        BASENAME="FIT_TASK",
                         SIMULATION_LENGTH=2 ** 13 + 1.0,
                         NOISE=1e-6,
                         verbosity=2
