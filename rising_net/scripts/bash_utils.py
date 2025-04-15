@@ -219,42 +219,42 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
     from rising_net.scripts.task_run_fit_plot import sim_run_plot
 
     jobarr_id = int(jobarr_id)
-    iG, iR = jobarr_id_to_task_ids([jobarr_id, int(Ngs), int(Nreps)])  # // 2
+    iG, iR = jobarr_id_to_task_ids([jobarr_id // 2, int(Ngs), int(Nreps)])
     iG += 4
 
-    # if np.mod(jobarr_id, 2) == 0:
-    #     print("\n" + "-"*50 + "\nSIMULATING COSIM CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
-    #     force_output_folder = "COSIM_CEREBON_OFF/iG_%02d/nsd_%d/COSIM/" % (iG, iR)
-    #     return sim_run_plot(iG=iG, iP=None, iR=iR,
-    #                         FUNCMODE="MEANSIM", label="",
-    #                         config=None, REST_or_TASK="TASK",
-    #                         force_output_folder=force_output_folder,
-    #                         REST_BASENAME="FIT_REST",
-    #                         restfitlabel="allsamples",
-    #                         MODE="COSIM",
-    #                         BASENAME="FIT_TASK",
-    #                         fitlabel="allsamples",
-    #                         SIMULATION_LENGTH=2 ** 13 + 1.0,
-    #                         NOISE=1e-6,
-    #                         verbosity=2
-    #                         )
-    # else:
-    print("\n\n\n\n" + "-" * 50 + "\n\n" +
-          "\nSIMULATING COSIM _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
-    force_output_folder = "COSIM_CEREBON_OFF/iG_%02d/nsd_%d/COSIM_CEREBOFF" % (iG, iR)
-    return sim_run_plot(iG=iG, iP=None, iR=iR,
-                        FUNCMODE="MEANSIM", label="",
-                        config=None, REST_or_TASK="TASK",
-                        force_output_folder=force_output_folder,
-                        REST_BASENAME="FIT_REST",
-                        restfitlabel="allsamples",
-                        MODE="COSIM_CEREBOFF",
-                        BASENAME="FIT_TASK",
-                        fitlabel="allsamples",
-                        SIMULATION_LENGTH=2 ** 13 + 1.0,
-                        NOISE=1e-6,
-                        verbosity=2
-                        )
+    if np.mod(jobarr_id, 2) == 0:
+        print("\n" + "-"*50 + "\nSIMULATING COSIM CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
+        force_output_folder = "COSIM_CEREBON_OFFn5/iG_%02d/nsd_%d/COSIM/" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
+                            FUNCMODE="MEANSIM", label="",
+                            config=None, REST_or_TASK="TASK",
+                            force_output_folder=force_output_folder,
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="COSIM",
+                            BASENAME="FIT_TASK",
+                            fitlabel="allsamples",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-5,
+                            verbosity=2
+                            )
+    else:
+        print("\n\n\n\n" + "-" * 50 + "\n\n" +
+              "\nSIMULATING COSIM _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
+        force_output_folder = "COSIM_CEREBON_OFFn5/iG_%02d/nsd_%d/COSIM_CEREBOFF" % (iG, iR)
+        return sim_run_plot(iG=iG, iP=None, iR=iR,
+                            FUNCMODE="MEANSIM", label="",
+                            config=None, REST_or_TASK="TASK",
+                            force_output_folder=force_output_folder,
+                            REST_BASENAME="FIT_REST",
+                            restfitlabel="allsamples",
+                            MODE="COSIM_CEREBOFF",
+                            BASENAME="FIT_TASK",
+                            fitlabel="allsamples",
+                            SIMULATION_LENGTH=2 ** 13 + 1.0,
+                            NOISE=1e-5,
+                            verbosity=2
+                            )
 
 
 def multiply(x, y):
