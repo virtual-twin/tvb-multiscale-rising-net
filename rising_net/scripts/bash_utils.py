@@ -186,11 +186,11 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             FUNCMODE="MEANSIM", label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
-                            fitlabel="allsamples",
                             REST_BASENAME="FIT_REST",
                             restfitlabel="allsamples",
                             MODE="TVB",
                             BASENAME="FIT_TASK",
+                            fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
                             NOISE=1e-6,
                             verbosity=2
@@ -207,6 +207,7 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             restfitlabel="allsamples",
                             MODE="TVB_CEREBOFF",
                             BASENAME="FIT_TASK",
+                            fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
                             NOISE=1e-6,
                             verbosity=2
@@ -228,11 +229,11 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
     #                         FUNCMODE="MEANSIM", label="",
     #                         config=None, REST_or_TASK="TASK",
     #                         force_output_folder=force_output_folder,
-    #                         fitlabel="allsamples",
     #                         REST_BASENAME="FIT_REST",
     #                         restfitlabel="allsamples",
     #                         MODE="COSIM",
     #                         BASENAME="FIT_TASK",
+    #                         fitlabel="allsamples",
     #                         SIMULATION_LENGTH=2 ** 13 + 1.0,
     #                         NOISE=1e-6,
     #                         verbosity=2
@@ -249,6 +250,7 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                         restfitlabel="allsamples",
                         MODE="COSIM_CEREBOFF",
                         BASENAME="FIT_TASK",
+                        fitlabel="allsamples",
                         SIMULATION_LENGTH=2 ** 13 + 1.0,
                         NOISE=1e-6,
                         verbosity=2
