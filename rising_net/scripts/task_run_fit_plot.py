@@ -295,8 +295,8 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
                "region_labels": REGION_LABELS, "short_labels": SHORT_LABELS,
                "theta": THETA, "gamma": GAMMA}
     f = COH.coords["f"].values
-    fth = np.where(np.logical_and(f > THETA[0], f < THETA[1]))[0]
-    fgm = np.where(np.logical_and(f > GAMMA[0], f < GAMMA[1]))[0]
+    fth = np.where(np.logical_and(f >= THETA[0], f <= THETA[1]))[0]
+    fgm = np.where(np.logical_and(f >= GAMMA[0], f <= GAMMA[1]))[0]
     modes = COH.coords[COH.dims[COH.dims.index(SIMULATION_MODE_STR)]].values.tolist()
     colors = []
     for mode, col in zip(MODES, ["g", "r", "b", "m"]):
@@ -365,7 +365,6 @@ def load_and_plot_comparisons(TESTS=["TVB", "TVB_CEREBOFF"], path=None, config=N
     if len(label):
         figsfolder = os.path.join(figsfolder, label)
     if iPs is None:
-        figsfolder = os.path.join(figsfolder, "figs")
         safe_makedirs(figsfolder)
         plot_comparisons(res["COH"], res["PSD"], config, plotter, figsfolder)
     else:
