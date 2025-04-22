@@ -6,7 +6,7 @@ NP = 2000
 NPP = 100
 NR = 3
 NRF = 10
-NW = 9  # 7
+NW = 7
 
 
 def jobarr_id_to_task_ids(args):
@@ -110,7 +110,7 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
 
     iG, iW, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nws), int(Nreps)])
     iG += 4
-    w_TVB_to_NEST = 30.0 + 2.5*iW  # 20 + 5 * iW
+    w_TVB_to_NEST = 25 + 5 * iW
     force_output_folder = "wTVBtoNESTfit/iG_%02d/w%03d/nsd_%d" % (iG, int(10*w_TVB_to_NEST), iR)
     return sim_run_plot(iG=iG, iP=None, iR=None,
                         FUNCMODE="MEANSIM", label="",
