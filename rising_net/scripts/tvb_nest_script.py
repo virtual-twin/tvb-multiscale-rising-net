@@ -188,7 +188,10 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
         print("\nLoaded w_NEST_to_TVB interface parameters!:\n%s\n" % str(w_NEST_to_TVB))
     transformer_params = {"tau": np.array([simulator.model.tau_e[0].item()]),
                           "dt": simulator.integrator.dt,
-                          "state": np.array([[-0.5]])}
+                          "state": np.array([[-0.5]]),
+                          "baseline": -0.5,
+                          "transient": 250.0
+                          }
     for iP, (pop, regions) in enumerate(zip(pops, regs)):
         pop_regions_inds = []
         for region in regions:
