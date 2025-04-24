@@ -80,7 +80,7 @@ def fit_task(jobarr_id):
 
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASK", verbosity=2)[0]
+    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASKn4", verbosity=2)[0]
 
     if config.COHERENCE_FISHER_Z_TRANSFORM:
         measure_labels = [
@@ -94,7 +94,7 @@ def fit_task(jobarr_id):
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
     return infer_nRuns_for_task(iG=int(jobarr_id), train_params_samples=None,
-                                round=1, prior=None, inference=None, proposal=None,
+                                round=0, prior=None, inference=None, proposal=None,
                                 sim_res=None, sim_res_path=None,
                                 sim_res_fun=get_sim_res_COHM1S1diffratio_gamma,  # get_sim_res_COHM1S1diffratio_allbands
                                 target=None,
