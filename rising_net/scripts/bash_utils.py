@@ -93,6 +93,7 @@ def fit_task(jobarr_id):
                           # "M1S1R_BtCOHdiffratio", "M1S1L_BtCOHdiffratio",
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
+    print("iG1 = %d" % iG)
     return infer_nRuns_for_task(iG=int(jobarr_id), train_params_samples=None,
                                 round=0, prior=None, inference=None, proposal=None,
                                 sim_res=None, sim_res_path=None,
