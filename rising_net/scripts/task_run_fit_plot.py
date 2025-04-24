@@ -97,9 +97,7 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     verbosity = kwargs.pop("verbosity", 1)
     config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
-    print("iG2 = %d" % iG)
     iG, kwargs = get_G(config, iG=iG, **kwargs)
-    print("iG3 = %d" % iG)
 
     iRpath, iR, iP, params, params_string, fitlabel, kwargs = \
         process_funcmode(FUNCMODE, MODE, config, verbosity, iP, iR, iF, iG, fitlabel, fit_round, **kwargs)
@@ -127,7 +125,6 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
             os.path.dirname(
                 task_simres_filepath(config, md, iG, iP, iRpath, FUNCMODE, fitlabel)))
     config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
-    print("iG4 = %d" % iG)
     config.iG = int(iG)
     config.G = config.Gs[iG]
 
