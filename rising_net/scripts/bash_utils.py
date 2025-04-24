@@ -61,9 +61,10 @@ def fit_rest(jobarr_id):
     from rising_net.scripts.rest_run_fit_plot import get_config, infer_nRuns_for_iG
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_REST", verbosity=2)[0]
+    iG = int(jobarr_id)
+    config = get_config(iG=iG, FUNCMODE="FIT", BASENAME="FIT_REST", verbosity=2)[0]
 
-    return infer_nRuns_for_iG(int(jobarr_id), train_params_samples=None,
+    return infer_nRuns_for_iG(iG, train_params_samples=None,
                               round=1, prior=None, inference=None, proposal=None,
                               sim_res=None, sim_res_path=None,
                               target=None, ground_truth=None,
@@ -80,7 +81,9 @@ def fit_task(jobarr_id):
 
 
     # Fitting:
-    config = get_config(FUNCMODE="FIT", BASENAME="FIT_TASKn4", verbosity=2)[0]
+    iG = int(jobarr_id)
+    print("iG1 = %d" % iG)
+    config = get_config(iG=iG, FUNCMODE="FIT", BASENAME="FIT_TASKn4", verbosity=2)[0]
 
     if config.COHERENCE_FISHER_Z_TRANSFORM:
         measure_labels = [
@@ -93,8 +96,7 @@ def fit_task(jobarr_id):
                           # "M1S1R_BtCOHdiffratio", "M1S1L_BtCOHdiffratio",
                           "M1S1R_GmCOHdiffratio", "M1S1L_GmCOHdiffratio"]
 
-    print("iG1 = %d" % iG)
-    return infer_nRuns_for_task(iG=int(jobarr_id), train_params_samples=None,
+    return infer_nRuns_for_task(iG=iG, train_params_samples=None,
                                 round=0, prior=None, inference=None, proposal=None,
                                 sim_res=None, sim_res_path=None,
                                 sim_res_fun=get_sim_res_COHM1S1diffratio_gamma,  # get_sim_res_COHM1S1diffratio_allbands
