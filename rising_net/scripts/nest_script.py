@@ -73,13 +73,17 @@ def nest_parameter_settings():
 
     # Connection weights
     conn_weights = {'mossy_to_glomerulus': 1.0, 'ascending_axon_to_golgi': 0.822, 'ascending_axon_to_purkinje': 0.882,
-                    'basket_to_purkinje': 0.436, 'basket_to_basket': 0.006, \
+                    'basket_to_purkinje': 0.0,  # 0.436,
+                    'basket_to_basket': 0.006, \
                     'glomerulus_to_golgi': 0.240, 'glomerulus_to_granule': 0.232, 'golgi_to_granule': 0.148,
                     'golgi_to_golgi': 0.00696, \
                     'parallel_fiber_to_basket': 0.1, 'parallel_fiber_to_golgi': 0.054,
                     'parallel_fiber_to_purkinje': 0.136, \
-                    'parallel_fiber_to_stellate': 0.178, 'stellate_to_purkinje': 1.642, 'stellate_to_stellate': 0.005, \
-                    'purkinje_to_dcn_glut_large': 0.297, 'mossy_to_dcn_glut_large': 0.554,
+                    'parallel_fiber_to_stellate': 0.178,
+                    'stellate_to_purkinje': 0.0,  # 1.642,
+                    'stellate_to_stellate': 0.005, \
+                    'purkinje_to_dcn_glut_large': 0.297,
+                    'mossy_to_dcn_glut_large': 0.554,
                     'purkinje_to_dcn_GABA': 0.072, \
                     'io_to_purkinje': 300.0, 'io_to_basket': 3.0, 'io_to_stellate': 11.0, 'io_to_dcn_glut_large': 1.5,
                     'io_to_dcn_GABA': 0.3, 'dcn_GABA_to_io': 0.004}
