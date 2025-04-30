@@ -22,7 +22,7 @@ from rising_net.scripts.sbi_script import build_prior, \
     load_train_params_samples, load_train_params_samples_selection, \
     sbi_estimate, sbi_train, sbi_infer, write_posterior, compute_diagnostics, write_posterior_samples, \
     load_inference, load_proposal, infer_workflow, infer_nRuns, \
-    plot_stats, plot_best_stat_sims_params_target, correlation_distance
+    plot_stats, plot_best_stat_sims_params_target, euclidean_distance
 from rising_net.scripts.rest_run_fit_plot import load_params_from_fit_rest
 from rising_net.scripts.plot_utils import shorten_region_name, plot_pathway_psd_coh, psd_percent_plot, \
     coherence_networks_plot
@@ -40,7 +40,7 @@ from tvb.contrib.scripts.utils.file_utils import safe_makedirs
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF"]
+MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF", "COSIM_PURKOFF"]
 SIMULATION_MODE_STR = "Simulation mode"
 
 
@@ -299,7 +299,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
     fgm = np.where(np.logical_and(f >= GAMMA[0], f <= GAMMA[1]))[0]
     modes = COH.coords[COH.dims[COH.dims.index(SIMULATION_MODE_STR)]].values.tolist()
     colors = []
-    for mode, col in zip(MODES, ["g", "r", "b", "m"]):
+    for mode, col in zip(MODES, ["g", "r", "b", "m", "m"]):
         if mode in modes:
             colors.append(col)
 
@@ -765,9 +765,9 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None,
 def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
                                                         sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                                                         target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
-                                                        target_dist_fun=correlation_distance, Nbest=None,
+                                                        target_dist_fun=euclidean_distance, Nbest=None,
                                                         config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
-                                                        measure_labels=None):
+                                                        measure_labels=None, return_outputs=True):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_task(stat=stat, iF=iF, iG=iG, iP=iP, label=label,
@@ -778,7 +778,7 @@ def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=
                                              label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
                                              measure_labels=measure_labels, measures_plot_fun=None,
-                                             config=config)
+                                             config=config, return_outputs=return_outputs)
 
 
 def task_run_fit_plot_args_parser(funname, defargs=DEFAULT_ARGS):
