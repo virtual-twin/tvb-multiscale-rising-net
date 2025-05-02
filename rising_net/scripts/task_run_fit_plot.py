@@ -40,7 +40,8 @@ from tvb.contrib.scripts.utils.file_utils import safe_makedirs
 from tvb.contrib.scripts.datatypes.time_series_xarray import TimeSeriesRegion as TimeSeriesXarray
 
 
-MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF", "COSIM_PURKOFF"]
+MODES = ["TVB", "TVB_CEREBOFF", "COSIM", "COSIM_CEREBOFF",
+         "COSIM_PURKOFF", "COSIM_PURKINHOFF", "COSIM_GOLGIGRCOFF", "COSIM_EXC", "COSIM_INH"]
 SIMULATION_MODE_STR = "Simulation mode"
 
 
@@ -299,7 +300,7 @@ def plot_comparisons(COH, PSD, config, plotter, folder=None):
     fgm = np.where(np.logical_and(f >= GAMMA[0], f <= GAMMA[1]))[0]
     modes = COH.coords[COH.dims[COH.dims.index(SIMULATION_MODE_STR)]].values.tolist()
     colors = []
-    for mode, col in zip(MODES, ["g", "r", "b", "m", "m"]):
+    for mode, col in zip(MODES, ["g", "r", "b", "m", "m", "r", "m", "m", "r"]):
         if mode in modes:
             colors.append(col)
 
