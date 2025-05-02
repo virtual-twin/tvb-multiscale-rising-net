@@ -47,7 +47,7 @@ def iRstr(iR, Nreps=10, nsdstr=NSDSTR):
 
 def get_G(config, iG=None, **kwargs):
     if iG is None:
-        G = kwargs.get("G", None)
+        G = kwargs.get("G", config.model_params.get("G", None))
         if G is not None:
             try:
                 iG = config.Gs.tolist().index(G)
