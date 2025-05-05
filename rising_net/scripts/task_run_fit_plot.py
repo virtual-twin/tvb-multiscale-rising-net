@@ -764,7 +764,8 @@ def load_and_plot_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None,
 
 
 def load_and_plot_best_stat_sims_params_target_for_task(stat="PPC", iF=None, iG=None, iP=None, label="",
-                                                        sim_res_path=None, sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
+                                                        sim_res_path=None,
+                                                        sim_res_fun=get_sim_res_COHM1S1diffratio_allbands,
                                                         target=None, target_fun=target_COHM1S1diffratio_allbands_fun,
                                                         target_dist_fun=euclidean_distance, Nbest=None,
                                                         config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR,
