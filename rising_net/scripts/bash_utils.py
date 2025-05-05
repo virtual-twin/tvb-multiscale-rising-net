@@ -116,7 +116,8 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
     w_TVB_to_NEST = 25 + 5 * iW
     force_output_folder = "wTVBtoNESTfit/iG_%02d/w%03d/nsd_%d" % (iG, int(10*w_TVB_to_NEST), iR)
     return sim_run_plot(iG=iG, iP=None, iR=None,
-                        FUNCMODE="MEANSIM", label="",
+                        FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                        label="",
                         config=None, REST_or_TASK="TASK",
                         force_output_folder=force_output_folder,
                         fitlabel="allsamples",
@@ -145,7 +146,8 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
         print("\n" + "-"*50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-"*50 + "\n")
         force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
-                            FUNCMODE="MEANSIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK=REST_or_TASK,
                             force_output_folder=force_output_folder,
                             fitlabel="allsamples",
@@ -162,7 +164,8 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
         print("\n" + "-" * 50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-" * 50 + "\n")
         force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
-                            FUNCMODE="SIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK=REST_or_TASK,
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
@@ -186,7 +189,8 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
         print("\n" + "-"*50 + "\nSIMULATING TVB CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
         force_output_folder = "TVB_CEREBON_OFF/iG_%02d/nsd_%d/TVB/" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="MEANSIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
@@ -203,7 +207,8 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
               "\nSIMULATING TVB _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
         force_output_folder = "TVB_CEREBON_OFF/iG_%02d/nsd_%d/TVB_CEREBOFF" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="MEANSIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
@@ -229,7 +234,8 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
         print("\n" + "-"*50 + "\nSIMULATING COSIM CEREBON for G=%d, iR=%d!\n" % (iG, iR) + "-"*50 + "\n")
         force_output_folder = "COSIM_CEREBON_OFFn4/iG_%02d/nsd_%d/COSIM/" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="MEANSIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
@@ -246,7 +252,8 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
               "\nSIMULATING COSIM _CEREBOFF for G=%d, iR=%d!\n" % (iG, iR) + "-" * 50 + "\n")
         force_output_folder = "COSIM_CEREBON_OFFn4/iG_%02d/nsd_%d/COSIM_CEREBOFF" % (iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=iR,
-                            FUNCMODE="MEANSIM", label="",
+                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            label="",
                             config=None, REST_or_TASK="TASK",
                             force_output_folder=force_output_folder,
                             REST_BASENAME="FIT_REST",
