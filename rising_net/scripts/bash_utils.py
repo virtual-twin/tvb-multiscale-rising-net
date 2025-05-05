@@ -127,7 +127,7 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
                         SIMULATION_LENGTH=2 ** 13 + 1.0,
                         # w_TVB_to_NEST_rest=w_TVB_to_NEST,
                         w_TVB_to_NEST=w_TVB_to_NEST,
-                        NOISE=1e-6,
+                        # NOISE=1e-6,
                         verbosity=2
                      )
 
@@ -154,7 +154,7 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
                             MODE="COSIM",
                             BASENAME="FIT_TASK",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-6,
+                            # NOISE=1e-6,
                             verbosity=2
                             )
     else:
@@ -169,7 +169,7 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
                             restfitlabel="allsamples",
                             MODE="COSIM",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-6,
+                            # NOISE=1e-6,
                             verbosity=2
                             )
 
@@ -195,7 +195,7 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             BASENAME="FIT_TASK",
                             fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-6,
+                            # NOISE=1e-6,
                             verbosity=2
                             )
     else:
@@ -212,7 +212,7 @@ def simulate_tvb_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             BASENAME="FIT_TASK",
                             fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-6,
+                            # NOISE=1e-6,
                             verbosity=2
                             )
 
@@ -238,7 +238,7 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             BASENAME="FIT_TASK",
                             fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-4,
+                            # NOISE=1e-4,
                             verbosity=2
                             )
     else:
@@ -255,7 +255,7 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             BASENAME="FIT_TASK",
                             fitlabel="allsamples",
                             SIMULATION_LENGTH=2 ** 13 + 1.0,
-                            NOISE=1e-4,
+                            # NOISE=1e-4,
                             verbosity=2
                             )
 
