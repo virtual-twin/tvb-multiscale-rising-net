@@ -168,6 +168,7 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
                             label="",
                             config=None, REST_or_TASK=REST_or_TASK,
                             force_output_folder=force_output_folder,
+                            fitlabel="allsamples",
                             REST_BASENAME="FIT_REST",
                             restfitlabel="allsamples",
                             MODE="COSIM",
