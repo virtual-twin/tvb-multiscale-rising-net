@@ -120,7 +120,7 @@ def configure(**ARGS):
     inds_filepath = os.path.join(data_path, INDS_FILE)
     popa_freqs_path = os.path.join(data_path, 'popa2013')
     cereb_scaffold_path = os.path.join(data_path, 'balanced_DCN_IO.hdf5')
-    wNESTtoTVB_filepath = os.path.join(data_path, wNESTtoTVB_FILE)
+
     outputs_path = os.path.join(work_path, "outputs")
     if len(args['output_folder']):
         outputs_path = os.path.join(outputs_path, args['output_folder'])
@@ -158,6 +158,7 @@ def configure(**ARGS):
     # Integration
     config.DEFAULT_DT = 0.1
     config.DEFAULT_NSIG = args.get("NOISE", 1e-4)  # NOISE strength
+    noiseInt = -int(np.log10(config.DEFAULT_NSIG))
     config.NOISE_SEED = int(args.get("NOISE_SEED", 0))
     config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + config.NOISE_SEED
     config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + config.NOISE_SEED
@@ -172,7 +173,6 @@ def configure(**ARGS):
     config.VOXEL_COUNT_FILE = voxel_count_filepath
     config.INDS_FILE = inds_filepath
     config.CEREB_SCAFFOLD_PATH = cereb_scaffold_path
-    config.wNESTtoTVB_FILE = wNESTtoTVB_filepath
     # Fix Cortex <-> Spec Thal connections according to Griffiths et al model:
     # config.THAL_CRTX_FIX = defargs.get("THAL_CRTX_FIX", "wd")
     config.CONN_NORM_PERCENTILE = 99
@@ -230,7 +230,13 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", 41.0)}  # NOISE = 1e-4, 44.0 for NOISE=1e-6
+    # w_TVB_to_NEST_DEF = 41.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
+    if noiseInt == 6:
+        w_TVB_to_NEST_DEF = 44.0
+    else:
+        w_TVB_to_NEST_DEF = 41.0
+    config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
+    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)}
     config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", float(config.w_TVB_to_NEST["parrot_medulla"]))
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST_rest)
