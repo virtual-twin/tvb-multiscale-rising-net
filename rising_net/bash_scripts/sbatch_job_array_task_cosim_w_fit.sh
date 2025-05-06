@@ -3,7 +3,7 @@
 #SBATCH --job-name=FTcosimW
 #SBATCH --output=./outputs/wTVBtoNESTfit/logs/FTcosimW_%A_%a.out
 #SBATCH --error=./outputs/wTVBtoNESTfit/errors/FTcosimW_%A_%a.err
-#SBATCH --array=0-104
+#SBATCH --array=0-59
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=16G
