@@ -46,8 +46,8 @@ DEFAULT_ARGS = {# TVB model:
                 # Pathway gains:
                 "PATHWAY_GAIN": 1,
                 # TVB <-> NEST Interface:
-                # "w_TVB_to_NEST": 41.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
-                # "w_TVB_to_NEST_rest": 41.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
+                # "w_TVB_to_NEST": 42.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
+                # "w_TVB_to_NEST_rest": 42.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
@@ -230,11 +230,11 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    # w_TVB_to_NEST_DEF = 41.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
+    # w_TVB_to_NEST_DEF = 42.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
     if noiseInt == 6:
         w_TVB_to_NEST_DEF = 44.0
     else:
-        w_TVB_to_NEST_DEF = 41.0
+        w_TVB_to_NEST_DEF = 42.0
     config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
     config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)}
     config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", float(config.w_TVB_to_NEST["parrot_medulla"]))
