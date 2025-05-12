@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=CosimN4
-#SBATCH --output=./outputs/COSIM_CEREBON_OFFn4/logs/Cosim_%A_%a.out
-#SBATCH --error=./outputs/COSIM_CEREBON_OFFn4/errors/Cosim_%A_%a.err
+#SBATCH --job-name=Cosim
+#SBATCH --output=./outputs/COSIM_CEREBON_OFF/logs/Cosim_%A_%a.out
+#SBATCH --error=./outputs/COSIM_CEREBON_OFF/errors/Cosim_%A_%a.err
 #SBATCH --array=0-99
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
