@@ -159,7 +159,7 @@ def configure(**ARGS):
     # Integration
     config.DEFAULT_DT = 0.1
     config.DEFAULT_NSIG = args.get("NOISE", 1e-4)  # NOISE strength
-    noiseInt = -int(np.log10(config.DEFAULT_NSIG))
+    # noiseInt = -int(np.log10(config.DEFAULT_NSIG))
     config.NOISE_SEED = int(args.get("NOISE_SEED", 0))
     config.DEFAULT_TVB_NOISE_SEED = args.get("DEFAULT_TVB_NOISE_SEED", 42) + config.NOISE_SEED
     config.NEST_MASTER_SEED = args.get("NEST_MASTER_SEED", 143202461) + config.NOISE_SEED
@@ -226,18 +226,21 @@ def configure(**ARGS):
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
+    # config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
+    config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVB")
     config.wTVBtoNEST_FILE = os.path.join(data_path, wTVBtoNEST_FILE)
     if os.path.isfile(config.wTVBtoNEST_FILE):
         G = args.get('G', 6.0)
         from tvb_multiscale.core.utils.file_utils import load_pickled_dict
         w_TVB_to_NEST_DEF = DataArray.from_dict(load_pickled_dict(config.wTVBtoNEST_FILE)).loc[int(G)]
     else:
+        w_TVB_to_NEST_DEF = 43.0
+        # FOR G=6.0
         # w_TVB_to_NEST_DEF = 42.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
-        if noiseInt == 6:
-            w_TVB_to_NEST_DEF = 44.0
-        else:
-            w_TVB_to_NEST_DEF = 42.0
+        # if noiseInt == 6:
+        #     w_TVB_to_NEST_DEF = 44.0
+        # else:
+        #     w_TVB_to_NEST_DEF = 42.0
     w_TVB_to_NEST = args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)
     config.w_TVB_to_NEST = {"parrot_medulla": float(w_TVB_to_NEST)}
     if config.PONSSENS_INTERFACE:
