@@ -51,7 +51,7 @@ def print_available_interfaces():
 
 
 def set_w_TVB_to_NEST(config):
-    w_TVB_to_NEST = load_pickled_dict(config.wTVBtoNEST_FILE)[float(config.G)]
+    w_TVB_to_NEST = DataArray.from_dict(load_pickled_dict(config.wTVBtoNEST_FILE)).loc[int(config.G)]
     config.w_TVB_to_NEST["parrot_medulla"] = float(w_TVB_to_NEST)
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = float(w_TVB_to_NEST)
