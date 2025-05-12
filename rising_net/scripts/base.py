@@ -227,7 +227,7 @@ def configure(**ARGS):
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
     # config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
-    config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVB")
+    config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVB", wNESTtoTVB_FILE)
     config.wTVBtoNEST_FILE = os.path.join(data_path, wTVBtoNEST_FILE)
     if os.path.isfile(config.wTVBtoNEST_FILE):
         G = args.get('G', 6.0)
