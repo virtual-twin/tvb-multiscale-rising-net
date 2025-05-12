@@ -181,7 +181,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
             pops.append('parrot_ponssens')
             regs.append(['Right Pons Sensory', 'Left Pons Sensory'])
     if config.VERBOSITY > 1:
-        wNESTtoTVB_FILE = config.wNESTtoTVB_FILE.replace(".pkl", "_iG%02d.pkl" % 6)  # config.iG
+        wNESTtoTVB_FILE = config.wNESTtoTVB_FILE.replace(".pkl", "_iG%02d.pkl" % config.iG)  # 6
         print("\nLoading w_NEST_to_TVB interface parameters from file...:\n%s:\n" % wNESTtoTVB_FILE)
     w_NEST_to_TVB = load_pickled_dict(wNESTtoTVB_FILE)
     if config.VERBOSITY > 1:
