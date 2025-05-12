@@ -47,7 +47,6 @@ DEFAULT_ARGS = {# TVB model:
                 "PATHWAY_GAIN": 1,
                 # TVB <-> NEST Interface:
                 # "w_TVB_to_NEST": 42.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
-                # "w_TVB_to_NEST_rest": 42.0 # for NOISE=1e-4  # 44.0, for NOISE=1e-6
                 # "MAX_RATES": {"parrot_medulla": 30.0, "parrot_ponssens": 30.0, "io_cell": 30.0,
                 #               "mossy_fibers": 3000.0, "granule_cell": 400.0, "dcn_cell_glut_large": 600.0},  # Hz
                 # WORKFLOW:
@@ -107,6 +106,7 @@ def configure(**ARGS):
     MAJOR_STRUCTS_LABELS_FILE = "major_structs_labels_SummedSubcortical_Thals.npy"  # "major_structs_labels_Thals.npy" # "major_structs_labels_SummedSubcortical_Thals.npy"
     VOXEL_COUNT_FILE = "voxel_count_SummedSubcortical_Thals.npy"  # "voxel_count_Thals.npy" # "voxel_count_SummedSubcortical_Thals.npy"
     INDS_FILE = "inds_SummedSubcortical_Thals.npy"  # "inds_Thals.npy" # "inds_SummedSubcortical_Thals.npy
+    wTVBtoNEST_FILE = "wTVBtoNESTparams.pkl"
     wNESTtoTVB_FILE = "wNESTtoTVBparams.pkl"
 
     # Construct configuration
@@ -235,15 +235,15 @@ def configure(**ARGS):
         w_TVB_to_NEST_DEF = 44.0
     else:
         w_TVB_to_NEST_DEF = 42.0
+    config.wTVBtoNEST_FILE = os.path.join(data_path, wTVBtoNEST_FILE)
     config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
     config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)}
-    config.w_TVB_to_NEST_rest = args.get("w_TVB_to_NEST_rest", float(config.w_TVB_to_NEST["parrot_medulla"]))
     if config.PONSSENS_INTERFACE:
-        config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST_rest)
+        config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST)
     if config.IO_INTERFACE:
-        config.w_TVB_to_NEST["io_cell"] = float(config.w_TVB_to_NEST_rest)
+        config.w_TVB_to_NEST["io_cell"] = float(config.w_TVB_to_NEST)
     if config.ANSILOB_INTERFACE:
-        config.w_TVB_to_NEST["mossy_fibers"] = float(config.w_TVB_to_NEST_rest)
+        config.w_TVB_to_NEST["mossy_fibers"] = float(config.w_TVB_to_NEST)
 
     config.MAX_GAIN = 99.0
     # Fitting
