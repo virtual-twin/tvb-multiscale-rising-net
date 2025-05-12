@@ -239,7 +239,7 @@ def configure(**ARGS):
         else:
             w_TVB_to_NEST_DEF = 42.0
     w_TVB_to_NEST = args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)
-    config.w_TVB_to_NEST["parrot_medulla"] = float(w_TVB_to_NEST)
+    config.w_TVB_to_NEST = {"parrot_medulla": float(w_TVB_to_NEST)}
     if config.PONSSENS_INTERFACE:
         config.w_TVB_to_NEST["parrot_ponssens"] = float(w_TVB_to_NEST)
     if config.IO_INTERFACE:
