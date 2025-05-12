@@ -50,6 +50,24 @@ def print_available_interfaces():
     print_enum(DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal)
 
 
+def set_w_TVB_to_NEST(config):
+    w_TVB_to_NEST = load_pickled_dict(config.wTVBtoNEST_FILE)[float(config.G)]
+    config.w_TVB_to_NEST["parrot_medulla"] = float(w_TVB_to_NEST)
+    if config.PONSSENS_INTERFACE:
+        config.w_TVB_to_NEST["parrot_ponssens"] = float(w_TVB_to_NEST)
+    if config.IO_INTERFACE:
+        config.w_TVB_to_NEST["io_cell"] = float(w_TVB_to_NEST)
+    if config.ANSILOB_INTERFACE:
+        config.w_TVB_to_NEST["mossy_fibers"] = float(w_TVB_to_NEST)
+    if config.VERBOSITY:
+        print("\nUpdating w_TVB_to_NEST parameters in config!:")
+        print(config.w_TVB_to_NEST)
+        print("\nWriting updated config to config.pkl file!\n")
+    with open(os.path.join(config.out.FOLDER_RES, 'config.pkl'), 'wb') as file:
+        dill.dump(config.__dict__, file, recurse=1)
+    return config
+
+
 def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                               neuron_models=None, start_id_scaffold=None):
 
@@ -116,6 +134,7 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
         pops.append("io_cell")
         ports.append(1)
     #  NOTE!!!: excluding direct TVB input to "dcn_cell_glut_large"
+    config = set_w_TVB_to_NEST(config)
     neuron_types_to_region = nest_parameter_settings()[-1]
     for pop, receptor in zip(pops, ports):
         regions = neuron_types_to_region[pop]
