@@ -292,12 +292,6 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                 print("\nRemoved BACKGROUND NOISE and sinusoidal STIMULUS to NEST Network for CoSimulation!\n"
                       "NEST_BACKGROUND_FREQ=%g, NEST_PERIPHERY=%s\n"
                       % (config.NEST_BACKGROUND_FREQ, str(config.NEST_PERIPHERY)))
-            if "REST" in config.MODE:
-                for pop in ["parrot_medulla", "parrot_ponssens", "mossy_fibers"]:
-                    config.w_TVB_to_NEST[pop] = config.w_TVB_to_NEST_rest
-                if config.VERBOSITY:
-                    print("\nSetting all interface weights to the resting state ones at REST condition!\n%s"
-                          % str(config.w_TVB_to_NEST))
         elif "REST" in config.MODE:
             # At rest, no sinusoidal stimulus:
             config = remove_NEST_stimulus(config)
