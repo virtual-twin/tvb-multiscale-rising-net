@@ -183,6 +183,7 @@ def configure(**ARGS):
     config.FIC_PARAMS = ["I_e", "w_ie"]
     config.FIC_SPLIT = args.get('FIC_SPLIT', 0.0)  # 0.31 with FIC = 1.11
     # Pathway gains:
+    config.MAX_GAIN = 99.0
     config.PATHWAY_GAIN = args["PATHWAY_GAIN"]
     gain_factor = 1.0
     if config.PATHWAY_GAIN <= 2.0:
@@ -221,31 +222,29 @@ def configure(**ARGS):
     config.NEST_MULTIMETER = False
 
     # TVB - NEST interface parameters:
-    config.MAX_RATES = args.get("MAX_RATES",  # Hz
-                                {"parrot_medulla": 10.0,
-                                 "parrot_ponssens": 10.0, "io_cell": 10.0,
-                                 "mossy_fibers": config.NEST_STIMULUS,
-                                 "granule_cell": 30.0, "dcn_cell_glut_large": 25.0}
-                                )
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
     config.ANSILOB_INTERFACE = True    # Existing in NEST only model, although not part of the task pathway
     config.IO_INTERFACE = False        # Existing in NEST only model, although not part of the task pathway
-    # w_TVB_to_NEST_DEF = 42.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
-    if noiseInt == 6:
-        w_TVB_to_NEST_DEF = 44.0
-    else:
-        w_TVB_to_NEST_DEF = 42.0
-    config.wTVBtoNEST_FILE = os.path.join(data_path, wTVBtoNEST_FILE)
     config.wNESTtoTVB_FILE = os.path.join(data_path, "wNESTtoTVBn%d" % noiseInt, wNESTtoTVB_FILE)
-    config.w_TVB_to_NEST = {"parrot_medulla": args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)}
+    config.wTVBtoNEST_FILE = os.path.join(data_path, wTVBtoNEST_FILE)
+    if os.path.isfile(config.wTVBtoNEST_FILE):
+        G = args.get('G', 6.0)
+        w_TVB_to_NEST_DEF = DataArray.from_dict(load_pickled_dict(config.wTVBtoNEST_FILE)).loc[int(G)]
+    else:
+        # w_TVB_to_NEST_DEF = 42.0, NOISE = 1e-4, w_TVB_to_NEST_DEF = 44.0 for NOISE=1e-6
+        if noiseInt == 6:
+            w_TVB_to_NEST_DEF = 44.0
+        else:
+            w_TVB_to_NEST_DEF = 42.0
+    w_TVB_to_NEST = args.get("w_TVB_to_NEST", w_TVB_to_NEST_DEF)
+    config.w_TVB_to_NEST["parrot_medulla"] = float(w_TVB_to_NEST)
     if config.PONSSENS_INTERFACE:
-        config.w_TVB_to_NEST["parrot_ponssens"] = float(config.w_TVB_to_NEST)
+        config.w_TVB_to_NEST["parrot_ponssens"] = float(w_TVB_to_NEST)
     if config.IO_INTERFACE:
-        config.w_TVB_to_NEST["io_cell"] = float(config.w_TVB_to_NEST)
+        config.w_TVB_to_NEST["io_cell"] = float(w_TVB_to_NEST)
     if config.ANSILOB_INTERFACE:
-        config.w_TVB_to_NEST["mossy_fibers"] = float(config.w_TVB_to_NEST)
+        config.w_TVB_to_NEST["mossy_fibers"] = float(w_TVB_to_NEST)
 
-    config.MAX_GAIN = 99.0
     # Fitting
     config.PRIORS_DEF = \
         {"I_s": {"prior_dist": "normal", "min": -0.25, "max": 0.45, "loc": 0.1, "sc": 0.1},
