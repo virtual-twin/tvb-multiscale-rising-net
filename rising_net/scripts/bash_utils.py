@@ -312,9 +312,9 @@ if __name__ == '__main__':
     elif sys.argv[1] == "simulate_task_ppc_allruns_ids_args":
         simulate_task_ppc_allruns_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_wTVBtoNEST_fit":
-        simulate_task_cosim_w_fit(*sys.argv[2:])
+        simulate_cosim_wTVBtoNEST_fit(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_wNESTtoTVB_fit":
-        simulate_cosim_MAXRATE_fit(*sys.argv[2:])
+        simulate_cosim_wNESTtoTVB_fit(*sys.argv[2:])
     elif sys.argv[1] == "simulate_tvb_CEREBON_OFF":
         simulate_tvb_CEREBON_OFF(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_CEREBON_OFF":
