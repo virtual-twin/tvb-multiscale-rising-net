@@ -108,7 +108,7 @@ def fit_task(jobarr_id):
                                 save_samples=True, plot_flag=True, verbosity=2)
 
 
-def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
+def simulate_cosim_wTVBtoNEST_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
     from rising_net.scripts.task_run_fit_plot import sim_run_plot
 
     iG, iW, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nws), int(Nreps)])
@@ -116,7 +116,7 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
     w_TVB_to_NEST = 35 + 5 * iW
     force_output_folder = "wTVBtoNESTfit/iG_%02d/w%03d/nsd_%d" % (iG, int(10*w_TVB_to_NEST), iR)
     return sim_run_plot(iG=iG, iP=None, iR=None,
-                        FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                        FUNCMODE="MEANSIM",
                         label="",
                         config=None, REST_or_TASK="TASK",
                         force_output_folder=force_output_folder,
@@ -126,14 +126,13 @@ def simulate_task_cosim_w_fit(jobarr_id, Nws=NW, Ngs=NG, Nreps=NR):
                         MODE="COSIM",
                         BASENAME="FIT_TASK",
                         SIMULATION_LENGTH=2 ** 13 + 1.0,
-                        # w_TVB_to_NEST_rest=w_TVB_to_NEST,
                         w_TVB_to_NEST=w_TVB_to_NEST,
                         # NOISE=1e-6,
                         verbosity=2
                      )
 
 
-def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
+def simulate_cosim_wNESTtoTVB_fit(jobarr_id, Ngs=NG, Nreps=NR):
 
     from rising_net.scripts.task_run_fit_plot import sim_run_plot
 
@@ -144,9 +143,9 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
     if np.mod(jobarr_id, 2) == 0:
         REST_or_TASK = "TASK"
         print("\n" + "-"*50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-"*50 + "\n")
-        force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
+        force_output_folder = "wNESTtoTVBfit/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
-                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            FUNCMODE="MEANSIM",
                             label="",
                             config=None, REST_or_TASK=REST_or_TASK,
                             force_output_folder=force_output_folder,
@@ -162,9 +161,9 @@ def simulate_cosim_MAXRATE_fit(jobarr_id, Ngs=NG, Nreps=NR):
     else:
         REST_or_TASK = "REST"
         print("\n" + "-" * 50 + "\nSIMULATING COSIM %s for G=%d, iR=%d!\n" % (REST_or_TASK, iG, iR) + "-" * 50 + "\n")
-        force_output_folder = "MAXRATE/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
+        force_output_folder = "wNESTtoTVBfit/COSIM_%s/iG_%02d/nsd_%d" % (REST_or_TASK, iG, iR)
         return sim_run_plot(iG=iG, iP=None, iR=None,
-                            FUNCMODE="MEANSIM",  # "BESTSIM2",  # "MEANSIM",
+                            FUNCMODE="MEANSIM",
                             label="",
                             config=None, REST_or_TASK=REST_or_TASK,
                             force_output_folder=force_output_folder,
@@ -312,9 +311,9 @@ if __name__ == '__main__':
         simulate_task_ppc_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_allruns_ids_args":
         simulate_task_ppc_allruns_ids_args(*sys.argv[2:])
-    elif sys.argv[1] == "simulate_task_cosim_w_fit":
+    elif sys.argv[1] == "simulate_cosim_wTVBtoNEST_fit":
         simulate_task_cosim_w_fit(*sys.argv[2:])
-    elif sys.argv[1] == "simulate_cosim_MAXRATE_fit":
+    elif sys.argv[1] == "simulate_cosim_wNESTtoTVB_fit":
         simulate_cosim_MAXRATE_fit(*sys.argv[2:])
     elif sys.argv[1] == "simulate_tvb_CEREBON_OFF":
         simulate_tvb_CEREBON_OFF(*sys.argv[2:])
