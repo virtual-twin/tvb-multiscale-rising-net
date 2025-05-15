@@ -692,6 +692,12 @@ def correlation_distance(data, target):
     return 1 - np.corrcoef(data, target)[:, -1][:-1]
 
 
+def euclidean_distance(data, target):
+    if isinstance(target, torch.Tensor):
+        target = target.numpy()
+    return np.linalg.norm(data - target, axis=1)
+
+
 def get_best_stat_sims_params_target(measures, target, params=None, label="",
                                      target_dist_fun=correlation_distance, Nbest=None):
     if measures.ndim < 2:
@@ -729,7 +735,12 @@ def get_best_stat_sims_params_target(measures, target, params=None, label="",
 
 def plot_best_stat_sims_params_target(measures, target, stat="PPC", params=None, label="",
                                       target_dist_fun=correlation_distance, Nbest=None,
-                                      measure_labels=None, measures_plot_fun=None, config=None):
+                                      measure_labels=None, measures_plot_fun=None, config=None,
+                                      return_outputs=True):
     config = assert_config(config, return_plotter=False)
     measures, params, label = get_best_stat_sims_params_target(measures, target, params, label, target_dist_fun, Nbest)
-    return plot_stats(measures, stat, target, params, label, measure_labels, measures_plot_fun, config)
+    plot_outputs = plot_stats(measures, stat, target, params, label, measure_labels, measures_plot_fun, config)
+    if return_outputs:
+        return tuple(plot_outputs), (measures, params, label)
+    else:
+        return plot_outputs

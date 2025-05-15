@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --job-name=FTf
-#SBATCH --output=./outputs/FIT_TASK/fit/logs/FIT_TASK_%A_%a.out
-#SBATCH --error=./outputs/FIT_TASK/fit/errors/FIT_TASK_%A_%a.err
+#SBATCH --job-name=FTfn4
+#SBATCH --output=./outputs/FIT_TASKn4/fit/logs/FIT_TASK_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASKn4/fit/errors/FIT_TASK_%A_%a.err
 #SBATCH --array=4-8
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
@@ -11,4 +11,4 @@
 
 CMD_PATH="/home/docker/packages/tvb-multiscale/rising_net/bash_scripts/"
 CMD="bash ${CMD_PATH}fit_task_jobarr.sh ${SLURM_ARRAY_TASK_ID}"
-apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_IMAGE $CMD
+apptainer exec --bind $SCRATCH:$DOCKER_SCRATCH,$RISING_NET:$DOCKER_MULTISCALE --pwd $DOCKER_SCRATCH $RISING_NET_SANDBOX $CMD

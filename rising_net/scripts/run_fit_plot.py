@@ -47,7 +47,7 @@ def iRstr(iR, Nreps=10, nsdstr=NSDSTR):
 
 def get_G(config, iG=None, **kwargs):
     if iG is None:
-        G = kwargs.get("G", None)
+        G = kwargs.get("G", config.model_params.get("G", None))
         if G is not None:
             try:
                 iG = config.Gs.tolist().index(G)
@@ -278,6 +278,8 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
         simulator.configure()
 
     nest_network = None
+    results = None
+    transient = 0
     if "COSIM" in config.MODE or "NEST" in config.MODE:
         # Building NEST network:
         if "COSIM" in config.MODE:
@@ -290,12 +292,6 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                 print("\nRemoved BACKGROUND NOISE and sinusoidal STIMULUS to NEST Network for CoSimulation!\n"
                       "NEST_BACKGROUND_FREQ=%g, NEST_PERIPHERY=%s\n"
                       % (config.NEST_BACKGROUND_FREQ, str(config.NEST_PERIPHERY)))
-            if "REST" in config.MODE:
-                for pop in ["parrot_medulla", "parrot_ponssens", "mossy_fibers"]:
-                    config.w_TVB_to_NEST[pop] = config.w_TVB_to_NEST_rest
-                if config.VERBOSITY:
-                    print("\nSetting all interface weights to the resting state ones at REST condition!\n%s"
-                          % str(config.w_TVB_to_NEST))
         elif "REST" in config.MODE:
             # At rest, no sinusoidal stimulus:
             config = remove_NEST_stimulus(config)

@@ -5,11 +5,12 @@ from enum import Enum
 import numpy as np
 
 from tvb.basic.neotraits.api import HasTraits
-from tvb.basic.neotraits._attr import NArray
+from tvb.basic.neotraits._attr import NArray, Float
 
 from tvb_multiscale.core.interfaces.transformers.models.base import SpikesToRates, LinearRate
-from tvb_multiscale.core.interfaces.transformers.models.elephant import \
-    ElephantSpikesHistogram, ElephantSpikesHistogramRate, ElephantSpikesRate
+from tvb_multiscale.core.interfaces.transformers.models.integration import \
+    ElephantSpikesHistogramRateLinearIntegration, ElephantSpikesRateLinearIntegration, \
+    ElephantSpikesHistogramLinearIntegration,  ElephantSpikesHistogramRateLinearIntegration
 
 
 class ThalamocorticalWCLinearRate(LinearRate):
@@ -24,83 +25,6 @@ class ThalamocorticalWCLinearRate(LinearRate):
         return super(ThalamocorticalWCLinearRate, self)._compute(input_buffer.sum(axis=-1))
 
 
-class ThalamoCorticalWCInverseSigmoidal(HasTraits):
-
-    Rmin = NArray(
-        label=r":math:`R_min`",
-        default=np.array([0.5 * 1e-4, ]),
-        doc="""[Hz]. Minimum rate.""")
-
-    Rmax = NArray(
-        label=r":math:`R_max`",
-        default=np.array([1.0 - 1e-9, ]),
-        doc="""[Hz]. Maximum rate.""")
-
-    sigma = NArray(
-        label=r":math:sigma`",
-        default=np.array([0.0, ]),
-        doc="""[mV] Firing threshold (PSP) for which a 50% firing rate is achieved.
-                In other words, it is the value of the average membrane potential
-                corresponding to the inflection point of the sigmoid.
-                The usual value for this parameter is around 6.0.""")
-
-    beta = NArray(
-        label=r":math:`\beta`",
-        default=np.array([20.0, ]),
-        doc="""Steepness of the sigmoidal transformation.""")
-
-    w = NArray(
-        label=r":math:`w`",
-        default=np.array([1.0, ]),
-        doc="""Rate weight scaling.""")
-
-    def _compute(self, input_buffer):
-        return self.sigma - np.log(1.0 /
-                                   np.minimum(self.Rmax, np.maximum(self.w * input_buffer, self.Rmin)) - 1) / self.beta
-
-
-class ElephantSpikesHistogramThalamoCorticalWCInverseSigmoidal(ElephantSpikesHistogram,
-                                                               ThalamoCorticalWCInverseSigmoidal):
-
-    def configure(self):
-        ElephantSpikesHistogram.configure(self)
-        ThalamoCorticalWCInverseSigmoidal.configure(self)
-
-    def _compute(self, input_buffer):
-        """Method for the computation on the input buffer spikes' trains' data
-           for the output buffer data of instantaneous mean spiking rates to result."""
-        return ThalamoCorticalWCInverseSigmoidal._compute(
-            self, ElephantSpikesHistogram._compute(self, input_buffer))
-
-
-class ElephantSpikesHistogramRateThalamoCorticalWCInverseSigmoidal(ElephantSpikesHistogramRate,
-                                                                   ThalamoCorticalWCInverseSigmoidal):
-
-    def configure(self):
-        ElephantSpikesHistogramRate.configure(self)
-        ThalamoCorticalWCInverseSigmoidal.configure(self)
-
-    def _compute(self, input_buffer):
-        """Method for the computation on the input buffer spikes' trains' data
-           for the output buffer data of instantaneous mean spiking rates to result."""
-        return ThalamoCorticalWCInverseSigmoidal._compute(
-            self, ElephantSpikesHistogramRate._compute(self, input_buffer))
-
-
-class ElephantSpikesRateThalamoCorticalWCInverseSigmoidal(ElephantSpikesRate,
-                                                          ThalamoCorticalWCInverseSigmoidal):
-
-    def configure(self):
-        ElephantSpikesRate.configure(self)
-        ThalamoCorticalWCInverseSigmoidal.configure(self)
-
-    def _compute(self, input_buffer):
-        """Method for the computation on the input buffer spikes' trains' data
-           for the output buffer data of instantaneous mean spiking rates to result."""
-        return ThalamoCorticalWCInverseSigmoidal._compute(
-            self, ElephantSpikesRate._compute(self, input_buffer))
-
-
 class DefaultTVBtoSpikeNetTransformersThalamoCorticalWC(Enum):
     RATE = ThalamocorticalWCLinearRate
     # TODO: Need to potentially adjust all other transformers as well for summing up rates from all regions first!:
@@ -110,8 +34,68 @@ class DefaultTVBtoSpikeNetTransformersThalamoCorticalWC(Enum):
     # CURRENT = LinearCurrent
 
 
-class DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal(Enum):
-    SPIKES = ElephantSpikesHistogramRateThalamoCorticalWCInverseSigmoidal
-    SPIKES_TO_RATE = ElephantSpikesRateThalamoCorticalWCInverseSigmoidal
-    SPIKES_TO_HIST = ElephantSpikesHistogramThalamoCorticalWCInverseSigmoidal
-    SPIKES_TO_HIST_RATE = ElephantSpikesHistogramRateThalamoCorticalWCInverseSigmoidal
+class ThalamocorticalWCSpikesToRate(HasTraits):
+
+    baseline = Float(label="Baseline",
+                     doc="Baseline of output",
+                     required=True,
+                     default=-0.5)
+
+    transient = Float(label="Transient",
+                      doc="Time length of transient increase of output",
+                      required=True,
+                      default=250.0)
+
+    def configure(self):
+        self._transient = int(self.transient/self.dt)
+
+    def _compute(self, output_buffer, input_time):
+        if input_time < self._transient:
+            output_buffer = self.baseline + (output_buffer + self.baseline)/(self._transient - input_time)
+        return output_buffer
+
+
+class ThalamocorticalWCElephantSpikesHistogramRateLinearIntegration(
+    ElephantSpikesHistogramRateLinearIntegration, ThalamocorticalWCSpikesToRate):
+
+    def configure(self):
+        ElephantSpikesHistogramRateLinearIntegration.configure(self)
+        ThalamocorticalWCSpikesToRate.configure(self)
+
+    def _compute(self, input_buffer, *args, **kwargs):
+        self.output_buffer = ElephantSpikesHistogramRateLinearIntegration._compute(self, input_buffer, *args, **kwargs)
+        self.output_buffer = ThalamocorticalWCSpikesToRate._compute(self, self.output_buffer, self.input_time[0])
+        return self.output_buffer
+
+
+class ThalamocorticalWCElephantSpikesRateLinearIntegration(
+    ElephantSpikesRateLinearIntegration, ThalamocorticalWCSpikesToRate):
+
+    def configure(self):
+        ElephantSpikesRateLinearIntegration.configure(self)
+        ThalamocorticalWCSpikesToRate.configure(self)
+
+    def _compute(self, input_buffer, *args, **kwargs):
+        self.output_buffer = ElephantSpikesRateLinearIntegration._compute(self, input_buffer, *args, **kwargs)
+        self.output_buffer = ThalamocorticalWCSpikesToRate._compute(self, self.output_buffer, self.input_time[0])
+        return self.output_buffer
+
+
+class ThalamocorticalWCElephantSpikesHistogramLinearIntegration(
+    ElephantSpikesHistogramLinearIntegration, ThalamocorticalWCSpikesToRate):
+
+    def configure(self):
+        ElephantSpikesHistogramLinearIntegration.configure(self)
+        ThalamocorticalWCSpikesToRate.configure(self)
+
+    def _compute(self, input_buffer, *args, **kwargs):
+        self.output_buffer = ElephantSpikesHistogramLinearIntegration._compute(self, input_buffer, *args, **kwargs)
+        self.output_buffer = ThalamocorticalWCSpikesToRate._compute(self, self.output_buffer, self.input_time[0])
+        return self.output_buffer
+
+
+class DefaultSpikeNetToTVBTransformersThalamoCorticalWC(Enum):
+    SPIKES = ThalamocorticalWCElephantSpikesHistogramRateLinearIntegration
+    SPIKES_TO_RATE = ThalamocorticalWCElephantSpikesRateLinearIntegration
+    SPIKES_TO_HIST = ThalamocorticalWCElephantSpikesHistogramLinearIntegration
+    SPIKES_TO_HIST_RATE = ThalamocorticalWCElephantSpikesHistogramRateLinearIntegration

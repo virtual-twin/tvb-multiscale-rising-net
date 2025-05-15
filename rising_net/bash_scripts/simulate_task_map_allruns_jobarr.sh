@@ -4,7 +4,7 @@ JOBARRID=$1
 CMD="python"
 CMD_PATH='/home/docker/packages/tvb-multiscale/rising_net/scripts'
 CMD_SCRIPT="task_run_fit_plot.py"
-BASIC_ARGS="--FUNCMODE MAPSIM --BASENAME FIT_TASK --fitlabel allruns --iG $JOBARRID"
+BASIC_ARGS="--FUNCMODE MAPSIM --BASENAME FIT_TASKn4 --fitlabel allruns --iG $JOBARRID"
 DEF_ARGS="$BASIC_ARGS --REST_BASENAME FIT_REST --restfitlabel allsamples"
 
 $DOCKER_PYTHONPATH_CMD
