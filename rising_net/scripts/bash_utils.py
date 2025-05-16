@@ -7,6 +7,23 @@ NPP = 100
 NR = 3
 NRF = 10
 NW = 4  # 7
+NL = 7
+
+NEST_LESIONS = [
+    {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+                 'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
+    {"DCN_INH": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+                 'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
+    {"DCN_INCR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+                  'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
+    {"DCN_DECR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+                  'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
+    {"MOSSY_DCN_INCR_GLOM_DECR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+                                  'conn_weights.mossy_to_glomerulus': 0.297/2}},
+    {"MOSSY_DCN_DECR_GLOM_INCR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+                                  'conn_weights.mossy_to_glomerulus': 2*0.297}},
+    {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
+]
 
 
 def jobarr_id_to_task_ids(args):
@@ -268,6 +285,35 @@ def simulate_cosim_CEREBON_OFF(jobarr_id, Ngs=NG, Nreps=NRF):
                             )
 
 
+def simulate_cosim_nest_lesion(jobarr_id, Nls=NL, Nreps=NRF):
+
+    from rising_net.scripts.task_run_fit_plot import sim_run_plot
+
+    iL, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Nls), int(Nreps)])
+    lesion = NEST_LESIONS[iL]
+    lname = list(lesion.keys())[0]
+    lval = list(lesion.values())[0]
+    print("\n" + "-"*50 + "\nSIMULATING COSIM NEST LESION %d, iR=%d!\n" % (iL, iR) + "-"*50 + "\n")
+    print("Lesion %s:\n%s\n" % (lname, str(lval)))
+    MODE = "COSIM_%s" % lname
+    force_output_folder = "COSIM_NEST_LESION/nsd_%d/%s/" % (iR, MODE)
+    return sim_run_plot(iG=6, iP=None, iR=iR,
+                        FUNCMODE="MEANSIM",
+                        label="",
+                        config=None, REST_or_TASK="TASK",
+                        force_output_folder=force_output_folder,
+                        REST_BASENAME="FIT_REST",
+                        restfitlabel="allsamples",
+                        MODE=MODE,
+                        BASENAME="FIT_TASK",
+                        fitlabel="allsamples",
+                        SIMULATION_LENGTH=2 ** 13 + 1.0,
+                        # NOISE=1e-4,
+                        verbosity=2,
+                        nest_lesions=lval
+                        )
+
+
 def multiply(x, y):
     output = print(x*y)
     return output
@@ -319,3 +365,5 @@ if __name__ == '__main__':
         simulate_tvb_CEREBON_OFF(*sys.argv[2:])
     elif sys.argv[1] == "simulate_cosim_CEREBON_OFF":
         simulate_cosim_CEREBON_OFF(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_cosim_nest_lesion":
+        simulate_cosim_nest_lesion(*sys.argv[2:])
