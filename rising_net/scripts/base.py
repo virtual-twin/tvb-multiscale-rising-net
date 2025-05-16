@@ -221,6 +221,7 @@ def configure(**ARGS):
     config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
     config.NEST_BACKGROUND_FREQ = 6.0  # 4.0 Hz, for NEST only simulations
     config.NEST_MULTIMETER = False
+    config.NEST_LESIONS = None
 
     # TVB - NEST interface parameters:
     config.PONSSENS_INTERFACE = False  # Not part of the latest task pathway -> not in NEST network
