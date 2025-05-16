@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import shutil
-
+from copy import deepcopy
 import h5py
 from rising_net.scripts.base import *
 from rising_net.scripts.tvb_script import *
@@ -151,8 +151,54 @@ def nest_parameter_settings():
                               'parrot_ponssens': ['Right Pons Sensory', 'Left Pons Sensory']
                               }
 
-    return dict(neuron_param), dict(conn_weights), dict(conn_delays), \
-           dict(conn_receptors), dict(conn_pre_post), dict(neuron_types_to_region)
+    return dict(deepcopy(neuron_param)), dict(deepcopy(conn_weights)), dict(deepcopy(conn_delays)), \
+           dict(deepcopy(conn_receptors)), dict(deepcopy(conn_pre_post)), dict(deepcopy(neuron_types_to_region))
+
+
+def lesion_nest(neuron_param, conn_weights, conn_delays, lesions, VERBOSITY):
+
+    def update_dict_recursively(dorig, lnames, lval):
+        if len(lnames) > 1:
+            dorig[lnames[0]] = update_dict_recursively(dorig[lnames[0]], lnames[1:], lval)
+            return dorig
+        else:
+            dorig[lnames[0]] = lval
+            return dorig
+
+    def print_dict_recursively(dorig, lnames, pname):
+        dname = str(pname)
+        dval = dict(deepcopy(dorig))
+        for lname in lnames:
+            dname += "[%s]" % lname
+            dval = dval[lname]
+        return dname + " = %g" % dval
+
+    for iL, (lname, lval) in enumerate(lesions.items()):
+        if VERBOSITY:
+            print("\n")
+            print("-"*50)
+            print("Applying NEST LESION %d:\n%s: %s\n" % (iL, lname, str(lval)))
+        lname_split = lname.split(".")
+        pname = lname_split[0]
+        if pname == "neuron_param":
+            neuron_param = update_dict_recursively(neuron_param, lname_split[1:], lval)
+            if VERBOSITY:
+                print("Confirming NEST LESION:\n%s\n" %
+                      print_dict_recursively(neuron_param, lname_split[1:], "neuron_param"))
+        else:
+            if pname == "conn_weights":
+                conn_weights[lname_split[1]] = lval
+                if VERBOSITY:
+                    print("Confirming NEST LESION:\n%s[%s]: %g\n" %
+                          (pname, lname_split[1], conn_weights[lname_split[1]]))
+            elif pname == "conn_delays":
+                conn_delays[lname_split[1]] = lval
+                if VERBOSITY:
+                    print("Confirming NEST LESION:\n%s[%s]: %g\n" %
+                          (pname, lname_split[1], conn_delays[lname_split[1]]))
+            else:
+                raise ValueError("%s is not a valid lesion name!" % lname)
+    return neuron_param, conn_weights, conn_delays
 
 
 def random_init_vm(neural_pop_ids, neu_param):
@@ -282,6 +328,9 @@ def build_NEST_network(config=None):
     neuron_param, conn_weights, conn_delays, conn_receptors, conn_pre_post, neuron_types_to_region = \
         nest_parameter_settings()
 
+    if config.NEST_LESIONS:
+        neuron_param, conn_weights, conn_delays = \
+            lesion_nest(neuron_param, conn_weights, conn_delays, config.NEST_LESIONS, config.VERBOSITY)
 
     # Load NEST and use defaults to configure its kernel:
     nest = configure_nest_kernel(load_nest(config=config), config)
