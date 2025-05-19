@@ -22,7 +22,7 @@ NEST_LESIONS = [
                                   'conn_weights.mossy_to_glomerulus': 0.297/2}},
     {"MOSSY_DCN_DECR_GLOM_INCR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
                                   'conn_weights.mossy_to_glomerulus': 2*0.297}},
-    {"PURK_TO_DCN_SLOW_2": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}},
+    {"PURK_TO_DCN_SLOW_02": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}},
     {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}}
 ]
 
