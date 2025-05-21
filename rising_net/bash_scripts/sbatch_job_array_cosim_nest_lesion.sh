@@ -3,7 +3,7 @@
 #SBATCH --job-name=CosNESTles
 #SBATCH --output=./outputs/COSIM_NEST_LESION/logs/CosNESTles_%A_%a.out
 #SBATCH --error=./outputs/COSIM_NEST_LESION/errors/CosNESTles_%A_%a.err
-#SBATCH --array=60-69  # 0-79
+#SBATCH --array=0-69  # 0-79
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=16G
