@@ -1,30 +1,18 @@
 # -*- coding: utf-8 -*-
-import glob
-import os
-import random
 import warnings
 import pickle
-import dill
-from copy import deepcopy
 
-import matplotlib.pyplot as plt
-import numpy
-import numpy as np
 from pandas import Index
-from xarray import DataArray, concat
+from xarray import concat
 import torch
-from sbi.inference.base import infer, prepare_for_sbi, simulate_for_sbi
+from sbi.inference import infer, simulate_for_sbi   # prepare_for_sbi
 from sbi import inference as sbi_inference
-from sbi import utils as utils
-from sbi import analysis as analysis
 
 from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
 
 from rising_net.scripts.base import *
-from rising_net.scripts.filepaths import get_path, get_res_path, istr, construct_filepath, simres_filepath, \
-    figs_filepath
+from rising_net.scripts.filepaths import istr, construct_filepath, figs_filepath
 from rising_net.scripts.plot_utils import sbi_pairplot, percent_plot
-from rising_net.scripts.tvb_script import run_workflow, load_connectome
 from rising_net.scripts.utils import dump_pickled_dict
 
 
@@ -37,8 +25,8 @@ def build_prior(config):
         elif pdist == "uniform":
             prior.append(torch.distributions.Uniform(low=config.prior_min[iP]*torch.ones(1),
                                                       high=config.prior_max[iP]*torch.ones(1)))
-    dummy_sim = lambda prior: prior
-    simulator, prior = prepare_for_sbi(dummy_sim, prior)
+    # dummy_sim = lambda prior: prior
+    # simulator, prior = prepare_for_sbi(dummy_sim, prior)
     return prior
 
 
@@ -132,7 +120,7 @@ def sample_train_params_for_sbi(proposal=None, target=None, config=None, label="
         proposal = build_prior(config)
     elif target is not None and hasattr(proposal, "set_default_x"):
         proposal.set_default_x(target)
-    simulator, proposal = prepare_for_sbi(dummy_sim, proposal)
+    # simulator, proposal = prepare_for_sbi(dummy_sim, proposal)
     samples, _ = simulate_for_sbi(dummy_sim, proposal=proposal,
                                   num_simulations=config.N_SIMULATIONS,
                                   num_workers=config.SBI_NUM_WORKERS)
@@ -465,11 +453,9 @@ def check_for_MAP(MAP, config):
 
 def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label="",
                                measures=None, measure_labels=None,
-                               config=None, verbosity=None, plot_flag=True,
+                               config=None, plot_flag=True,
                                measures_plot_fun=None):
     config = assert_config(config, return_plotter=False)
-    if verbosity is None:
-        verbosity = config.VERBOSITY
     if n_samples_per_run is None:
         n_samples_per_run = config.N_POSTERIOR_SAMPLES_PER_RUN
     if plot_flag and measures is not None:
@@ -477,21 +463,21 @@ def estimate_posterior_samples(target, posterior, n_samples_per_run=None, label=
                                           measure_labels=measure_labels, measures_plot_fun=measures_plot_fun,
                                           config=config)
     posterior.num_workers = config.SBI_NUM_WORKERS
-    posterior, samples, MAP = sbi_estimate(posterior, target, n_samples_per_run, verbosity, config.SBI_SAMPLE_KWARGS)
+    posterior, samples, MAP = sbi_estimate(posterior, target, n_samples_per_run, config.VERBOSITY, config.SBI_SAMPLE_KWARGS)
     MAP, config = check_for_MAP(MAP, config)
     return posterior, samples, MAP
 
 
 def sbi_infer(prior, train_params_samples, sim_res, n_samples_per_run, target,
-              sbi_algorithm, verbosity,
+              sbi_algorithm, config,
               inference=None, proposal=None,
               train_kwargs=dict(), build_kwargs=dict(), sample_kwargs=dict()):
     # Train the neural network to approximate the posterior and return the posterior estimation:
     posterior, samples, MAP = sbi_estimate(
-                sbi_train(prior, train_params_samples, sim_res, sbi_algorithm, verbosity,
+                sbi_train(prior, train_params_samples, sim_res, sbi_algorithm, config.VERBOSITY,
                           inference=inference, proposal=proposal,
                           train_kwargs=train_kwargs, build_kwargs=build_kwargs),
-                target, n_samples_per_run, verbosity, sample_kwargs)
+                target, n_samples_per_run, config.VERBOSITY, sample_kwargs)
     MAP, config = check_for_MAP(MAP, config)
     return posterior, samples, MAP
 
