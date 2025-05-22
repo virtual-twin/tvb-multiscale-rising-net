@@ -119,6 +119,9 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
         MODE = joinstr(["REST", MODE])
 
     verbosity = kwargs.pop("verbosity", 1)
+
+    NEST_LESIONS = kwargs.pop("nest_lesions", None)
+
     config, plotter = configure(MODE=MODE, verbosity=0, **kwargs)
 
     iG, kwargs = get_G(config, iG=iG, **kwargs)
@@ -155,6 +158,8 @@ def get_config(iG=None, iP=None, iR=None, FUNCMODE="SIM", fitlabel="", iF=None,
     config, plotter = configure(MODE=MODE, SEED=int(iR), verbosity=verbosity, **kwargs)
     config.iG = int(iG)
     config.G = config.Gs[iG]
+
+    config.NEST_LESIONS = NEST_LESIONS
 
     if config.VERBOSITY:
         print(config.model_params)
