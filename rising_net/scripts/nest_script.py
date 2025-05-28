@@ -331,7 +331,7 @@ def build_NEST_network(config=None):
     from tvb_multiscale.core.spiking_models.devices import DeviceSet
     from tvb_multiscale.tvb_nest.nest_models.devices import NESTSpikeRecorder, NESTMultimeter
     from tvb_multiscale.tvb_nest.nest_models.devices import \
-        NESTPoissonGenerator, NESTInhomogeneousPoissonGenerator, NESTSinusoidalPoissonGenerator
+        NESTPoissonGenerator, NESTInhomogeneousPoissonGenerator, NESTSinusoidalPoissonGenerator, NESTSpikeGenerator
     from tvb_multiscale.tvb_nest.nest_models.builders.nest_factory import load_nest, configure_nest_kernel
 
     config = assert_config(config, return_plotter=False)
@@ -579,6 +579,12 @@ def build_NEST_network(config=None):
             npzfiles = np.load(config.NEST_STIMULUS_FILE)
             params = lambda iR: {"rate_values": npzfiles["ansilob_affts_trans_dt"][:, iR],
                                  "rate_times": npzfiles["time_dt"]}
+        elif "SPIKES" in str(config.NEST_PERIPHERY):
+            # Whisking stimulus input device as NEST spiking input signal from file
+            dev_model = "spike_generator"
+            dev_model_class = NESTSpikeGenerator
+            npyfiles = np.load(config.NEST_STIMULUS_FILE, allow_pickle=True)
+            params = lambda iR: {"spike_times": np.sort(npyfiles.item()["spike_times"][iR])}
         else:
             # Whisking stimulus input device as sinusoidally modulated Poisson process
             dev_model = "sinusoidal_poisson_generator"
