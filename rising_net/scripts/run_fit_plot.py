@@ -334,7 +334,7 @@ def sim_run_plot(iG=None, iP=None, iR=None, FUNCMODE="SIM", label="",
                                    write_files=FUNCMODE.upper() == "SIM")
             if "COSIM" in config.MODE or "NEST" in config.MODE:
                 try:
-                    if config.SIMULATION_LENGTH <= 1000.0:
+                    if config.SIMULATION_LENGTH < 1000.0:
                         # This takes too much time, even for 1 sec...:
                         plot_nest_results_raster(nest_network, neuron_models, neuron_number, config)
                     plot_write_spiking_network_results(nest_network, connectivity=connectivity,
