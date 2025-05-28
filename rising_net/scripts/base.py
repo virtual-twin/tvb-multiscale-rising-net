@@ -217,7 +217,7 @@ def configure(**ARGS):
     # NEST model parameters:
     config.NEST_STIMULUS_RATE = 6.0
     config.NEST_STIMULUS = 70.0  # 15.0  # Hz
-    config.NEST_STIMULUS_FILE =  os.path.join(data_path, 'nest_stimulus.npy')
+    config.NEST_STIMULUS_FILE = os.path.join(data_path, 'nest_stimulus.npy')
     # One of: (a) True. (b) "Input TVB to parrot_medulla". (c) "Input Sinusoidal to mossy_fibers"
     # (d) "Input SPIKES to parrot_medulla"
     config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
