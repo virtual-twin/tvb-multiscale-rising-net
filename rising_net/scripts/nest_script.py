@@ -570,7 +570,7 @@ def build_NEST_network(config=None):
             dev_model = "spike_generator"
             dev_model_class = NESTSpikeGenerator
             npyfiles = np.load(config.NEST_STIMULUS_FILE, allow_pickle=True)
-            params = lambda iR: {"spike_times": np.sort(npyfiles.item()["spike_times"][iR])}
+            params = lambda iR: {"spike_times": np.sort(npyfiles.item()["spike_times"][iR][slice(0, None, 75)])}
         else:
             # Whisking stimulus input device as sinusoidally modulated Poisson process
             dev_model = "sinusoidal_poisson_generator"
