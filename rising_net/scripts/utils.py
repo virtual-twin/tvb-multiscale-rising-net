@@ -224,7 +224,8 @@ def only_plot_selected_spectra_coherence_and_diff(freq, avg_coherence, color, fm
     # Plot coherence diff cosim vs MF cereb-OFF
     #axes[1].plot(freq,np.subtract(avg_coherence['MF_cerebOFF'], avg_coherence['cosim']), color=color['cosim'])
     # Plot coherence diff MF cereb-ON vs MF cereb-OFF
-    axes[1].plot(freq,np.subtract(avg_coherence['MF_cerebOFF'], avg_coherence['MF_cerebON']), color=color['MF_cerebON'])
+    axes[1].plot(freq, np.subtract(avg_coherence['MF_cerebOFF'], avg_coherence['MF_cerebON']),
+                 color=color['MF_cerebON'])
 
     for ii in range(len(axes)):
         axes[ii].set_xlim([fmin, fmax])
