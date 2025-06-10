@@ -416,9 +416,9 @@ def build_NEST_network(config=None):
         PARROT_MEDULLA = True
         PARROT_PONSSENS = True
     else:
-        if 'parrot_medulla' in str(config.NEST_PERIPHERY):
+        if 'parrot_medulla' in str(config.NEST_PERIPHERY).lower():
             PARROT_MEDULLA = True
-        if 'parrot_ponssens' in str(config.NEST_PERIPHERY):
+        if 'parrot_ponssens' in str(config.NEST_PERIPHERY).lower():
             PARROT_PONSSENS = True
     if not(PARROT_MEDULLA):
         del neuron_types_to_region['parrot_medulla']
@@ -558,14 +558,14 @@ def build_NEST_network(config=None):
                     print("Connected!  %s - %s -> %s -> %s" % ("Background", region, pop, region))
 
     if "input" in str(config.NEST_PERIPHERY).lower() or "TVB" in str(config.NEST_PERIPHERY):
-        if "TVB" in str(config.NEST_PERIPHERY):
+        if "TVB" in str(config.NEST_PERIPHERY).upper():
             # Whisking stimulus input device as TVB input signal from file
             dev_model = "inhomogeneous_poisson_generator"
             dev_model_class = NESTInhomogeneousPoissonGenerator
             npzfiles = np.load(config.NEST_STIMULUS_FILE)
             params = lambda iR: {"rate_values": npzfiles["ansilob_affts_trans_dt"][:, iR],
                                  "rate_times": npzfiles["time_dt"]}
-        elif "SPIKES" in str(config.NEST_PERIPHERY):
+        elif "SPIKES" in str(config.NEST_PERIPHERY).upper():
             # Whisking stimulus input device as NEST spiking input signal from file
             dev_model = "spike_generator"
             dev_model_class = NESTSpikeGenerator
@@ -602,11 +602,10 @@ def build_NEST_network(config=None):
     # Create output, measuring devices, spike_recorders and multimeters measuring V_m:
     params_spike_recorder = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["spike_recorder"].copy()
     params_spike_recorder["record_to"] = "ascii"
-    # params_multimeter = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["multimeter"].copy()
-    # params_multimeter["record_to"] = "ascii"
-    # params_multimeter["interval"] = 1.0
+    params_multimeter = config.NEST_OUTPUT_DEVICES_PARAMS_DEF["multimeter"].copy()
+    params_multimeter["record_to"] = "ascii"
+    params_multimeter["interval"] = 1.0
     for pop, regions in neuron_types_to_region.items():
-        # pop_ts = "%s_ts" % pop
         nest_network.output_devices[pop] = DeviceSet(label=pop, model="spike_recorder")
 
         for region in regions:
@@ -623,6 +622,7 @@ def build_NEST_network(config=None):
                 print("\n...created spike_recorder device for population %s in brain region %s..." % (pop, region))
 
         if config.NEST_MULTIMETER:
+            pop_ts = "%s_ts" % pop
             if pop not in ['mossy_fibers', "parrot_medulla", "parrot_ponssens", "whisking_stimulus"]:
                 nest_network.output_devices[pop_ts] = DeviceSet(label=pop_ts, model="multimeter")
                 # Create and connect population multimeter for this region:
