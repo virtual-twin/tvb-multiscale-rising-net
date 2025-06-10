@@ -26,7 +26,7 @@ NEST_LESIONS = [
     # {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}}
     {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 6.5*1.0,
                          "neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
-    {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0/10}},
+    {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0*10}},
     {"INP_TO_GRC": {'conn_weights.glomerulus_to_granule': 0.232/2,
                     'conn_weights.golgi_to_granule': 0.148/2}},
 ]
