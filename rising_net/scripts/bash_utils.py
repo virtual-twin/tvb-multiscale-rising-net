@@ -7,23 +7,28 @@ NPP = 100
 NR = 3
 NRF = 10
 NW = 4  # 7
-NL = 7
+NL = 3
 
 NEST_LESIONS = [
-    {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
-                 'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
-    {"DCN_INH": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
-                 'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
-    {"DCN_INCR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
-                  'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
-    {"DCN_DECR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
-                  'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
-    {"MOSSY_DCN_INCR_GLOM_DECR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
-                                  'conn_weights.mossy_to_glomerulus': 0.297/2}},
-    {"MOSSY_DCN_DECR_GLOM_INCR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
-                                  'conn_weights.mossy_to_glomerulus': 2*0.297}},
-    {"PURK_TO_DCN_SLOW_02": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}}  # ,
+    # {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+    #              'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
+    # {"DCN_INH": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+    #              'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
+    # {"DCN_INCR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+    #               'conn_weights.purkinje_to_dcn_glut_large': 2*0.297}},
+    # {"DCN_DECR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+    #               'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
+    # {"MOSSY_DCN_INCR_GLOM_DECR": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
+    #                               'conn_weights.mossy_to_glomerulus': 0.297/2}},
+    # {"MOSSY_DCN_DECR_GLOM_INCR": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
+    #                               'conn_weights.mossy_to_glomerulus': 2*0.297}},
+    # {"PURK_TO_DCN_SLOW_02": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}}  # ,
     # {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}}
+    {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 6.5*1.0,
+                         "neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
+    {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0/10}},
+    {"INP_TO_GRC": {'conn_weights.glomerulus_to_granule': 0.232/2,
+                    'conn_weights.golgi_to_granule': 0.148/2}},
 ]
 
 
