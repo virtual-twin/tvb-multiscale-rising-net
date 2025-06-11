@@ -7,7 +7,7 @@ NPP = 100
 NR = 3
 NRF = 10
 NW = 4  # 7
-NL = 3
+NL = 1
 
 NEST_LESIONS = [
     # {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
@@ -24,11 +24,11 @@ NEST_LESIONS = [
     #                               'conn_weights.mossy_to_glomerulus': 2*0.297}},
     # {"PURK_TO_DCN_SLOW_02": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}}  # ,
     # {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}}
-    {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 6.5*1.0,
+    {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 10**1.0,
                          "neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
-    {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0*10}},
-    {"INP_TO_GRC": {'conn_weights.glomerulus_to_granule': 0.232/2,
-                    'conn_weights.golgi_to_granule': 0.148/2}},
+    # {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0*10}},
+    # {"INP_TO_GRC": {'conn_weights.glomerulus_to_granule': 0.232/2,
+    #                 'conn_weights.golgi_to_granule': 0.148/2}},
 ]
 
 
@@ -302,7 +302,7 @@ def simulate_cosim_nest_lesion(jobarr_id, Nls=NL, Nreps=NRF):
     print("\n" + "-"*50 + "\nSIMULATING COSIM NEST LESION %d, iR=%d!\n" % (iL, iR) + "-"*50 + "\n")
     print("Lesion %s:\n%s\n" % (lname, str(lval)))
     MODE = "COSIM_%s" % lname
-    force_output_folder = "COSIM_NEST_LESIONnorm/nsd_%d/%s/" % (iR, MODE)
+    force_output_folder = "COSIM_NEST_LESION/nsd_%d/%s/" % (iR, MODE)
     return sim_run_plot(iG=6, iP=None, iR=iR,
                         FUNCMODE="MEANSIM",
                         label="",
