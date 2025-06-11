@@ -220,7 +220,7 @@ def configure(**ARGS):
     config.NEST_STIMULUS_FILE = os.path.join(data_path, 'nest_stimulus.npy')
     # One of: (a) True. (b) "Input TVB to parrot_medulla". (c) "Input Sinusoidal to mossy_fibers"
     # (d) "Input SPIKES to parrot_medulla"
-    config.NEST_PERIPHERY = "Input SPIKES to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
+    config.NEST_PERIPHERY = "Input to parrot_medulla"  # stimulus towards parrot_medulla in NEST network
     config.NEST_BACKGROUND_FREQ = 6.0  # 4.0 Hz, for NEST only simulations
     config.NEST_MULTIMETER = False
     config.NEST_LESIONS = None
