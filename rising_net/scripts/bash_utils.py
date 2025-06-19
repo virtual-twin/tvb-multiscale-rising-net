@@ -7,9 +7,26 @@ NPP = 100
 NR = 3
 NRF = 10
 NW = 4  # 7
-NL = 1
+NL = 5
+
 
 NEST_LESIONS = [
+    {"PKJtoDCN": {'conn_weights.purkinje_to_dcn_glut_large': 0*0.297,  # 0.5
+                  # "neuron_param.dcn_cell_glut_large.I_e": 75.385
+                  }},
+    {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,  # 0.5
+                  # "neuron_param.dcn_cell_glut_large.I_e": 75.385
+                  }},
+    {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,  # 0.5
+                  # "neuron_param.granule_cell.I_e": -0.888  # ??
+                  }},
+    {"GLOtoGOL": {'conn_weights.glomerulus_to_golgi': 0*0.240,  # 0.5
+                  # "neuron_param.golgi_cell.I_e": 16.214  # ??
+                  }},
+    {"INHtoPKJ": {'conn_weights.basket_to_purkinje': 0*0.436,  # 0.5
+                  'conn_weights.stellate_to_purkinje': 0*1.642,  # 0.5
+                  # "neuron_param.purkinje_cell.I_e": 176.26  # ??
+                  }},
     # {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
     #              'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
     # {"DCN_INH": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
@@ -24,8 +41,8 @@ NEST_LESIONS = [
     #                               'conn_weights.mossy_to_glomerulus': 2*0.297}},
     # {"PURK_TO_DCN_SLOW_02": {"neuron_param.dcn_cell_glut_large.tau_syn2": 2*0.7}}  # ,
     # {"PURK_TO_DCN_SLOW_10": {"neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}}
-    {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 10**1.0,
-                         "neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
+    # {"INP_TO_DCN_SLOW": {"neuron_param.dcn_cell_glut_large.tau_syn1": 10**1.0,
+    #                      "neuron_param.dcn_cell_glut_large.tau_syn2": 10*0.7}},
     # {"INH_TO_DCN_DELAY": {'conn_delays.purkinje_to_dcn_glut_large': 4.0*10}},
     # {"INP_TO_GRC": {'conn_weights.glomerulus_to_granule': 0.232/2,
     #                 'conn_weights.golgi_to_granule': 0.148/2}},
