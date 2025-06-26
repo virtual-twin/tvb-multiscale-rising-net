@@ -15,7 +15,7 @@ NEST_LESIONS = [
     #               "neuron_param.dcn_cell_glut_large.I_e": 45.0  # from 75.385
     #               }},
     {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,  # 0.5
-                  "neuron_param.dcn_cell_glut_large.I_e": 105.0  # from 75.385
+                  "neuron_param.dcn_cell_glut_large.I_e": 100.0  # from 75.385
                   }},
     # {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,  # 0.5
     #               "neuron_param.granule_cell.I_e": 5.0  # from -0.888
