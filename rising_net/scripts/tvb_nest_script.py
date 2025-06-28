@@ -191,17 +191,17 @@ def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                           "baseline": -0.5,
                           "transient": 250.0
                           }
-    # !!!UNCOMMENT THE LINES BELOW TO NORMALIZE NEST TO TVB DCN INTERFACE FOR NEST LESIONS!!!
-    wNESTtoTVB_FILE_lesions = config.wNESTtoTVB_FILE.replace(".pkl", "_lesion_norm.pkl")  # G=6 assumed
-    print("\nLoading w_NEST_to_TVB DCN lesions interface parameters from file...:\n%s:\n" % wNESTtoTVB_FILE_lesions)
-    w_NEST_to_TVB_lesion = load_pickled_dict(wNESTtoTVB_FILE_lesions)
-    lesion = config.MODE.split("TASK_COSIM_")[-1]
-    for param in ["scale", "translate"]:
-        print("\nSettting normalized %s parameter for lesion %s = %g!\n" %
-              (param, lesion, w_NEST_to_TVB_lesion[param][lesion]))
-        w_NEST_to_TVB[param]["dcn_cell_glut_large"] = w_NEST_to_TVB_lesion[param][lesion]
-        print("\nSet normalized %s parameter for lesion %s = %g!\n" %
-              (param, lesion, w_NEST_to_TVB[param]["dcn_cell_glut_large"]))
+    # # !!!UNCOMMENT THE LINES BELOW TO NORMALIZE NEST TO TVB DCN INTERFACE FOR NEST LESIONS!!!
+    # wNESTtoTVB_FILE_lesions = config.wNESTtoTVB_FILE.replace(".pkl", "_lesion_norm.pkl")  # G=6 assumed
+    # print("\nLoading w_NEST_to_TVB DCN lesions interface parameters from file...:\n%s:\n" % wNESTtoTVB_FILE_lesions)
+    # w_NEST_to_TVB_lesion = load_pickled_dict(wNESTtoTVB_FILE_lesions)
+    # lesion = config.MODE.split("TASK_COSIM_")[-1]
+    # for param in ["scale", "translate"]:
+    #     print("\nSettting normalized %s parameter for lesion %s = %g!\n" %
+    #           (param, lesion, w_NEST_to_TVB_lesion[param][lesion]))
+    #     w_NEST_to_TVB[param]["dcn_cell_glut_large"] = w_NEST_to_TVB_lesion[param][lesion]
+    #     print("\nSet normalized %s parameter for lesion %s = %g!\n" %
+    #          (param, lesion, w_NEST_to_TVB[param]["dcn_cell_glut_large"]))
     for iP, (pop, regions) in enumerate(zip(pops, regs)):
         pop_regions_inds = []
         for region in regions:
