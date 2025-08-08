@@ -49,6 +49,7 @@ def print_available_interfaces():
         DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal
     print_enum(DefaultSpikeNetToTVBTransformersThalamoCorticalWCInverseSigmoidal)
 
+
 def build_tvb_nest_interfaces(simulator, nest_network, nest_nodes_inds, config,
                               neuron_models=None, start_id_scaffold=None):
 
