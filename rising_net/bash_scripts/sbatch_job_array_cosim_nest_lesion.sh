@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=CosNESTles
-#SBATCH --output=./outputs/COSIM_NEST_LESIONno_norm/logs/CosNESTles_%A_%a.out
-#SBATCH --error=./outputs/COSIM_NEST_LESIONno_norm/errors/CosNESTles_%A_%a.err
+#SBATCH --output=./outputs/COSIM_NEST_LESIONratenorm/logs/CosNESTles_%A_%a.out
+#SBATCH --error=./outputs/COSIM_NEST_LESIONratenorm/errors/CosNESTles_%A_%a.err
 #SBATCH --array=0-9
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=1

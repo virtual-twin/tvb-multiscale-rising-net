@@ -332,7 +332,7 @@ def simulate_cosim_nest_lesion(jobarr_id, Nls=NL, Nreps=NRF):
     print("\n" + "-"*50 + "\nSIMULATING COSIM NEST LESION %d, iR=%d!\n" % (iL, iR) + "-"*50 + "\n")
     print("Lesion %s:\n%s\n" % (lname, str(lval)))
     MODE = "COSIM_%s" % lname
-    force_output_folder = "COSIM_NEST_LESIONno_norm/nsd_%d/%s/" % (iR, MODE)
+    force_output_folder = "COSIM_NEST_LESIONratenorm/nsd_%d/%s/" % (iR, MODE)
     return sim_run_plot(iG=6, iP=None, iR=iR,
                         FUNCMODE="MEANSIM",
                         label="",
