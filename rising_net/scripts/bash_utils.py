@@ -35,8 +35,8 @@ NEST_LESIONS = [
     {"MLItoMLI": {'conn_weights.basket_to_basket': 0*0.006,
                   'conn_weights.stellate_to_stellate': 0*0.005,
                   # Rate normalization:
-                  # "neuron_param.basket_cell.I_e": -15.0,  # from  3.711
-                  # "neuron_param.stellate_cell.I_e": -15.0  # from  3.711
+                  "neuron_param.basket_cell.I_e": -15.0,  # from  3.711
+                  "neuron_param.stellate_cell.I_e": -15.0  # from  3.711
                   }},
     #
     #  Old, first attempt:
