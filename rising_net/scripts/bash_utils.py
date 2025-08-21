@@ -11,22 +11,35 @@ NL = 1
 
 
 NEST_LESIONS = [
-    # {"PKJtoDCN": {'conn_weights.purkinje_to_dcn_glut_large': 0*0.297,  # 0.5
+    # {"PKJtoDCN": {'conn_weights.purkinje_to_dcn_glut_large': 0*0.297,
+                    # Rate normalization:
     #               "neuron_param.dcn_cell_glut_large.I_e": 45.0  # from 75.385
     #               }},
-    # {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,  # 0.5
+    # {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,
+                     # Rate normalization:
     #               "neuron_param.dcn_cell_glut_large.I_e": 100.0  # 2nd effort: 105.0, 1st effort: 130.0, from 75.385
     #               }},
-    {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,  # 0.5
-                  "neuron_param.granule_cell.I_e": 4.0  # 1st effort: 5.0  # from -0.888
-                  }},
-    # {"GLOtoGOL": {'conn_weights.glomerulus_to_golgi': 0*0.240,  # 0.5
+    # {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,
+                    # Rate normalization:
+    #               "neuron_param.granule_cell.I_e": 4.0  # 1st effort: 5.0  # from -0.888
+    #               }},
+    # {"GLOtoGOL": {'conn_weights.glomerulus_to_golgi': 0*0.240,
+                    # Rate normalization:
     #               "neuron_param.golgi_cell.I_e": 150.0  # from 16.214
     #               }},
-    # {"INHtoPKJ": {'conn_weights.basket_to_purkinje': 0*0.436,  # 0.5
-    #               'conn_weights.stellate_to_purkinje': 0*1.642,  # 0.5
+    # {"INHtoPKJ": {'conn_weights.basket_to_purkinje': 0*0.436,
+    #               'conn_weights.stellate_to_purkinje': 0*1.642,
+                    # Rate normalization:
     #               "neuron_param.purkinje_cell.I_e": 75.0  # from 176.26
     #               }},
+    {"MLItoMLI": {'conn_weights.basket_to_basket': 0*0.006,
+                  'conn_weights.stellate_to_stellate': 0*0.005,
+                  # Rate normalization:
+                  # "neuron_param.basket_cell.I_e": -15.0,  # from  3.711
+                  # "neuron_param.stellate_cell.I_e": -15.0  # from  3.711
+                  }},
+    #
+    #  Old, first attempt:
     # {"DCN_EXC": {'conn_weights.mossy_to_dcn_glut_large': 2*0.554,
     #              'conn_weights.purkinje_to_dcn_glut_large': 0.297/2}},
     # {"DCN_INH": {'conn_weights.mossy_to_dcn_glut_large': 0.554/2,
