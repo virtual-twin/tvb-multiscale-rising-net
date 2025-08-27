@@ -7,31 +7,31 @@ NPP = 100
 NR = 3
 NRF = 10
 NW = 4  # 7
-NL = 1
+NL = 6
 
 
 NEST_LESIONS = [
-    # {"PKJtoDCN": {'conn_weights.purkinje_to_dcn_glut_large': 0*0.297,
-                    # Rate normalization:
-    #               "neuron_param.dcn_cell_glut_large.I_e": 45.0  # from 75.385
-    #               }},
-    # {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,
-                     # Rate normalization:
-    #               "neuron_param.dcn_cell_glut_large.I_e": 100.0  # 2nd effort: 105.0, 1st effort: 130.0, from 75.385
-    #               }},
-    # {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,
-                    # Rate normalization:
-    #               "neuron_param.granule_cell.I_e": 4.0  # 1st effort: 5.0  # from -0.888
-    #               }},
-    # {"GLOtoGOL": {'conn_weights.glomerulus_to_golgi': 0*0.240,
-                    # Rate normalization:
-    #               "neuron_param.golgi_cell.I_e": 150.0  # from 16.214
-    #               }},
-    # {"INHtoPKJ": {'conn_weights.basket_to_purkinje': 0*0.436,
-    #               'conn_weights.stellate_to_purkinje': 0*1.642,
-                    # Rate normalization:
-    #               "neuron_param.purkinje_cell.I_e": 75.0  # from 176.26
-    #               }},
+    {"PKJtoDCN": {'conn_weights.purkinje_to_dcn_glut_large': 0*0.297,
+                  #  Rate normalization:
+                  "neuron_param.dcn_cell_glut_large.I_e": 45.0  # from 75.385
+                  }},
+    {"MOStoDCN": {'conn_weights.mossy_to_dcn_glut_large': 0*0.554,
+                   #  Rate normalization:
+                  "neuron_param.dcn_cell_glut_large.I_e": 100.0  # 2nd effort: 105.0, 1st effort: 130.0, from 75.385
+                  }},
+    {"GLOtoGRC": {'conn_weights.glomerulus_to_granule': 0*0.232,
+                   # Rate normalization:
+                  "neuron_param.granule_cell.I_e": 4.0  # 1st effort: 5.0  # from -0.888
+                  }},
+    {"GLOtoGOL": {'conn_weights.glomerulus_to_golgi': 0*0.240,
+                   # Rate normalization:
+                  "neuron_param.golgi_cell.I_e": 150.0  # from 16.214
+                  }},
+    {"INHtoPKJ": {'conn_weights.basket_to_purkinje': 0*0.436,
+                  'conn_weights.stellate_to_purkinje': 0*1.642,
+                   # Rate normalization:
+                  "neuron_param.purkinje_cell.I_e": 75.0  # from 176.26
+                  }},
     {"MLItoMLI": {'conn_weights.basket_to_basket': 0*0.006,
                   'conn_weights.stellate_to_stellate': 0*0.005,
                   # Rate normalization:
@@ -332,7 +332,7 @@ def simulate_cosim_nest_lesion(jobarr_id, Nls=NL, Nreps=NRF):
     print("\n" + "-"*50 + "\nSIMULATING COSIM NEST LESION %d, iR=%d!\n" % (iL, iR) + "-"*50 + "\n")
     print("Lesion %s:\n%s\n" % (lname, str(lval)))
     MODE = "COSIM_%s" % lname
-    force_output_folder = "COSIM_NEST_LESIONrate_ampl_norm/nsd_%d/%s/" % (iR, MODE)
+    force_output_folder = "COSIM_NEST_LESION/nsd_%d/%s/" % (iR, MODE)
     return sim_run_plot(iG=6, iP=None, iR=iR,
                         FUNCMODE="MEANSIM",
                         label="",
