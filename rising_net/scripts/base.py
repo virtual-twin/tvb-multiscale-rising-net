@@ -235,7 +235,14 @@ def configure(**ARGS):
     if os.path.isfile(config.wTVBtoNEST_FILE):
         G = args.get('G', 6.0)
         from tvb_multiscale.core.utils.file_utils import load_pickled_dict
-        w_TVB_to_NEST_DEF = DataArray.from_dict(load_pickled_dict(config.wTVBtoNEST_FILE)).loc[int(G)]
+        try:
+            w_TVB_to_NEST_DEF = DataArray.from_dict(load_pickled_dict(config.wTVBtoNEST_FILE)).loc[int(G)]
+        except Exception as e:
+            w_TVB_to_NEST_DEF = 0.0
+            print("\n------------------------------------")
+            print("w_TVB_to_NEST_DEF = %g" % w_TVB_to_NEST_DEF)
+            warnings.warn(str(e))
+            print("\n------------------------------------")
     else:
         w_TVB_to_NEST_DEF = 43.0
         # FOR G=6.0
