@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=FTmn
-#SBATCH --output=./outputs/FIT_TASKn4/mean_sims/allsamples/logs/FIT_TASK_MEAN_%A_%a.out
-#SBATCH --error=./outputs/FIT_TASKn4/mean_sims/allsamples/errors/FIT_TASK_MEAN_%A_%a.err
+#SBATCH --output=./outputs/FIT_TASK/mean_sims/allsamples/logs/FIT_TASK_MEAN_%A_%a.out
+#SBATCH --error=./outputs/FIT_TASK/mean_sims/allsamples/errors/FIT_TASK_MEAN_%A_%a.err
 #SBATCH --array=0-49
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=1
