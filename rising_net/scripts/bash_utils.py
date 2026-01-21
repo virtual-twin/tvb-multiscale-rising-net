@@ -2,9 +2,9 @@
 import numpy as np
 
 NG = 11
-NP = 2000
+NP = 1000
 NPP = 100
-NR = 3
+NR = 10
 NRF = 10
 NW = 4  # 7
 NL = 6
@@ -92,6 +92,13 @@ def simulate_task_train_ids_args(jobarr_id, Nps=NP, Ngs=NG):
     iG, iP = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nps)])
     iG = iG + 4
     output = print("--iG %d --iP %d" % (iG, iP))
+    return output
+
+
+def simulate_task_mapmean_ids_args(jobarr_id, Ngs=NG, Nreps=NR):
+    iG, iR = jobarr_id_to_task_ids([int(jobarr_id), int(Ngs), int(Nreps)])
+    iG = iG + 4
+    output = print("--iG %d --iR %d" % (iG, iR))
     return output
 
 
