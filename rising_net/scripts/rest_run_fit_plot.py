@@ -223,7 +223,9 @@ def load_prior_target_and_sims_for_sbi_for_iG(iG,
                                               round=0, prior=None, inference=None, proposal=None,
                                               sim_res=None, sim_res_path=None,
                                               target=None,
-                                              config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                                              config=None,
+                                              average_repetitions=True,
+                                              igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False, FUNCMODE="FIT")
     # Rebuild proposal if not provided in the input:
     if prior is None:
@@ -257,20 +259,21 @@ def load_prior_target_and_sims_for_sbi_for_iG(iG,
         try:
             sim_res = \
                 load_sims_to_xarrays_for_iG(path=str(sim_res_path), config=config,
-                                            iG=iG, iP=None, iR=None, average_repetitions=True,
+                                            iG=iG, iP=None, iR=None, average_repetitions=average_repetitions,
                                             igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
         except Exception as e:
             warnings.warn(str(e))
             sim_res_path = os.path.join(config.HEADPATH, config.TRAIN_SIMS_FOLDER)
             sim_res = \
                 load_sims_to_xarrays_for_iG(path=str(sim_res_path), config=config,
-                                            iG=iG, iP=None, iR=None, average_repetitions=True,
+                                            iG=iG, iP=None, iR=None, average_repetitions=average_repetitions,
                                             igstr=igstr, folderstr=folderstr, resstr=resstr)[0].values.astype('float32')
     return train_params_samples, sim_res, prior, inference, proposal, target
 
 
 def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
                                            measure_labels=REST_FIT_MEASURE_LABELS_FOR_PLOT, config=None):
+    PLOT_MODE = "semilog"
     config = assert_config(config, return_plotter=False)
     if target is None:
         target = target_PSD_fun(config)
@@ -283,9 +286,12 @@ def plot_PSDs_samples_measures_and_targets(measures, target=None, label="",
         axes[iR, iC] = percent_plot(config.TARGET_FREQS, measures[:, inds],
                                     percentile_min=10, percentile_max=90, n=5,
                                     plot_mean=True, plot_median=False,
-                                    color='b', alpha=0.5, ax=axes[iR, iC], mode="linear")
+                                    color='b', alpha=0.5, ax=axes[iR, iC], mode=PLOT_MODE)
         if target is not None:
-            axes[iR, iC].plot(config.TARGET_FREQS, target[inds], color='r', linewidth=2)
+            trg = target[inds]
+            if PLOT_MODE == "semilog":
+                trg = np.log(trg)
+            axes[iR, iC].plot(config.TARGET_FREQS, trg, color='r', linewidth=2)
         inds += Nf
         axes[iR, iC].set_title(ml)
     if config.figures.SAVE_FLAG:
@@ -309,7 +315,7 @@ def infer_workflow_for_iG(iG,
         load_prior_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
                                                   round, prior, inference, proposal,
                                                   sim_res, sim_res_path, target,
-                                                  config, igstr, folderstr, resstr)
+                                                  config, True, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_workflow(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                           config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT,
@@ -328,7 +334,7 @@ def infer_nRuns_for_iG(iG,
         load_prior_target_and_sims_for_sbi_for_iG(iG, train_params_samples,
                                                   round, prior, inference, proposal,
                                                   sim_res, sim_res_path, target,
-                                                  config, igstr, folderstr, resstr)
+                                                  config, True, igstr, folderstr, resstr)
     label = joinstr([label, iGstr(iG, Ngs=len(config.Gs), igstr=igstr)])
     return infer_nRuns(train_params_samples, sim_res, prior, inference, proposal, target, ground_truth,
                        config, label, n_samples_per_run, REST_FIT_MEASURE_LABELS_FOR_PLOT, save_samples,
@@ -336,7 +342,7 @@ def infer_nRuns_for_iG(iG,
 
 
 def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
-                          config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                          config=None, average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     stat = stat.upper()
     if sim_res_path is None:
@@ -347,7 +353,7 @@ def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
     # By default, we load all parameters and all simulation repetitions and we average across repetitions.
     sim_res, iG, iPs = \
         load_sims_to_xarrays_for_iG(path=sim_res_path, config=config,
-                                    iG=iG, iP=iP, iR=None, average_repetitions=True,
+                                    iG=iG, iP=iP, iR=None, average_repetitions=average_repetitions,
                                     igstr=igstr, folderstr=folderstr, resstr=resstr)
     if sim_res.ndim < 2:
         sim_res = sim_res.expand_dims(dim=None, axis=0, create_index_for_new_dim=True, Simulations=np.array([0]))
@@ -359,10 +365,11 @@ def load_stat_sims_for_iG(iG, stat="PPC", label="", sim_res_path=None, iP=None,
 
 
 def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="", sim_res_path=None, target=None,
-                                        config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                                        config=None, average_repetitions=True, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iG, iP = load_stat_sims_for_iG(iG, stat=stat, label=label, sim_res_path=sim_res_path, iP=iP,
-                                            config=config,  igstr=igstr, folderstr=folderstr, resstr=resstr)
+                                            config=config,  average_repetitions=average_repetitions,
+                                            igstr=igstr, folderstr=folderstr, resstr=resstr)
     sim_res = sim_res.values.astype('float32')
     params, iP, fitlabel, params_string = \
         get_stats_params(config, stat=stat, FUNCMODE=None, iG=iG, iP=iP, iF=iF, fitlabel=label)
@@ -374,11 +381,12 @@ def load_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label=
 
 def load_and_plot_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, iP=None, label="",
                                                  sim_res_path=None, target=None,
-                                                 config=None, igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
+                                                 config=None, average_repetitions=True,
+                                                 igstr=GSTR, folderstr=NSDSTR, resstr=RESSTR):
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path, target,
-                                             config, igstr, folderstr, resstr)
+                                             config, average_repetitions, igstr, folderstr, resstr)
     params_vals = np.array(list(params.values())).T
     if params_vals.ndim < 2:
         params_vals = params_vals[np.newaxis]
@@ -394,7 +402,7 @@ def load_and_plot_best_stat_sims_params_target_for_iG(iG, stat="PPC", iF=None, i
     config = assert_config(config, return_plotter=False)
     sim_res, iP, target, params = \
         load_stat_sims_params_target_for_iG(iG, stat, iF, iP, label, sim_res_path,  target,
-                                            config, igstr, folderstr, resstr)
+                                            config, True, igstr, folderstr, resstr)
     return plot_best_stat_sims_params_target(sim_res, target, stat, params=np.array(list(params.values())).T,
                                              label=joinstr([iGstr(iG, Ngs=len(config.Gs), igstr=igstr), label]),
                                              target_dist_fun=target_dist_fun, Nbest=Nbest,
