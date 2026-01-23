@@ -213,7 +213,7 @@ def target_PSD_fun(config, target=None):
     psd_m1_target, psd_s1_target = compute_target_PSDs(config)
     # If we are fitting for a connected network...
     # Duplicate the target for the two M1 regions (right, left) and the two S1 regions (right, left)
-    #                                        right                       left
+    #                            right        left
     return np.concatenate([psd_m1_target, psd_m1_target,  # M1
                            psd_s1_target, psd_s1_target])  # S1
 
