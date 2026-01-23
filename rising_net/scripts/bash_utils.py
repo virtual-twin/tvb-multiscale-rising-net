@@ -396,6 +396,8 @@ if __name__ == '__main__':
         fit_task(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_train_ids_args":
         simulate_task_train_ids_args(*sys.argv[2:])
+    elif sys.argv[1] == "simulate_task_mapmean_ids_args":
+        simulate_task_mapmean_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_ids_args":
         simulate_task_ppc_ids_args(*sys.argv[2:])
     elif sys.argv[1] == "simulate_task_ppc_allruns_ids_args":
