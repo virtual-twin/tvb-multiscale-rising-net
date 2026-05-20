@@ -32,6 +32,7 @@ Notebook to produce Supplementary Figure S8
 Used for simulations in the BIH cluster
 
 
-## working_files
-Files and notebooks used for simulation and analysis at earlier, exploratory phases of the study.
+[comment]: <> (## working_files)
+
+[comment]: <> (Files and notebooks used for simulation and analysis at earlier, exploratory phases of the study.)
 
