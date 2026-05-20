@@ -138,7 +138,7 @@ venv.bak/
 /examples/notebooks/working_notebooks
 
 # Cerebellum Rising-Net related data files
-/rising_net/working_files/cwc*
+# /rising_net/working_files/cwc*
 # CTWC package files
 /rising_net/ctwc-model-master
 /rising_net/data/balanced_DCN_IO.hdf5
@@ -148,29 +148,33 @@ venv.bak/
 /examples/data/basal_ganglia/only_local/ANNarchyFittedModels.tar
 /examples/data/basal_ganglia/only_local/basal_ganglia_conn_incl_cortex.zip
 /rising_net/Validation_Code_Outputs/
-/rising_net/working_files/sabrine_results/.ipynb_checkpoints/
-/rising_net/working_files/sabrine_results/IG0/
-/rising_net/working_files/sabrine_results/IG1/
-/rising_net/working_files/sabrine_results/IG2/
-/rising_net/working_files/sabrine_results/outputs/
-/rising_net/working_files/sabrine_results/PickleFiles/
-/rising_net/working_files/sabrine_results/sbi-logs/
-/rising_net/working_files/sabrine_results/coherence_MF_cerebON_2sec.pickle
-/rising_net/working_files/sabrine_results/config.pkl
-/rising_net/working_files/sabrine_results/diagnostics.png
-/rising_net/working_files/sabrine_results/G6_Posteriors_Train_Fit.zip
-/rising_net/working_files/sabrine_results/posterior_iG1
-/rising_net/working_files/sabrine_results/posterior_iG2
-/rising_net/working_files/sabrine_results/Posteriors&SamplesFit.zip
-/rising_net/working_files/sabrine_results/PSD_target.npy
-/rising_net/working_files/sabrine_results/samples_iG1.npy
-/rising_net/working_files/sabrine_results/test.pkl
-/rising_net/working_files/sabrine_results/testing_iG0.pdf
-/rising_net/working_files/sabrine_results/testing_iG1.pdf
-/rising_net/working_files/sabrine_results/testing_iG2.pdf
-/rising_net/working_files/sabrine_results/testing_results.ipynb
-/rising_net/working_files/sabrine_results/testing_results_G6.ipynb
-/rising_net/working_files/sabrine_results/testing_results_new_code.ipynb
-/rising_net/working_files/sabrine_results/testing_results_new_code-val-a.ipynb
-/rising_net/working_files/sabrine_results/testing_results_new_code_val_b.ipynb
-/rising_net/working_files/sabrine_results/tvb_serial_cosimulator.pkl
+
+# Working files:
+/rising_net/working_files
+
+#/rising_net/working_files/sabrine_results/.ipynb_checkpoints/
+#/rising_net/working_files/sabrine_results/IG0/
+#/rising_net/working_files/sabrine_results/IG1/
+#/rising_net/working_files/sabrine_results/IG2/
+#/rising_net/working_files/sabrine_results/outputs/
+#/rising_net/working_files/sabrine_results/PickleFiles/
+#/rising_net/working_files/sabrine_results/sbi-logs/
+#/rising_net/working_files/sabrine_results/coherence_MF_cerebON_2sec.pickle
+#/rising_net/working_files/sabrine_results/config.pkl
+#/rising_net/working_files/sabrine_results/diagnostics.png
+#/rising_net/working_files/sabrine_results/G6_Posteriors_Train_Fit.zip
+#/rising_net/working_files/sabrine_results/posterior_iG1
+#/rising_net/working_files/sabrine_results/posterior_iG2
+#/rising_net/working_files/sabrine_results/Posteriors&SamplesFit.zip
+#/rising_net/working_files/sabrine_results/PSD_target.npy
+#/rising_net/working_files/sabrine_results/samples_iG1.npy
+#/rising_net/working_files/sabrine_results/test.pkl
+#/rising_net/working_files/sabrine_results/testing_iG0.pdf
+#/rising_net/working_files/sabrine_results/testing_iG1.pdf
+#/rising_net/working_files/sabrine_results/testing_iG2.pdf
+#/rising_net/working_files/sabrine_results/testing_results.ipynb
+#/rising_net/working_files/sabrine_results/testing_results_G6.ipynb
+#/rising_net/working_files/sabrine_results/testing_results_new_code.ipynb
+#/rising_net/working_files/sabrine_results/testing_results_new_code-val-a.ipynb
+#/rising_net/working_files/sabrine_results/testing_results_new_code_val_b.ipynb
+#/rising_net/working_files/sabrine_results/tvb_serial_cosimulator.pkl
