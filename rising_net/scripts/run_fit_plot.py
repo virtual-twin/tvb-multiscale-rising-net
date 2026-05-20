@@ -510,7 +510,7 @@ def load_stats_per_iG(stats=['map', 'mean', 'std', 'shrinkage'], samples=None,
         runs = np.arange(out.shape[-2]).astype("i")
     out = xr.DataArray(out,
                        dims=["Statistic", "G", "Repetition", "Parameter"],
-                       coords={"Statistic": ['map', 'mean', 'std', 'shrinkage'],
+                       coords={"Statistic": stats,
                                "G": config.Gs[iGs],
                                "Parameter": config.PRIORS_PARAMS_NAMES,
                                "Repetition": runs},
