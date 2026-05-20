@@ -33,5 +33,5 @@ Used for simulations in the BIH cluster
 
 
 ## working_files
-Files and notebooks used for simulation and analysis.
+Files and notebooks used for simulation and analysis at earlier, exploratory phases of the study.
 
