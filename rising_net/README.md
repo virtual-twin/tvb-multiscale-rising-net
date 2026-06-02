@@ -24,9 +24,6 @@ Folder with files of the NEST to TVB interface tuned paramers' values per global
 ## scripts
 Python package that implements the specific code used for simulations, fitting and plotting.
 
-### ./round_0/plot_S8fig_FIT_TASK.ipynb
-Notebook to produce Supplementary Figure S8
-
 
 ## bash_scripts
 Used for simulations in the BIH cluster
