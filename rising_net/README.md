@@ -27,9 +27,3 @@ Python package that implements the specific code used for simulations, fitting a
 
 ## bash_scripts
 Used for simulations in the BIH cluster
-
-
-[comment]: <> (## working_files)
-
-[comment]: <> (Files and notebooks used for simulation and analysis at earlier, exploratory phases of the study.)
-
