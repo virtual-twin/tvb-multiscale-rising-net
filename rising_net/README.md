@@ -1,4 +1,4 @@
-# Data and software scripts for publication Geminiani, Meier, Perdikis et al. 2026
+# Data and software scripts for publication Geminiani, Meier, Perdikis et al.
 
 
 ## data
