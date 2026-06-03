@@ -467,7 +467,7 @@ def plot_cross_spectral_density_mean_std(csd_per_run, freqs, gamma_band=(25, 60)
     """
     import matplotlib.pyplot as plt
     from scipy.stats import mannwhitneyu as _mwu
-    from NESTlesions.plot_utils import save_figure_multi_format, add_stat_annotation as _add_stat
+    from rising_net.scripts.plot_utils import save_figure_multi_format, add_stat_annotation as _add_stat
 
     if condition_labels is None:
         condition_labels = {c: c for c in csd_per_run}

@@ -9,7 +9,25 @@ from sbi import analysis as analysis
 
 from matplotlib import pyplot
 
-from tvb.contrib.scripts.utils.data_structures_utils import ensure_list
+
+# Mapping from internal data condition names to display labels
+_CONDITION_DISPLAY_LABELS = {
+    'PKJtoDCN': 'PCtoCN',
+    'MOStoDCN': 'MOStoCN',
+    'INHtoPKJ': 'MLItoPC',
+}
+
+
+def remap_condition_label(condition):
+    """Remap internal condition name to display label."""
+    return _CONDITION_DISPLAY_LABELS.get(condition, condition)
+
+
+def ensure_list(x):
+    """Ensure the input is a list. If not, wrap it in a list."""
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return list(x)
+    return [x]
 
 
 def percent_plot(x, data, percentile_min=10, percentile_max=90, n=5,
@@ -597,3 +615,572 @@ def define_colors(N):
     plt.rc('axes', prop_cycle=custom_cycler)
 
     return custom_cycler
+
+
+# Function for statistical annotations
+def add_stat_annotation(ax, x1, x2, y, p_value, h=0.02, significance_threshold=0.05):
+    """Add statistical annotation to plot"""
+    y_pos = y + h
+
+    # Add text with significance marker
+    # Color is black for significant (p < 0.05), gray for non-significant
+    if p_value < 0.001:
+        p_text = '***'  # Very highly significant
+        color = 'black'
+    elif p_value < 0.01:
+        p_text = '**'  # Highly significant
+        color = 'black'
+    elif p_value < 0.05:
+        p_text = '*'  # Significant
+        color = 'black'
+    else:
+        p_text = f'p = {p_value:.3f}'  # Non-significant
+        color = 'gray'
+
+    # Draw the horizontal line (clip_on=False so it renders outside axes limits)
+    ax.plot([x1, x2], [y_pos, y_pos], '-', color=color, linewidth=1, clip_on=False)
+
+    ax.text((x1 + x2) / 2, y_pos, p_text, ha='center', va='bottom',
+            fontsize=12, color=color, clip_on=False)
+
+
+def set_default_plot_params(font_size=14, axes_label_size=14, axes_title_size=16,
+                            xtick_size=12, ytick_size=12):
+    """
+    Set default matplotlib rcParams for consistent plot styling.
+
+    Parameters
+    ----------
+    font_size : int
+        Base font size
+    axes_label_size : int
+        Font size for axis labels
+    axes_title_size : int
+        Font size for subplot titles
+    xtick_size : int
+        Font size for x-axis tick labels
+    ytick_size : int
+        Font size for y-axis tick labels
+    """
+    plt.rcParams.update({
+        'font.size': font_size,
+        'axes.labelsize': axes_label_size,
+        'axes.titlesize': axes_title_size,
+        'xtick.labelsize': xtick_size,
+        'ytick.labelsize': ytick_size
+    })
+
+
+def save_figure_multi_format(fig, output_path, dpi=300, formats=('png', 'eps', 'svg')):
+    """
+    Save a matplotlib figure in multiple formats.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to save
+    output_path : str
+        Base path for saving (without extension)
+    dpi : int
+        Resolution for raster formats
+    formats : tuple
+        Tuple of format extensions to save
+    """
+    for fmt in formats:
+        fig.savefig(f"{output_path}.{fmt}", format=fmt, dpi=dpi, bbox_inches='tight')
+
+
+def compute_condition_stats(data_array, conditions, flatten=True):
+    """
+    Compute mean, std, and individual points for each condition.
+
+    Parameters
+    ----------
+    data_array : xarray.DataArray
+        Data array with a 'Lesion Condition' coordinate
+    conditions : list
+        List of condition names to process
+    flatten : bool
+        Whether to flatten the data for each condition
+
+    Returns
+    -------
+    means : numpy.ndarray
+        Mean values for each condition
+    stds : numpy.ndarray
+        Standard deviation for each condition
+    individual_points : list
+        List of arrays containing individual data points for each condition
+    """
+    means = []
+    stds = []
+    individual_points = []
+
+    for cond in conditions:
+        cond_data = data_array.sel({"Lesion Condition": cond}).values
+        if flatten:
+            flat_data = cond_data.flatten()
+        else:
+            flat_data = cond_data
+        means.append(np.mean(flat_data))
+        stds.append(np.std(flat_data))
+        individual_points.append(flat_data)
+
+    return np.array(means), np.array(stds), individual_points
+
+
+def compute_condition_stats_hemisphere_averaged(data_array, conditions):
+    """
+    Compute mean, std, and individual points for each condition,
+    after first averaging across hemispheres (Connections dimension) for each simulation.
+
+    Parameters
+    ----------
+    data_array : xarray.DataArray
+        Data array with 'Lesion Condition' and 'Connections' (for hemispheres) coordinates.
+        Expected dimensions: (Repetitions, Lesion Condition, Connections, ...)
+    conditions : list
+        List of condition names to process
+
+    Returns
+    -------
+    means : numpy.ndarray
+        Mean values for each condition (averaged across simulations)
+    stds : numpy.ndarray
+        Standard deviation for each condition
+    individual_points : list
+        List of arrays containing hemisphere-averaged data points for each condition
+        (one value per simulation, not per hemisphere)
+    """
+    means = []
+    stds = []
+    individual_points = []
+
+    for cond in conditions:
+        cond_data = data_array.sel({"Lesion Condition": cond})
+
+        # Average across hemispheres (Connections dimension) first
+        # This gives one value per simulation/repetition
+        if 'Connections' in cond_data.dims:
+            hemisphere_averaged = cond_data.mean(dim='Connections').values
+        else:
+            # If no Connections dimension, just use the data as is
+            hemisphere_averaged = cond_data.values
+
+        # Flatten any remaining dimensions (e.g., if there are multiple repetition dimensions)
+        flat_data = hemisphere_averaged.flatten()
+
+        means.append(np.mean(flat_data))
+        stds.append(np.std(flat_data))
+        individual_points.append(flat_data)
+
+    return np.array(means), np.array(stds), individual_points
+
+
+def bar_plot_with_stats(ax, means, stds, individual_points, conditions,
+                        bar_color='skyblue', point_color='royalblue',
+                        bar_width=0.4, bar_alpha=0.7, point_alpha=1, point_size=18,
+                        point_edgecolor='darkgray', point_linewidth=0.5,
+                        x_rotation=45, ylabel=None, title=None,
+                        add_value_labels=True, value_label_fontsize=12,
+                        add_stat_annotations=True, reference_idx=0,
+                        significance_threshold=0.01, ylim_bottom=None, ylim_top=None,
+                        p_values=None):
+    """
+    Create a bar plot with error bars, scatter points, value labels, and statistical annotations.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes to plot on
+    means : array-like
+        Mean values for each condition
+    stds : array-like
+        Standard deviations for each condition
+    individual_points : list
+        List of arrays containing individual data points for each condition
+    conditions : list
+        List of condition names
+    bar_color : str
+        Color for the bars
+    point_color : str
+        Color for the scatter points
+    bar_width : float
+        Width of the bars
+    bar_alpha : float
+        Transparency for bars
+    point_alpha : float
+        Transparency for scatter points
+    point_size : int
+        Size of scatter points
+    point_edgecolor : str
+        Edge color for the scatter points
+    point_linewidth : float
+        Line width for the scatter point edges
+    x_rotation : int
+        Rotation angle for x-axis labels
+    ylabel : str
+        Label for y-axis
+    title : str
+        Title for the subplot
+    add_value_labels : bool
+        Whether to add value labels on top of bars
+    value_label_fontsize : int
+        Font size for value labels
+    add_stat_annotations : bool
+        Whether to add statistical annotations
+    reference_idx : int
+        Index of the reference condition for statistical comparisons
+    significance_threshold : float
+        P-value threshold for significance
+    ylim_bottom : float
+        Bottom limit for y-axis (None for auto)
+    p_values : list, optional
+        Pre-computed p-values for each comparison (e.g., FDR-corrected).
+        If provided, these are used instead of computing t-tests.
+        Should have length equal to number of comparisons (len(conditions) - 1).
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        The modified axes
+    """
+    from scipy import stats
+    import matplotlib.colors as mcolors
+
+    # Function to darken a color
+    def darken_color(color, factor=0.6):
+        """Darken a color by multiplying RGB values by factor (0-1)."""
+        rgb = mcolors.to_rgb(color)
+        return tuple(c * factor for c in rgb)
+
+    # Derive dark point color from bar color
+    dark_point_color = darken_color(bar_color, factor=0.6)
+
+    # Plot bars with error bars
+    bars = ax.bar(range(len(means)), means, yerr=stds, capsize=5,
+                  color=bar_color, alpha=bar_alpha, width=bar_width)
+
+    # Add individual points spread evenly across bar width
+    for i, points in enumerate(individual_points):
+        # Spread points evenly across bar width
+        n_points = len(points)
+        if n_points > 1:
+            x_positions = np.linspace(-bar_width/2 * 0.8, bar_width/2 * 0.8, n_points)
+        else:
+            x_positions = np.array([0])
+        ax.scatter(x_positions + i, points, color=dark_point_color,
+                   alpha=point_alpha, s=point_size,
+                   edgecolor=point_edgecolor, linewidth=point_linewidth)
+
+    # Customize x-axis
+    ax.set_xticks(list(range(len(means))))
+    display_labels = [remap_condition_label(c) for c in conditions]
+    ax.set_xticklabels(display_labels, rotation=x_rotation, fontsize=12)
+
+    # Set labels and title
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=14)
+    if title:
+        ax.set_title(title, fontsize=16)
+
+    # Add value labels
+    if add_value_labels:
+        for i, (mean, std) in enumerate(zip(means, stds)):
+            # Place label above bar top (positive) or below bar bottom (negative)
+            if mean >= 0:
+                ax.text(i, mean + std + 0.02, f'{mean:.2f}±{std:.2f}',
+                        ha='center', va='bottom', fontsize=value_label_fontsize)
+            else:
+                ax.text(i, mean - std - 0.02, f'{mean:.2f}±{std:.2f}',
+                        ha='center', va='top', fontsize=value_label_fontsize)
+
+    # Add statistical annotations
+    if add_stat_annotations and len(conditions) > 1:
+        comparisons = [(reference_idx, i) for i in range(len(conditions)) if i != reference_idx]
+        n_comparisons = len(comparisons)
+        max_bar_top = max(m + s for m, s in zip(means, stds))
+
+        if ylim_top is not None:
+            # Spread annotations evenly between max data and ylim_top
+            available = ylim_top - max_bar_top
+            spacing = available / (n_comparisons + 2)
+            annotation_base = max_bar_top
+        else:
+            min_bar_bottom = min(m - s for m, s in zip(means, stds))
+            data_range = max_bar_top - min_bar_bottom
+            spacing = max(0.05, 0.18 * data_range)
+            annotation_base = max_bar_top + spacing
+
+        for i, (c1, c2) in enumerate(comparisons):
+            if p_values is not None:
+                p_val = p_values[i]
+            else:
+                t_stat, p_val = stats.ttest_ind(individual_points[c1], individual_points[c2])
+            add_stat_annotation(ax, c1, c2, annotation_base, p_val, h=spacing*(i+1),
+                                significance_threshold=significance_threshold)
+
+        if ylim_top is not None:
+            ax.set_ylim(top=ylim_top)
+        else:
+            ax.set_ylim(top=annotation_base + spacing * (n_comparisons + 3))
+
+    # Set bottom y-limit if specified
+    if ylim_bottom is not None:
+        ax.set_ylim(bottom=ylim_bottom)
+
+    return ax
+
+
+def correlation_plot(ax, x_data, y_data, conditions=None, condition_colors=None,
+                     xlabel=None, ylabel=None, title=None,
+                     marker_size=50, marker_alpha=0.6,
+                     add_regression_line=True, regression_color='r',
+                     show_stats_in_title=True):
+    """
+    Create a correlation scatter plot with optional regression line and Pearson correlation.
+
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axes to plot on
+    x_data : dict or array-like
+        X-axis data. If dict, organized by condition and hemisphere
+    y_data : dict or array-like
+        Y-axis data. If dict, organized by condition and hemisphere
+    conditions : list, optional
+        List of conditions for coloring points
+    condition_colors : list, optional
+        Colors for each condition
+    xlabel : str
+        Label for x-axis
+    ylabel : str
+        Label for y-axis
+    title : str
+        Base title for the plot
+    marker_size : int
+        Size of scatter markers
+    marker_alpha : float
+        Transparency of markers
+    add_regression_line : bool
+        Whether to add a linear regression line
+    regression_color : str
+        Color for the regression line
+    show_stats_in_title : bool
+        Whether to show r and p-value in the title
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        The modified axes
+    r : float
+        Pearson correlation coefficient
+    p_val : float
+        P-value for the correlation
+    """
+    from scipy import stats
+
+    x_vals = []
+    y_vals = []
+
+    # Handle dictionary-organized data (by condition and hemisphere)
+    if isinstance(x_data, dict) and isinstance(y_data, dict):
+        if conditions is None:
+            conditions = list(x_data.keys())
+        if condition_colors is None:
+            condition_colors = plt.cm.tab10(np.linspace(0, 1, len(conditions)))
+
+        for cond_idx, condition in enumerate(conditions):
+            cond_color = condition_colors[cond_idx] if len(condition_colors) > cond_idx else 'blue'
+
+            for hemisphere in x_data[condition].keys():
+                x_vals_cond = x_data[condition][hemisphere]
+                y_vals_cond = y_data[condition][hemisphere]
+
+                n_points = min(len(x_vals_cond), len(y_vals_cond))
+                if n_points > 0:
+                    ax.scatter(x_vals_cond[:n_points], y_vals_cond[:n_points],
+                               color=cond_color, alpha=marker_alpha, s=marker_size,
+                               edgecolor='darkgray', linewidth=1,
+                               label=f"{condition}" if hemisphere == 'Right' else "_nolegend_")
+
+                    x_vals.extend(x_vals_cond[:n_points])
+                    y_vals.extend(y_vals_cond[:n_points])
+
+        ax.legend(fontsize=12)
+    else:
+        # Handle simple array data
+        x_vals = np.array(x_data).flatten()
+        y_vals = np.array(y_data).flatten()
+        ax.scatter(x_vals, y_vals, alpha=marker_alpha, s=marker_size,
+                   edgecolor='darkgray', linewidth=1)
+
+    x_vals = np.array(x_vals)
+    y_vals = np.array(y_vals)
+
+    r, p_val = 0, 1
+    if len(x_vals) > 0:
+        r, p_val = stats.pearsonr(x_vals, y_vals)
+
+        if add_regression_line:
+            z = np.polyfit(x_vals, y_vals, 1)
+            p = np.poly1d(z)
+            ax.plot([min(x_vals), max(x_vals)],
+                    p([min(x_vals), max(x_vals)]),
+                    f"{regression_color}--", alpha=0.8, linewidth=2)
+
+        if show_stats_in_title and title:
+            ax.set_title(f'{title}\nr={r:.2f}, p={p_val:.3e}', fontsize=16)
+        elif title:
+            ax.set_title(title, fontsize=16)
+    else:
+        if title:
+            ax.set_title(f'{title}\nNo matching data points found', fontsize=16)
+
+    if xlabel:
+        ax.set_xlabel(xlabel, fontsize=14)
+    if ylabel:
+        ax.set_ylabel(ylabel, fontsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=12)
+
+    return ax, r, p_val
+
+
+def print_condition_stats(conn_set_name, freq_band_name, freq_range,
+                          conditions, means, stds, individual_points):
+    """
+    Print numerical statistics for each condition.
+
+    Parameters
+    ----------
+    conn_set_name : str
+        Name of the connection set
+    freq_band_name : str
+        Name of the frequency band
+    freq_range : tuple
+        Frequency range (min, max)
+    conditions : list
+        List of condition names
+    means : array-like
+        Mean values
+    stds : array-like
+        Standard deviation values
+    individual_points : list
+        Individual data points for each condition
+    """
+    print(f"\nResults for {conn_set_name} - {freq_band_name} ({freq_range[0]}-{freq_range[1]} Hz):")
+    for i, condition in enumerate(conditions):
+        print(f"{condition}:")
+        print(f"  Mean: {means[i]:.3f}")
+        print(f"  STD: {stds[i]:.3f}")
+        points = individual_points[i]
+        print(f"  N: {len(points)}")
+        print(f"  Min: {np.min(points):.3f}")
+        print(f"  Max: {np.max(points):.3f}")
+        print(f"  Range: {np.max(points) - np.min(points):.3f}")
+
+
+def print_statistical_tests(conn_set_name, freq_band_name, conditions,
+                            individual_points, reference_idx=0):
+    """
+    Print results of statistical tests (t-tests and Mann-Whitney U tests) with Cohen's d effect size.
+
+    Parameters
+    ----------
+    conn_set_name : str
+        Name of the connection set
+    freq_band_name : str
+        Name of the frequency band
+    conditions : list
+        List of condition names
+    individual_points : list
+        Individual data points for each condition
+    reference_idx : int
+        Index of reference condition for comparisons
+
+    Returns
+    -------
+    results : list
+        List of dictionaries containing comparison results
+    """
+    from scipy import stats
+    from scipy.stats import mannwhitneyu
+
+    def cohens_d(group1, group2):
+        """Calculate Cohen's d effect size for two independent groups."""
+        n1, n2 = len(group1), len(group2)
+        var1, var2 = np.var(group1, ddof=1), np.var(group2, ddof=1)
+        # Pooled standard deviation
+        pooled_std = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
+        if pooled_std == 0:
+            return 0.0
+        return (np.mean(group1) - np.mean(group2)) / pooled_std
+
+    def interpret_cohens_d(d):
+        """Interpret Cohen's d effect size."""
+        d_abs = abs(d)
+        if d_abs < 0.2:
+            return "negligible"
+        elif d_abs < 0.5:
+            return "small"
+        elif d_abs < 0.8:
+            return "medium"
+        else:
+            return "large"
+
+    comparisons = [(reference_idx, i) for i in range(len(conditions)) if i != reference_idx]
+    results = []
+
+    print(f"\nStatistical Tests for {conn_set_name} - {freq_band_name}:")
+    print("=" * 70)
+
+    for c1, c2 in comparisons:
+        # T-test
+        t_stat, p_val = stats.ttest_ind(individual_points[c1], individual_points[c2])
+
+        # Mann-Whitney U test
+        u_stat, p_val_mw = mannwhitneyu(individual_points[c1], individual_points[c2], alternative='two-sided')
+
+        # Cohen's d
+        d = cohens_d(individual_points[c1], individual_points[c2])
+        d_interpretation = interpret_cohens_d(d)
+
+        # Significance markers
+        if p_val < 0.001:
+            sig_marker = "***"
+        elif p_val < 0.01:
+            sig_marker = "**"
+        elif p_val < 0.05:
+            sig_marker = "*"
+        else:
+            sig_marker = "ns"
+
+        label_c1 = remap_condition_label(conditions[c1])
+        label_c2 = remap_condition_label(conditions[c2])
+        print(f"\n{label_c1} vs {label_c2}:")
+        print(f"  T-test: t={t_stat:.3f}, p={p_val:.6f} [{sig_marker}]")
+        print(f"  Mann-Whitney U: U={u_stat:.3f}, p={p_val_mw:.6f}")
+        print(f"  Cohen's d: {d:.3f} ({d_interpretation} effect)")
+
+        # Store results
+        results.append({
+            'analysis': conn_set_name,
+            'measure': freq_band_name,
+            'condition_1': label_c1,
+            'condition_2': label_c2,
+            'n_1': len(individual_points[c1]),
+            'n_2': len(individual_points[c2]),
+            'mean_1': np.mean(individual_points[c1]),
+            'mean_2': np.mean(individual_points[c2]),
+            'std_1': np.std(individual_points[c1]),
+            'std_2': np.std(individual_points[c2]),
+            't_statistic': t_stat,
+            'p_value_ttest': p_val,
+            'u_statistic': u_stat,
+            'p_value_mannwhitney': p_val_mw,
+            'cohens_d': d,
+            'effect_size_interpretation': d_interpretation,
+            'significance': sig_marker
+        })
+
+    return results
