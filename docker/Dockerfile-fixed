@@ -163,9 +163,8 @@ RUN cd tvb-root; \
 
 # Clone and install tvb-multiscale
 WORKDIR $PACKAGES
-# TODO: Remove this once the repo is made public!:
-# RUN git clone --depth 1 --no-single-branch https://github.com/virtual-twin/tvb-multiscale-rising-net.git tvb-multiscale;
-RUN git clone --depth 1 https://github.com/the-virtual-brain/tvb-multiscale.git;
+RUN git clone --depth 1 -b Geminiani_Meier_Perdikis_etal https://github.com/virtual-twin/tvb-multiscale-rising-net.git tvb-multiscale;
+# RUN git clone --depth 1 https://github.com/the-virtual-brain/tvb-multiscale.git;
 ARG LAST_SHA_MULTISCALE=LATEST
 RUN cd tvb-multiscale; \
     git checkout dev; \

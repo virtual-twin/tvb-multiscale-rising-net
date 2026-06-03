@@ -110,7 +110,7 @@ RUN cd tvb-root; \
 
 # Clone and install tvb-multiscale
 WORKDIR $PACKAGES
-RUN git clone --depth 1 --no-single-branch https://github.com/the-virtual-brain/tvb-multiscale.git;
+RUN git clone --depth 1 -b Geminiani_Meier_Perdikis_etal https://github.com/virtual-twin/tvb-multiscale-rising-net.git tvb-multiscale;
 ARG LAST_SHA_MULTISCALE=LATEST
 RUN cd tvb-multiscale; \
     git pull origin --allow-unrelated-histories; \
